@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
+from app.core.database import (
+    check_database_connection,
+    create_tables
+)
 
 
 app = FastAPI(
@@ -10,7 +14,11 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+# ============================================================
 # CORS
+# ============================================================
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -23,14 +31,54 @@ app.add_middleware(
 )
 
 
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
 @app.get("/health", tags=["System"])
 async def health():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+    }
 
+
+# ============================================================
+# DATABASE HEALTH CHECK
+# ============================================================
+
+@app.get("/db", tags=["System"])
+async def database_health_check_and_create_tables():
+    try:
+        await check_database_connection()
+        await create_tables()
+        return {
+            "status": "ok",
+            "database": "connected",
+        }
+
+    except Exception:
+        return {
+            "status": "error",
+            "database": "disconnected",
+        }
+
+
+# ============================================================
+# READINESS CHECK
+# ============================================================
 
 @app.get("/ready", tags=["System"])
 async def readiness():
-    return {"status": "ready"}
+    return {
+        "status": "ready",
+    }
 
 
-app.include_router(api_router)
+# ============================================================
+# API ROUTES
+# ============================================================
+
+app.include_router(
+    api_router,
+    prefix="/api",
+)

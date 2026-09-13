@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     redis_enabled: bool = False
     
-    if self.redis_enabled and not self.redis_url:
+    if redis_enabled and not redis_url:
         raise ValueError("REDIS_URL is required when Redis is enabled.")
     
     redis_max_connections: int = Field(default=20, ge=1)
