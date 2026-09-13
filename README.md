@@ -295,3 +295,153 @@ capabilities:
         │  MySQL   │   │   AI / ML    │  │ External APIs│
         │ Database │   │   Services   │  │ Maps/Weather │
         └──────────┘   └──────────────┘  └──────────────┘
+
+
+backend/
+│
+├── app/
+│   ├── main.py
+│   │
+│   ├── core/                         # Global infrastructure
+│   │   ├── __init__.py
+│   │   ├── config.py                 # Environment/settings
+│   │   ├── database.py               # DB engine/session
+│   │   ├── security.py               # JWT, password hashing
+│   │   ├── logging.py                # Logging configuration
+│   │   ├── exceptions.py              # Global exceptions
+│   │   ├── middleware.py              # Middleware
+│   │   └── constants.py
+│   │
+│   ├── api/                          # HTTP/API layer
+│   │   ├── __init__.py
+│   │   ├── deps.py                   # Common dependencies
+│   │   │
+│   │   ├── v1/
+│   │   │   ├── __init__.py
+│   │   │   ├── router.py
+│   │   │   ├── auth.py
+│   │   │   ├── users.py
+│   │   │   └── products.py
+│   │   │
+│   │   └── v2/
+│   │       ├── __init__.py
+│   │       ├── router.py
+│   │       ├── auth.py
+│   │       ├── users.py
+│   │       └── products.py
+│   │
+│   ├── modules/                      # Business/domain features
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   ├── service.py
+│   │   │   ├── exceptions.py
+│   │   │   └── constants.py
+│   │   │
+│   │   ├── users/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   ├── service.py
+│   │   │   └── exceptions.py
+│   │   │
+│   │   ├── products/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   ├── service.py
+│   │   │   └── exceptions.py
+│   │   │
+│   │   ├── orders/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   ├── service.py
+│   │   │   └── exceptions.py
+│   │   │
+│   │   └── payments/
+│   │       ├── __init__.py
+│   │       ├── models.py
+│   │       ├── schemas.py
+│   │       ├── repository.py
+│   │       ├── service.py
+│   │       └── exceptions.py
+│   │
+│   ├── integrations/                 # External services
+│   │   ├── __init__.py
+│   │   ├── redis.py
+│   │   ├── s3.py
+│   │   ├── email.py
+│   │   ├── payment_gateway.py
+│   │   └── push_notifications.py
+│   │
+│   ├── workers/                     # Background jobs
+│   │   ├── __init__.py
+│   │   ├── celery.py
+│   │   └── tasks/
+│   │       ├── emails.py
+│   │       ├── notifications.py
+│   │       └── cleanup.py
+│   │
+│   └── utils/                       # Small generic helpers
+│       ├── __init__.py
+│       ├── pagination.py
+│       ├── datetime.py
+│       └── validators.py
+│
+├── tests/
+│   ├── conftest.py
+│   │
+│   ├── unit/
+│   │   ├── auth/
+│   │   ├── users/
+│   │   ├── products/
+│   │   └── payments/
+│   │
+│   └── integration/
+│       ├── api/
+│       │   ├── v1/
+│       │   └── v2/
+│       └── database/
+│
+├── alembic/
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions/
+│       ├── 001_create_users.py
+│       ├── 002_create_products.py
+│       └── 003_create_orders.py
+│
+├── scripts/
+│   ├── seed.py
+│   ├── create_admin.py
+│   └── cleanup.py
+│
+├── deployment/
+│   ├── nginx/
+│   │   └── nginx.conf
+│   ├── docker/
+│   │   └── Dockerfile
+│   └── k8s/
+│       ├── deployment.yaml
+│       ├── service.yaml
+│       └── ingress.yaml
+│
+├── .github/
+│   └── workflows/
+│       ├── tests.yml
+│       └── deploy.yml
+│
+├── .env.example
+├── .gitignore
+├── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+├── README.md
+└── Makefile
