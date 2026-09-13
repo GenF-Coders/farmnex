@@ -300,37 +300,74 @@ capabilities:
 backend/
 │
 ├── app/
+│   ├── __init__.py
 │   ├── main.py
 │   │
-│   ├── core/                         # Global infrastructure
+│   ├── core/                                      # Global infrastructure
 │   │   ├── __init__.py
-│   │   ├── config.py                 # Environment/settings
-│   │   ├── database.py               # DB engine/session
-│   │   ├── security.py               # JWT, password hashing
-│   │   ├── logging.py                # Logging configuration
-│   │   ├── exceptions.py              # Global exceptions
-│   │   ├── middleware.py              # Middleware
-│   │   └── constants.py
+│   │   ├── config.py                              # Environment/settings
+│   │   ├── database.py                            # DB engine/session
+│   │   ├── security.py                            # JWT/password hashing
+│   │   ├── logging.py                             # Logging configuration
+│   │   ├── exceptions.py                          # Global exceptions
+│   │   ├── middleware.py                          # CORS/request middleware
+│   │   └── constants.py                           # Global constants/enums
 │   │
-│   ├── api/                          # HTTP/API layer
+│   ├── api/                                       # HTTP/API layer
 │   │   ├── __init__.py
-│   │   ├── deps.py                   # Common dependencies
+│   │   ├── deps.py                                # Common dependencies
 │   │   │
 │   │   ├── v1/
 │   │   │   ├── __init__.py
-│   │   │   ├── router.py
-│   │   │   ├── auth.py
-│   │   │   ├── users.py
-│   │   │   └── products.py
+│   │   │   ├── router.py                          # Registers all v1 endpoints
+│   │   │   │
+│   │   │   └── endpoints/                         # HTTP endpoint definitions
+│   │   │       ├── __init__.py
+│   │   │       ├── health.py
+│   │   │       ├── auth.py
+│   │   │       ├── users.py
+│   │   │       ├── farmers.py
+│   │   │       ├── buyers.py
+│   │   │       ├── fpos.py
+│   │   │       ├── verification.py
+│   │   │       ├── locations.py
+│   │   │       ├── farms.py
+│   │   │       ├── crop_types.py
+│   │   │       ├── crops.py
+│   │   │       ├── crop_images.py
+│   │   │       ├── inventory.py
+│   │   │       ├── marketplace.py
+│   │   │       ├── bids.py
+│   │   │       ├── rescue.py
+│   │   │       ├── waste.py
+│   │   │       ├── orders.py
+│   │   │       ├── payments.py
+│   │   │       ├── deliveries.py
+│   │   │       ├── routes.py
+│   │   │       ├── forecasting.py
+│   │   │       ├── prices.py
+│   │   │       ├── ai.py
+│   │   │       ├── matching.py
+│   │   │       ├── notifications.py
+│   │   │       ├── favorites.py
+│   │   │       ├── reviews.py
+│   │   │       ├── chat.py
+│   │   │       ├── dashboards.py
+│   │   │       ├── uploads.py
+│   │   │       ├── market_data.py
+│   │   │       ├── weather.py
+│   │   │       ├── soil.py
+│   │   │       ├── search.py
+│   │   │       ├── recommendations.py
+│   │   │       ├── analytics.py
+│   │   │       ├── admin.py
+│   │   │       └── webhooks.py
 │   │   │
-│   │   └── v2/
+│   │   └── v2/                                   # Only for future breaking changes
 │   │       ├── __init__.py
-│   │       ├── router.py
-│   │       ├── auth.py
-│   │       ├── users.py
-│   │       └── products.py
+│   │       └── router.py
 │   │
-│   ├── modules/                      # Business/domain features
+│   ├── modules/                                  # Business/domain layer
 │   │   │
 │   │   ├── auth/
 │   │   │   ├── __init__.py
@@ -349,13 +386,68 @@ backend/
 │   │   │   ├── service.py
 │   │   │   └── exceptions.py
 │   │   │
-│   │   ├── products/
+│   │   ├── farmers/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── buyers/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── fpos/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── crops/
 │   │   │   ├── __init__.py
 │   │   │   ├── models.py
 │   │   │   ├── schemas.py
 │   │   │   ├── repository.py
 │   │   │   ├── service.py
 │   │   │   └── exceptions.py
+│   │   │
+│   │   ├── inventory/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── bidding/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   ├── service.py
+│   │   │   └── exceptions.py
+│   │   │
+│   │   ├── rescue/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── waste/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── marketplace/
+│   │   │   ├── __init__.py
+│   │   │   ├── schemas.py
+│   │   │   └── service.py
 │   │   │
 │   │   ├── orders/
 │   │   │   ├── __init__.py
@@ -365,69 +457,170 @@ backend/
 │   │   │   ├── service.py
 │   │   │   └── exceptions.py
 │   │   │
-│   │   └── payments/
+│   │   ├── payments/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   ├── service.py
+│   │   │   └── exceptions.py
+│   │   │
+│   │   ├── deliveries/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── routes/
+│   │   │   ├── __init__.py
+│   │   │   ├── schemas.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── forecasting/
+│   │   │   ├── __init__.py
+│   │   │   ├── schemas.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── matching/
+│   │   │   ├── __init__.py
+│   │   │   ├── schemas.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── notifications/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── reviews/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── chat/
+│   │   │   ├── __init__.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   ├── repository.py
+│   │   │   └── service.py
+│   │   │
+│   │   ├── ai/
+│   │   │   ├── __init__.py
+│   │   │   ├── schemas.py
+│   │   │   ├── service.py
+│   │   │   ├── disease.py
+│   │   │   ├── demand.py
+│   │   │   ├── price.py
+│   │   │   └── crop_planning.py
+│   │   │
+│   │   ├── analytics/
+│   │   │   ├── __init__.py
+│   │   │   ├── schemas.py
+│   │   │   └── service.py
+│   │   │
+│   │   └── verification/
 │   │       ├── __init__.py
 │   │       ├── models.py
 │   │       ├── schemas.py
 │   │       ├── repository.py
-│   │       ├── service.py
-│   │       └── exceptions.py
+│   │       └── service.py
 │   │
-│   ├── integrations/                 # External services
+│   ├── integrations/                              # External services
 │   │   ├── __init__.py
 │   │   ├── redis.py
-│   │   ├── s3.py
+│   │   ├── storage.py                             # S3/object storage
 │   │   ├── email.py
+│   │   ├── sms.py
 │   │   ├── payment_gateway.py
+│   │   ├── maps.py                                # Google Maps/etc.
+│   │   ├── weather.py
+│   │   ├── market_data.py
 │   │   └── push_notifications.py
 │   │
-│   ├── workers/                     # Background jobs
+│   ├── workers/                                   # Background jobs
 │   │   ├── __init__.py
 │   │   ├── celery.py
 │   │   └── tasks/
+│   │       ├── __init__.py
 │   │       ├── emails.py
 │   │       ├── notifications.py
+│   │       ├── market_sync.py
+│   │       ├── weather_sync.py
+│   │       ├── forecasts.py
 │   │       └── cleanup.py
 │   │
-│   └── utils/                       # Small generic helpers
+│   └── utils/                                     # Generic helpers
 │       ├── __init__.py
 │       ├── pagination.py
 │       ├── datetime.py
-│       └── validators.py
+│       ├── validators.py
+│       ├── response.py
+│       └── enums.py
+│
+├── models/                                        # Optional central model exports
+│   └── __init__.py
+│
+├── schemas/                                       # Optional shared schemas
+│   └── __init__.py
+│
+├── repositories/                                  # Optional shared repositories
+│   └── __init__.py
+│
+├── db/
+│   ├── __init__.py
+│   └── seed/
+│       └── README.md
 │
 ├── tests/
+│   ├── __init__.py
 │   ├── conftest.py
 │   │
 │   ├── unit/
 │   │   ├── auth/
 │   │   ├── users/
-│   │   ├── products/
-│   │   └── payments/
+│   │   ├── farmers/
+│   │   ├── buyers/
+│   │   ├── crops/
+│   │   ├── bidding/
+│   │   ├── orders/
+│   │   ├── payments/
+│   │   ├── forecasting/
+│   │   └── matching/
 │   │
-│   └── integration/
-│       ├── api/
-│       │   ├── v1/
-│       │   └── v2/
-│       └── database/
+│   ├── integration/
+│   │   ├── api/
+│   │   │   ├── v1/
+│   │   │   └── v2/
+│   │   └── database/
+│   │
+│   └── e2e/
 │
 ├── alembic/
 │   ├── env.py
 │   ├── script.py.mako
 │   └── versions/
 │       ├── 001_create_users.py
-│       ├── 002_create_products.py
-│       └── 003_create_orders.py
+│       ├── 002_create_farms.py
+│       ├── 003_create_crops.py
+│       ├── 004_create_bids.py
+│       ├── 005_create_orders.py
+│       └── ...
 │
 ├── scripts/
 │   ├── seed.py
 │   ├── create_admin.py
+│   ├── migrate.py
 │   └── cleanup.py
 │
 ├── deployment/
-│   ├── nginx/
-│   │   └── nginx.conf
 │   ├── docker/
 │   │   └── Dockerfile
+│   ├── nginx/
+│   │   └── nginx.conf
 │   └── k8s/
 │       ├── deployment.yaml
 │       ├── service.yaml
@@ -436,6 +629,7 @@ backend/
 ├── .github/
 │   └── workflows/
 │       ├── tests.yml
+│       ├── lint.yml
 │       └── deploy.yml
 │
 ├── .env.example
@@ -443,5 +637,7 @@ backend/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pyproject.toml
+├── requirements.txt
+├── API_NOTES.md
 ├── README.md
 └── Makefile
