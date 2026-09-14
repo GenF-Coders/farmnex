@@ -1,9 +1,8 @@
 # Environments & Secrets
 .env
 .env.*
-.venv/
-venv/
-ENV/
+!.env.example
+
 secrets/
 *.pem
 
