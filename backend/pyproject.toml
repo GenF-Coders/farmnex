@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "FarmNex FastAPI backend"
 requires-python = ">=3.10"
 dependencies = [
-    "SQLAlchemy>=2.0",
     "fastapi",
     "uvicorn",
-    "psycopg2-binary",
+    "SQLAlchemy>=2.0",
+    "asyncpg",
 ]
