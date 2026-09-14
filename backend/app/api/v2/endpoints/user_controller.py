@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
 from app.services.user_service import UserService
+from app.schemas.user import UserResponse
 
 
 router = APIRouter(
@@ -53,7 +54,7 @@ async def create_user(
 # READ
 # ============================================================
 
-@router.get("")
+@router.get("", response_model=list[UserResponse])
 async def get_users(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
@@ -64,10 +65,13 @@ async def get_users(
 
     This endpoint should normally be restricted to admins.
     """
-    raise NotImplementedError
+    return await user_service.get_all(
+        offset=skip,
+        limit=limit,
+    )
 
 
-@router.get("/{public_id}")
+@router.get("/{public_id}", response_model=UserResponse)
 async def get_user(
     public_id: UUID,
     user_service: UserService = Depends(get_user_service),

@@ -8,4 +8,6 @@ dependencies = [
     "uvicorn",
     "SQLAlchemy>=2.0",
     "asyncpg",
+    "argon2-cffi",
+    "PyJWT",
 ]

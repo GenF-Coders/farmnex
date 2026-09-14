@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.repositories.role_repository import RoleRepository
 from app.services.role_service import RoleService
+from app.schemas.role import RoleResponse
 
 
 router = APIRouter(
@@ -49,7 +50,7 @@ async def create_role(
 # READ
 # ============================================================
 
-@router.get("")
+@router.get("", response_model=list[RoleResponse])
 async def get_roles(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
@@ -58,10 +59,13 @@ async def get_roles(
     """
     Get available roles.
     """
-    return await role_service.get_all()
+    return await role_service.get_all(
+        offset=skip,
+        limit=limit,
+    )
 
 
-@router.get("/{public_id}")
+@router.get("/{public_id}", response_model=RoleResponse)
 async def get_role(
     public_id: UUID,
     role_service: RoleService = Depends(get_role_service),

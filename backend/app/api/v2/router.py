@@ -1,11 +1,13 @@
 from fastapi import APIRouter
-from app.api.v2.endpoints import role_controller, user_controller
+from app.api.v2.endpoints import auth_controller, role_controller, user_controller, otp_controller
 
 router = APIRouter()
 
 modules = [
-    role_controller,
+    auth_controller,
     user_controller,
+    role_controller,
+    #otp_controller,
 ]
 
 for module in modules:

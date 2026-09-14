@@ -10,7 +10,7 @@ class RoleService:
     def __init__(
         self,
         role_repository: RoleRepository,
-    ):
+    ) -> None:
         self.role_repository = role_repository
 
     async def get_by_id(self, role_id: int) -> Role | None:
@@ -25,44 +25,67 @@ class RoleService:
     async def exists_by_name(self, name: str) -> bool:
         return await self.role_repository.exists_by_name(name)
 
-    async def get_all(self) -> list[Role]:
-        return await self.role_repository.get_all()
+    async def get_all(
+        self,
+        *,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> list[Role]:
+        return await self.role_repository.get_all(
+            offset=offset,
+            limit=limit,
+        )
 
     async def create(
         self,
+        *,
         name: str,
         description: str | None = None,
     ) -> Role:
+        name = name.strip().upper()
+
         existing_role = await self.role_repository.get_by_name(name)
 
         if existing_role is not None:
             raise ValueError("Role with this name already exists.")
 
-        role = Role(
+        return await self.role_repository.create(
             name=name,
             description=description,
         )
 
-        return await self.role_repository.create(role)
-
     async def update(
         self,
         role: Role,
+        *,
         name: str | None = None,
         description: str | None = None,
     ) -> Role:
-        if name is not None and name != role.name:
-            existing_role = await self.role_repository.get_by_name(name)
+        values: dict[str, object] = {}
+
+        if name is not None and name.strip().upper() != role.name:
+            normalized_name = name.strip().upper()
+            existing_role = await self.role_repository.get_by_name(
+                normalized_name
+            )
 
             if existing_role is not None:
-                raise ValueError("Role with this name already exists.")
+                raise ValueError(
+                    "Role with this name already exists."
+                )
 
-            role.name = name
+            values["name"] = normalized_name
 
         if description is not None:
-            role.description = description
+            values["description"] = description
 
-        return await self.role_repository.update(role)
+        if not values:
+            return role
+
+        return await self.role_repository.update(
+            role.id,
+            **values,
+        )
 
     async def delete(self, role: Role) -> None:
-        await self.role_repository.delete(role)
+        await self.role_repository.delete(role.id)

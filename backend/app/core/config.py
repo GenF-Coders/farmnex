@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     db_pool_recycle: int = Field(default=1800, ge=60)
     db_pool_pre_ping: bool = True
     db_echo: bool = False
+    
 
     # ============================================================
     # REDIS
@@ -54,10 +55,7 @@ class Settings(BaseSettings):
 
     redis_url: str | None = None
     redis_enabled: bool = False
-    
-    if redis_enabled and not redis_url:
-        raise ValueError("REDIS_URL is required when Redis is enabled.")
-    
+
     redis_max_connections: int = Field(default=20, ge=1)
     redis_socket_timeout: int = Field(default=5, ge=1)
     redis_socket_connect_timeout: int = Field(default=5, ge=1)
@@ -81,6 +79,12 @@ class Settings(BaseSettings):
         default=30,
         ge=1,
         le=90,
+    )
+
+    registration_token_expire_minutes: int = Field(
+        default=10,
+        ge=1,
+        le=30,
     )
 
     jwt_private_key_path: str = "secrets/jwt_private.pem"
@@ -115,7 +119,7 @@ class Settings(BaseSettings):
     # CORS
     # ============================================================
 
-    cors_origins: str = ""
+    cors_origins: str = "*"
 
     cors_allow_credentials: bool = False
 
@@ -254,12 +258,12 @@ class Settings(BaseSettings):
     # OTP
     # ============================================================
 
-    otp_enabled: bool = False
+    otp_enabled: bool = True
 
     otp_length: int = Field(
         default=6,
-        ge=4,
-        le=8,
+        ge=6,
+        le=6,
     )
 
     otp_expire_minutes: int = Field(
@@ -274,6 +278,34 @@ class Settings(BaseSettings):
         le=10,
     )
 
+    otp_provider: Literal[
+        "minimoth",
+    ] = "minimoth"
+
+    otp_resend_cooldown_seconds: int = Field(
+        default=60,
+        ge=30,
+        le=300,
+    )
+
+    otp_max_resends: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+
+    minimoth_api_base_url: str = (
+        "https://api.minimoth.dev"
+    )
+
+    minimoth_api_key: str | None = None
+
+    minimoth_timeout_seconds: float = Field(
+        default=10.0,
+        ge=3.0,
+        le=30.0,
+    )
+    
     # ============================================================
     # FILE STORAGE
     # ============================================================
@@ -350,7 +382,7 @@ class Settings(BaseSettings):
 
     enable_registration: bool = True
     enable_email_verification: bool = False
-    enable_otp_login: bool = False
+    enable_otp_login: bool = True
     enable_file_uploads: bool = False
 
     # ============================================================
@@ -459,12 +491,31 @@ class Settings(BaseSettings):
                 )
 
         # --------------------------------------------------------
+        # Redis
+        # --------------------------------------------------------
+
+        if self.redis_enabled and not self.redis_url:
+            raise ValueError(
+                "REDIS_URL is required when Redis is enabled."
+            )
+
+        # --------------------------------------------------------
         # Sentry
         # --------------------------------------------------------
 
         if self.sentry_enabled and not self.sentry_dsn:
             raise ValueError(
                 "SENTRY_DSN is required when Sentry is enabled."
+            )
+
+        # --------------------------------------------------------
+        # Session / refresh-token policy
+        # --------------------------------------------------------
+
+        if self.session_expire_days != self.refresh_token_expire_days:
+            raise ValueError(
+                "SESSION_EXPIRE_DAYS must match "
+                "REFRESH_TOKEN_EXPIRE_DAYS."
             )
 
         # --------------------------------------------------------
@@ -499,6 +550,14 @@ class Settings(BaseSettings):
             raise ValueError(
                 "ENABLE_OTP_LOGIN requires OTP_ENABLED=true."
             )
+
+        if self.otp_enabled and self.otp_provider == "minimoth":
+            if not self.minimoth_api_key:
+                raise ValueError(
+                    "MINIMOTH_API_KEY is required when "
+                    "OTP_PROVIDER=minimoth and "
+                    "OTP_ENABLED=true."
+                )
 
         # --------------------------------------------------------
         # File storage
