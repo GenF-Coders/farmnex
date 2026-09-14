@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,7 +49,45 @@ class Settings(BaseSettings):
     db_pool_recycle: int = Field(default=1800, ge=60)
     db_pool_pre_ping: bool = True
     db_echo: bool = False
-    
+
+    # ============================================================
+    # SUPABASE STORAGE
+    # ============================================================
+
+    storage_provider: Literal["supabase"] = "supabase"
+
+    storage_bucket: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    supabase_url: str = Field(
+        min_length=1,
+    )
+
+    supabase_secret_key: SecretStr = Field(
+        min_length=1,
+    )
+
+    storage_signed_url_expire_seconds: int = Field(
+        default=900,
+        ge=60,
+        le=86400,
+    )
+
+    storage_max_upload_size_bytes: int = Field(
+        default=2 * 1024 * 1024,
+        ge=1,
+        le=10 * 1024 * 1024,
+    )
+
+    storage_test_endpoints_enabled: bool = False
+
+    storage_timeout_seconds: float = Field(
+        default=15.0,
+        ge=3.0,
+        le=60.0,
+    )
 
     # ============================================================
     # REDIS
@@ -56,15 +96,30 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     redis_enabled: bool = False
 
-    redis_max_connections: int = Field(default=20, ge=1)
-    redis_socket_timeout: int = Field(default=5, ge=1)
-    redis_socket_connect_timeout: int = Field(default=5, ge=1)
+    redis_max_connections: int = Field(
+        default=20,
+        ge=1,
+    )
+
+    redis_socket_timeout: int = Field(
+        default=5,
+        ge=1,
+    )
+
+    redis_socket_connect_timeout: int = Field(
+        default=5,
+        ge=1,
+    )
 
     # ============================================================
     # JWT
     # ============================================================
 
-    jwt_algorithm: Literal["RS256", "RS384", "RS512"] = "RS256"
+    jwt_algorithm: Literal[
+        "RS256",
+        "RS384",
+        "RS512",
+    ] = "RS256"
 
     jwt_issuer: str = "farmnex-api"
     jwt_audience: str = "farmnex-mobile"
@@ -129,19 +184,41 @@ class Settings(BaseSettings):
 
     rate_limit_enabled: bool = True
 
-    rate_limit_requests: int = Field(default=100, ge=1)
-    rate_limit_window_seconds: int = Field(default=60, ge=1)
+    rate_limit_requests: int = Field(
+        default=100,
+        ge=1,
+    )
 
-    login_rate_limit_requests: int = Field(default=5, ge=1)
-    login_rate_limit_window_seconds: int = Field(default=60, ge=1)
+    rate_limit_window_seconds: int = Field(
+        default=60,
+        ge=1,
+    )
 
-    register_rate_limit_requests: int = Field(default=5, ge=1)
+    login_rate_limit_requests: int = Field(
+        default=5,
+        ge=1,
+    )
+
+    login_rate_limit_window_seconds: int = Field(
+        default=60,
+        ge=1,
+    )
+
+    register_rate_limit_requests: int = Field(
+        default=5,
+        ge=1,
+    )
+
     register_rate_limit_window_seconds: int = Field(
         default=3600,
         ge=1,
     )
 
-    refresh_rate_limit_requests: int = Field(default=20, ge=1)
+    refresh_rate_limit_requests: int = Field(
+        default=20,
+        ge=1,
+    )
+
     refresh_rate_limit_window_seconds: int = Field(
         default=60,
         ge=1,
@@ -207,7 +284,10 @@ class Settings(BaseSettings):
         "CRITICAL",
     ] = "INFO"
 
-    log_format: Literal["text", "json"] = "json"
+    log_format: Literal[
+        "text",
+        "json",
+    ] = "json"
 
     log_requests: bool = True
 
@@ -244,14 +324,21 @@ class Settings(BaseSettings):
     email_enabled: bool = False
 
     smtp_host: str | None = None
-    smtp_port: int = Field(default=587, ge=1, le=65535)
+
+    smtp_port: int = Field(
+        default=587,
+        ge=1,
+        le=65535,
+    )
 
     smtp_username: str | None = None
+
     smtp_password: str | None = None
 
     smtp_use_tls: bool = True
 
     email_from: str | None = None
+
     email_from_name: str = "FarmNex"
 
     # ============================================================
@@ -305,26 +392,9 @@ class Settings(BaseSettings):
         ge=3.0,
         le=30.0,
     )
-    
-    # ============================================================
-    # FILE STORAGE
-    # ============================================================
-
-    storage_provider: Literal[
-        "local",
-        "s3",
-    ] = "local"
-
-    storage_bucket: str | None = None
-    storage_region: str | None = None
-
-    storage_access_key: str | None = None
-    storage_secret_key: str | None = None
-
-    local_storage_path: str = "storage"
 
     # ============================================================
-    # WEATHER API
+    # EXTERNAL APIs
     # ============================================================
 
     weather_api_enabled: bool = False
@@ -338,10 +408,6 @@ class Settings(BaseSettings):
         le=60,
     )
 
-    # ============================================================
-    # MARKET / MANDI API
-    # ============================================================
-
     market_api_enabled: bool = False
 
     market_api_base_url: str | None = None
@@ -352,10 +418,6 @@ class Settings(BaseSettings):
         ge=1,
         le=60,
     )
-
-    # ============================================================
-    # NOTIFICATION API
-    # ============================================================
 
     notification_enabled: bool = False
 
@@ -406,7 +468,9 @@ class Settings(BaseSettings):
         value = value.strip()
 
         if not value.startswith("/"):
-            raise ValueError("API prefix must start with '/'.")
+            raise ValueError(
+                "API prefix must start with '/'."
+            )
 
         return value.rstrip("/") or "/"
 
@@ -414,6 +478,35 @@ class Settings(BaseSettings):
     @classmethod
     def validate_cors_origins(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("supabase_url")
+    @classmethod
+    def validate_supabase_url(cls, value: str) -> str:
+        value = value.strip().rstrip("/")
+
+        if not value.startswith("https://"):
+            raise ValueError(
+                "SUPABASE_URL must use HTTPS."
+            )
+
+        return value
+
+    @field_validator("storage_bucket")
+    @classmethod
+    def validate_storage_bucket(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError(
+                "STORAGE_BUCKET cannot be empty."
+            )
+
+        if "/" in value or "\\" in value:
+            raise ValueError(
+                "STORAGE_BUCKET must be a bucket name, not a path."
+            )
+
+        return value
 
     @model_validator(mode="after")
     def validate_environment(self) -> "Settings":
@@ -444,8 +537,6 @@ class Settings(BaseSettings):
                 )
 
             if self.trust_proxy_headers:
-                # Proxy headers should only be trusted when your
-                # deployment explicitly configures a trusted proxy.
                 raise ValueError(
                     "TRUST_PROXY_HEADERS must be explicitly reviewed "
                     "before enabling it in production."
@@ -560,31 +651,6 @@ class Settings(BaseSettings):
                 )
 
         # --------------------------------------------------------
-        # File storage
-        # --------------------------------------------------------
-
-        if self.storage_provider == "s3":
-
-            required_storage_values = {
-                "STORAGE_BUCKET": self.storage_bucket,
-                "STORAGE_REGION": self.storage_region,
-                "STORAGE_ACCESS_KEY": self.storage_access_key,
-                "STORAGE_SECRET_KEY": self.storage_secret_key,
-            }
-
-            missing = [
-                name
-                for name, value in required_storage_values.items()
-                if not value
-            ]
-
-            if missing:
-                raise ValueError(
-                    "Missing S3 storage configuration: "
-                    + ", ".join(missing)
-                )
-
-        # --------------------------------------------------------
         # External APIs
         # --------------------------------------------------------
 
@@ -634,7 +700,7 @@ class Settings(BaseSettings):
 # SINGLETON SETTINGS INSTANCE
 # ================================================================
 
-@lru_cache
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """
     Return the application settings singleton.
