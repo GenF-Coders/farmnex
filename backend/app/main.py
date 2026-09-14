@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.database import (
@@ -51,17 +52,21 @@ async def database_health_check_and_create_tables():
     try:
         await check_database_connection()
         await create_tables()
+
         return {
             "status": "ok",
             "database": "connected",
         }
 
-    except Exception:
+    except Exception as e:
+        print(f"DATABASE ERROR: {type(e).__name__}: {e}", flush=True)
+
         return {
             "status": "error",
             "database": "disconnected",
+            "error_type": type(e).__name__,
+            "error": str(e),
         }
-
 
 # ============================================================
 # READINESS CHECK
