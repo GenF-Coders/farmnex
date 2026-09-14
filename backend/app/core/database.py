@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from app.core.base import Base
 from app.core.config import settings
@@ -19,10 +20,7 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.db_echo,
     pool_pre_ping=settings.db_pool_pre_ping,
-    pool_size=settings.db_pool_size,
-    max_overflow=settings.db_max_overflow,
-    pool_timeout=settings.db_pool_timeout,
-    pool_recycle=settings.db_pool_recycle,
+    poolclass=NullPool,
 )
 
 
@@ -76,9 +74,15 @@ async def check_database_connection() -> None:
     async with engine.connect() as connection:
         await connection.execute(text("SELECT 1"))
 
+
+# ============================================================
+# CREATE TABLES
+# ============================================================
+
 async def create_tables() -> None:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+
 
 # ============================================================
 # DATABASE SHUTDOWN
