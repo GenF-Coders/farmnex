@@ -50,3 +50,25 @@ class User(Base):
     auth_events: Mapped[list["AuthEvent"]] = relationship(
         "AuthEvent", back_populates="user"
     )
+    
+    profile = relationship(
+        "Profile",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    addresses = relationship(
+        "Address",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    farms = relationship(
+        "Farm",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

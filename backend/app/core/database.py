@@ -1,19 +1,39 @@
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
 
 from app.core.base import Base
 from app.core.config import settings
 
-# Import models so SQLAlchemy knows every table before create_all().
+
+# ---------------------------------------------------------------------------
+# Model imports
+# ---------------------------------------------------------------------------
+# These imports ensure SQLAlchemy knows about every model before
+# Base.metadata.create_all() is executed.
+# ---------------------------------------------------------------------------
+
+from app.models.address import Address  # noqa: F401,E402
 from app.models.auth_event import AuthEvent  # noqa: F401,E402
+from app.models.farm import Farm  # noqa: F401,E402
 from app.models.otp_verifications import OTPVerification  # noqa: F401,E402
+from app.models.profile import Profile  # noqa: F401,E402
 from app.models.role import Role  # noqa: F401,E402
 from app.models.user import User  # noqa: F401,E402
 from app.models.user_session import UserSession  # noqa: F401,E402
 
+
+# ---------------------------------------------------------------------------
+# Database engine
+# ---------------------------------------------------------------------------
 
 engine = create_async_engine(
     settings.database_url,
@@ -22,36 +42,69 @@ engine = create_async_engine(
     poolclass=NullPool,
 )
 
+
+# ---------------------------------------------------------------------------
+# Session factory
+# ---------------------------------------------------------------------------
+
 AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
+    bind=engine, 
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False,
-    autocommit=False,
 )
 
 
+# ---------------------------------------------------------------------------
+# Request-scoped database session
+# ---------------------------------------------------------------------------
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Provide one SQLAlchemy session per request.
+
+    Transaction ownership belongs to this dependency.
+
+    Successful request:
+        commit
+
+    Failed request:
+        rollback
+
+    Session is always closed by the async context manager.
+    """
+
     async with AsyncSessionLocal() as session:
         try:
             yield session
             await session.commit()
+
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
 
+
+# ---------------------------------------------------------------------------
+# Database health check
+# ---------------------------------------------------------------------------
 
 async def check_database_connection() -> None:
     async with engine.connect() as connection:
         await connection.execute(text("SELECT 1"))
 
 
+# ---------------------------------------------------------------------------
+# Database initialization
+# ---------------------------------------------------------------------------
+
 async def create_tables() -> None:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
 
+
+# ---------------------------------------------------------------------------
+# Database shutdown
+# ---------------------------------------------------------------------------
 
 async def close_database() -> None:
     await engine.dispose()

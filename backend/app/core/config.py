@@ -125,21 +125,20 @@ class Settings(BaseSettings):
     jwt_audience: str = "farmnex-mobile"
 
     access_token_expire_minutes: int = Field(
-        default=15,
+        default=1440,
         ge=5,
-        le=60,
+        le=1440,
     )
-
     refresh_token_expire_days: int = Field(
-        default=30,
+        default=90,
         ge=1,
-        le=90,
+        le=180,
     )
 
     registration_token_expire_minutes: int = Field(
         default=10,
         ge=1,
-        le=30,
+        le=180,
     )
 
     jwt_private_key_path: str = "secrets/jwt_private.pem"
@@ -156,7 +155,7 @@ class Settings(BaseSettings):
     # ============================================================
 
     session_expire_days: int = Field(
-        default=30,
+        default=90,
         ge=1,
         le=90,
     )
