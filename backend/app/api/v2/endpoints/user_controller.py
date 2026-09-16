@@ -13,16 +13,22 @@ from fastapi import (
     UploadFile,
     status,
 )
-from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.current_user import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.enums import AccountStatus
 from app.models.user import User
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
+from app.schemas.user_schema import (
+    MessageResponse,
+    ProfileImageResponse,
+    ProfileImageUrlResponse,
+    RoleResponse,
+    UserProfileUpdateRequest,
+    UserResponse,
+)
 from app.services.exceptions import (
     ConflictError,
     ForbiddenOperationError,
@@ -30,7 +36,7 @@ from app.services.exceptions import (
     ResourceNotFoundError,
     ValidationError,
 )
-from app.services.storage_service import StorageService
+from app.services.storage_service import storage_service
 from app.services.user_service import UserService
 
 
@@ -51,164 +57,19 @@ def get_user_service(
     """
     Build UserService for the current request.
 
-    UserService owns:
-        - user/profile business rules
-        - role validation
-        - alternate-phone rules
-        - profile-image lifecycle
+    StorageService is a shared singleton because storage
+    configuration/client state is application-wide.
     """
+
     return UserService(
         user_repository=UserRepository(db),
         role_repository=RoleRepository(db),
-        storage_service=StorageService(),
+        storage_service=storage_service,
     )
 
 
 # ============================================================
-# RESPONSE SCHEMAS
-# ============================================================
-
-
-class RoleResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    public_id: UUID
-    name: str
-    description: str | None = None
-    created_at: datetime
-    updated_at: datetime
-
-
-class UserResponse(BaseModel):
-    """
-    Public representation of the authenticated user.
-
-    Internal database ID, PIN hash and other sensitive fields
-    are intentionally never exposed.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    public_id: UUID
-
-    # Authentication/account information
-    phone_number: str
-    phone_verified_at: datetime | None
-
-    # Generic profile information
-    first_name: str | None = None
-    middle_name: str | None = None
-    surname: str | None = None
-
-    alternate_phone_number: str | None = None
-    alternate_phone_verified_at: datetime | None = None
-
-    date_of_birth: date | None
-    gender: str | None
-
-    profile_image_url: str | None
-
-    preferred_language: str | None = None
-    timezone: str | None = None
-    occupation: str | None = None
-    bio: str | None = None
-
-    # Account information
-    role: RoleResponse
-    account_status: str
-
-    created_at: datetime
-    updated_at: datetime
-    last_login_at: object | None
-
-
-class ProfileImageResponse(BaseModel):
-    """
-    Response returned after profile-image upload.
-    """
-
-    user: UserResponse
-    profile_image_url: str
-
-
-class ProfileImageUrlResponse(BaseModel):
-    profile_image_url: str
-
-
-class MessageResponse(BaseModel):
-    message: str
-
-
-# ============================================================
-# REQUEST SCHEMAS
-# ============================================================
-
-
-class UserProfileUpdateRequest(BaseModel):
-    """
-    Generic authenticated-user profile update.
-
-    IMPORTANT:
-    Authentication/system fields are deliberately absent.
-
-    The UserService performs the final business-level whitelist
-    and ignores unknown/protected fields.
-    """
-
-    model_config = ConfigDict(
-        extra="ignore",
-    )
-
-    first_name: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-
-    middle_name: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-
-    surname: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-
-    alternate_phone_number: str | None = Field(
-        default=None,
-        max_length=20,
-    )
-
-    date_of_birth: date | None = None
-
-    gender: str | None = Field(
-        default=None,
-        max_length=30,
-    )
-
-    preferred_language: str | None = Field(
-        default=None,
-        max_length=20,
-    )
-
-    timezone: str | None = Field(
-        default=None,
-        max_length=50,
-    )
-
-    occupation: str | None = Field(
-        default=None,
-        max_length=150,
-    )
-
-    bio: str | None = Field(
-        default=None,
-        max_length=5000,
-    )
-
-
-# ============================================================
-# RESPONSE BUILDERS
+# RESPONSE BUILDER
 # ============================================================
 
 
@@ -218,19 +79,21 @@ async def _build_user_response(
     service: UserService,
 ) -> UserResponse:
     """
-    Convert User ORM object into the public API representation.
+    Convert User ORM object into the public API response.
 
     profile_image_path is an internal storage reference and is
-    never exposed directly.
+    never exposed to the client.
 
-    A signed URL is generated only when an image exists.
+    A signed URL is generated only when an image actually exists.
     """
 
     profile_image_url: str | None = None
 
     if user.profile_image_path:
-        profile_image_url = await service.get_profile_image_url(
-            current_user=user,
+        profile_image_url = (
+            await service.get_profile_image_url(
+                current_user=user,
+            )
         )
 
     role = user.role
@@ -249,7 +112,9 @@ async def _build_user_response(
         middle_name=user.middle_name,
         surname=user.surname,
         alternate_phone_number=user.alternate_phone_number,
-        alternate_phone_verified_at=user.alternate_phone_verified_at,
+        alternate_phone_verified_at=(
+            user.alternate_phone_verified_at
+        ),
         date_of_birth=user.date_of_birth,
         gender=user.gender,
         profile_image_url=profile_image_url,
@@ -284,37 +149,49 @@ def _service_exception_to_http(
     exc: Exception,
 ) -> HTTPException:
     """
-    Translate application/service exceptions into HTTP responses.
-
-    Controllers translate errors.
-    Services remain independent of FastAPI.
+    Translate application/service exceptions into HTTP errors.
     """
 
-    if isinstance(exc, ResourceNotFoundError):
+    if isinstance(
+        exc,
+        ResourceNotFoundError,
+    ):
         return HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         )
 
-    if isinstance(exc, ResourceAlreadyExistsError):
+    if isinstance(
+        exc,
+        ResourceAlreadyExistsError,
+    ):
         return HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         )
 
-    if isinstance(exc, ConflictError):
+    if isinstance(
+        exc,
+        ConflictError,
+    ):
         return HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         )
 
-    if isinstance(exc, ForbiddenOperationError):
+    if isinstance(
+        exc,
+        ForbiddenOperationError,
+    ):
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),
         )
 
-    if isinstance(exc, ValidationError):
+    if isinstance(
+        exc,
+        ValidationError,
+    ):
         return HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
@@ -327,7 +204,7 @@ def _service_exception_to_http(
 
 
 # ============================================================
-# CURRENT USER
+# GET CURRENT USER
 # ============================================================
 
 
@@ -342,7 +219,7 @@ async def get_my_user(
     service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
-    Return the authenticated user's complete user/profile record.
+    Return the authenticated user's complete profile.
     """
 
     try:
@@ -380,11 +257,6 @@ async def update_my_user(
 ) -> UserResponse:
     """
     Update generic profile fields for the authenticated user.
-
-    Primary phone number, role, account status, PIN and verification
-    fields cannot be changed through this endpoint.
-
-    Primary-phone changes should have their own OTP-protected flow.
     """
 
     try:
@@ -408,7 +280,7 @@ async def update_my_user(
 
 
 # ============================================================
-# PROFILE IMAGE - UPLOAD
+# PROFILE IMAGE - UPLOAD / REPLACE
 # ============================================================
 
 
@@ -422,17 +294,16 @@ async def upload_my_profile_image(
     file: Annotated[
         UploadFile,
         File(
-            description="JPEG, PNG, or WebP profile image.",
+            description=(
+                "JPEG, PNG, or WebP profile image."
+            ),
         ),
     ],
     current_user: User = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ) -> ProfileImageResponse:
     """
-    Upload a profile image.
-
-    The storage path is generated entirely by UserService.
-    The client never controls the storage path.
+    Upload or replace the authenticated user's profile image.
     """
 
     content_type = (
@@ -448,15 +319,15 @@ async def upload_my_profile_image(
     if content_type not in allowed_content_types:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Only JPEG, PNG, and WebP profile images are allowed.",
+            detail=(
+                "Only JPEG, PNG, and WebP "
+                "profile images are allowed."
+            ),
         )
 
     max_size = settings.storage_max_upload_size_bytes
 
     try:
-        # Read one byte beyond the configured limit so an oversized
-        # upload can be rejected without accepting arbitrary amounts
-        # of data into memory.
         file_bytes = await file.read(
             max_size + 1,
         )
@@ -477,21 +348,25 @@ async def upload_my_profile_image(
         )
 
     if len(file_bytes) > max_size:
-        limit_mb = max_size / (1024 * 1024)
+        limit_mb = max_size / (
+            1024 * 1024
+        )
 
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=(
-                f"Profile image exceeds the maximum "
+                "Profile image exceeds the maximum "
                 f"upload size of {limit_mb:g} MB."
             ),
         )
 
     try:
-        user, image_url = await service.upload_profile_image(
-            current_user=current_user,
-            file_bytes=file_bytes,
-            content_type=content_type,
+        user, image_url = (
+            await service.upload_profile_image(
+                current_user=current_user,
+                file_bytes=file_bytes,
+                content_type=content_type,
+            )
         )
 
         return ProfileImageResponse(
@@ -525,8 +400,8 @@ async def get_my_profile_image_url(
     service: UserService = Depends(get_user_service),
 ) -> ProfileImageUrlResponse:
     """
-    Generate a short-lived signed URL for the authenticated
-    user's private profile image.
+    Generate a temporary signed URL for the private
+    profile image.
     """
 
     try:
@@ -561,10 +436,7 @@ async def delete_my_profile_image(
     service: UserService = Depends(get_user_service),
 ) -> MessageResponse:
     """
-    Remove the authenticated user's profile image.
-
-    The database reference is cleared before storage cleanup,
-    as implemented by UserService.
+    Delete the authenticated user's profile image.
     """
 
     try:
@@ -610,20 +482,9 @@ async def list_users(
     service: UserService = Depends(get_user_service),
 ) -> list[UserResponse]:
     """
-    List users.
-
-    NOTE:
-    This endpoint is currently authentication-protected but should
-    receive role-based authorization before being exposed to normal
-    customers/farmers.
-
-    Keep authorization in a dedicated authorization dependency rather
-    than silently allowing every authenticated user to enumerate users.
+    List users for privileged roles.
     """
 
-    # Until role-based authorization dependencies are introduced,
-    # prevent this endpoint from being accidentally exposed to
-    # ordinary users.
     role_name = getattr(
         getattr(current_user, "role", None),
         "name",
@@ -682,9 +543,9 @@ async def get_user(
     service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
-    Get a user by public UUID.
+    Get another user by public UUID.
 
-    This endpoint is restricted to privileged roles.
+    Restricted to privileged roles.
     """
 
     role_name = getattr(
