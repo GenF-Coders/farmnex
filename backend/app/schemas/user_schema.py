@@ -12,7 +12,7 @@ from pydantic import (
 
 
 # ============================================================
-# ROLE
+# ROLE RESPONSE
 # ============================================================
 
 
@@ -37,20 +37,9 @@ class UserProfileUpdateRequest(BaseModel):
     """
     Generic authenticated-user profile update.
 
-    Only generic editable profile fields are exposed here.
-
-    Authentication/system fields such as:
-        - id
-        - public_id
-        - phone_number
-        - role
-        - account_status
-        - PIN
-        - verification timestamps
-        - profile image path
-        - login timestamps
-
-    are deliberately excluded.
+    Authentication/system fields are deliberately excluded.
+    Unknown frontend fields are ignored, while UserService
+    performs the final business-field whitelist.
     """
 
     model_config = ConfigDict(
@@ -134,110 +123,56 @@ class UserProfileUpdateRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """
-    Public representation of a User.
-
-    Sensitive/internal fields are intentionally excluded.
-    """
-
     model_config = ConfigDict(
         from_attributes=True,
     )
 
     public_id: UUID
 
-    # --------------------------------------------------------
-    # Authentication
-    # --------------------------------------------------------
-
     phone_number: str
-
     phone_verified_at: datetime | None = None
-
-    # --------------------------------------------------------
-    # Role / account
-    # --------------------------------------------------------
 
     role: RoleResponse
 
     account_status: str
 
-    # --------------------------------------------------------
-    # Generic profile
-    # --------------------------------------------------------
-
     first_name: str | None = None
-
     middle_name: str | None = None
-
     surname: str | None = None
 
     alternate_phone_number: str | None = None
-
     alternate_phone_verified_at: datetime | None = None
 
     date_of_birth: date | None = None
-
     gender: str | None = None
-
-    # --------------------------------------------------------
-    # Profile image
-    # --------------------------------------------------------
 
     profile_image_url: str | None = None
 
-    # --------------------------------------------------------
-    # Preferences / additional profile
-    # --------------------------------------------------------
-
     preferred_language: str | None = None
-
     timezone: str | None = None
-
     occupation: str | None = None
-
     bio: str | None = None
 
-    # --------------------------------------------------------
-    # Timestamps
-    # --------------------------------------------------------
-
     created_at: datetime
-
     updated_at: datetime
-
     last_login_at: datetime | None = None
 
 
 # ============================================================
-# PROFILE IMAGE UPLOAD RESPONSE
+# PROFILE IMAGE RESPONSE
 # ============================================================
 
 
 class ProfileImageResponse(BaseModel):
-    """
-    Returned after uploading or replacing a profile image.
-    """
-
     model_config = ConfigDict(
         from_attributes=True,
     )
 
     user: UserResponse
-
     profile_image_url: str
 
 
-# ============================================================
-# PROFILE IMAGE URL RESPONSE
-# ============================================================
-
-
 class ProfileImageUrlResponse(BaseModel):
-    """
-    Returned when requesting a signed profile-image URL.
-    """
-
     model_config = ConfigDict(
         from_attributes=True,
     )
@@ -251,10 +186,6 @@ class ProfileImageUrlResponse(BaseModel):
 
 
 class MessageResponse(BaseModel):
-    """
-    Generic successful-operation response.
-    """
-
     model_config = ConfigDict(
         from_attributes=True,
     )

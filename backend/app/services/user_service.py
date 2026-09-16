@@ -55,7 +55,7 @@ class UserService:
         }
     )
 
-    PROFILE_IMAGE_PREFIX = "users"
+    PROFILE_IMAGE_FOLDER = "profile_image"
 
     # Generic profile fields that a normal authenticated user may edit.
     PROFILE_UPDATE_FIELDS = frozenset(
@@ -197,43 +197,18 @@ class UserService:
         return bucket.strip()
 
     @classmethod
-    def _profile_image_prefix(
-        cls,
-        user_public_id: UUID,
-    ) -> str:
-        return (
-            f"{cls.PROFILE_IMAGE_PREFIX}/"
-            f"{user_public_id}/profile/"
-        )
+    def _profile_image_path(cls, *, user_public_id: UUID, content_type: str) -> str:
+        extension_map = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+        extension = extension_map.get(content_type.strip().lower())
+        if extension is None:
+            raise ValidationError("Only JPEG, PNG, and WebP profile images are allowed.")
+        return f"{cls.PROFILE_IMAGE_FOLDER}/{uuid4()}.{extension}"
 
     @classmethod
-    def _profile_image_path(
-        cls,
-        *,
-        user_public_id: UUID,
-        content_type: str,
-    ) -> str:
-        extension_map = {
-            "image/jpeg": "jpg",
-            "image/png": "png",
-            "image/webp": "webp",
-        }
-
-        extension = extension_map.get(
-            content_type.strip().lower()
-        )
-
-        if extension is None:
-            raise ValidationError(
-                "Only JPEG, PNG, and WebP profile images are allowed."
-            )
-
-        from uuid import uuid4
-
-        return (
-            f"{cls._profile_image_prefix(user_public_id)}"
-            f"{uuid4()}.{extension}"
-        )
+    def _validate_profile_image_path(cls, path: str) -> None:
+        parts = path.split("/")
+        if len(parts) != 2 or parts[0] != cls.PROFILE_IMAGE_FOLDER or not parts[1]:
+            raise ConflictError("Profile image storage reference is invalid.")
 
     # ============================================================
     # READ
@@ -803,23 +778,9 @@ class UserService:
                 # The database already points to the correct object.
                 pass
 
-        # The repository has already returned the updated User object.
-        # Generate the URL directly from the new, server-generated path so
-        # this upload request does not depend on a second profile lookup.
-        try:
-            image_url = await self.storage_service.create_signed_url(
-                bucket=self._storage_bucket(),
-                path=new_path,
-                expires_in=settings.storage_signed_url_expire_seconds,
-            )
-        except StorageProviderError as exc:
-            raise ConflictError(
-                "Unable to generate profile image URL."
-            ) from exc
-        except StorageError as exc:
-            raise ConflictError(
-                "Unable to access profile image."
-            ) from exc
+        image_url = await self.get_profile_image_url(
+            current_user=updated_user
+        )
 
         return updated_user, image_url
 
@@ -844,14 +805,7 @@ class UserService:
                 "Profile image not found."
             )
 
-        expected_prefix = self._profile_image_prefix(
-            user.public_id
-        )
-
-        if not path.startswith(expected_prefix):
-            raise ConflictError(
-                "Profile image storage reference is invalid."
-            )
+        self._validate_profile_image_path(path)
 
         try:
             return await self.storage_service.create_signed_url(
@@ -867,7 +821,10 @@ class UserService:
             raise ConflictError(
                 "Unable to access profile image."
             ) from exc
-
+        except Exception as exc:
+            raise ConflictError(
+                "Unable to generate profile image URL."
+            ) from exc
 
     async def delete_profile_image(
         self,
@@ -890,14 +847,7 @@ class UserService:
                 "Profile image not found."
             )
 
-        expected_prefix = self._profile_image_prefix(
-            user.public_id
-        )
-
-        if not path.startswith(expected_prefix):
-            raise ConflictError(
-                "Profile image storage reference is invalid."
-            )
+        self._validate_profile_image_path(path)
 
         updated_user = (
             await self.user_repository

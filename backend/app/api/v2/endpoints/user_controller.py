@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -21,21 +20,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.user_schema import (
-    MessageResponse,
-    ProfileImageResponse,
-    ProfileImageUrlResponse,
-    RoleResponse,
-    UserProfileUpdateRequest,
-    UserResponse,
-)
-from app.services.exceptions import (
-    ConflictError,
-    ForbiddenOperationError,
-    ResourceAlreadyExistsError,
-    ResourceNotFoundError,
-    ValidationError,
-)
+from app.services.exceptions import ConflictError, ForbiddenOperationError, ResourceAlreadyExistsError, ResourceNotFoundError, ValidationError
 from app.services.storage_service import storage_service
 from app.services.user_service import UserService
 
@@ -57,10 +42,12 @@ def get_user_service(
     """
     Build UserService for the current request.
 
-    StorageService is a shared singleton because storage
-    configuration/client state is application-wide.
+    UserService owns:
+        - user/profile business rules
+        - role validation
+        - alternate-phone rules
+        - profile-image lifecycle
     """
-
     return UserService(
         user_repository=UserRepository(db),
         role_repository=RoleRepository(db),
@@ -68,145 +55,45 @@ def get_user_service(
     )
 
 
-# ============================================================
-# RESPONSE BUILDER
-# ============================================================
+from app.schemas.user_schema import MessageResponse, ProfileImageResponse, ProfileImageUrlResponse, RoleResponse, UserProfileUpdateRequest, UserResponse
 
 
-async def _build_user_response(
-    *,
-    user: User,
-    service: UserService,
-) -> UserResponse:
-    """
-    Convert User ORM object into the public API response.
 
-    profile_image_path is an internal storage reference and is
-    never exposed to the client.
 
-    A signed URL is generated only when an image actually exists.
-    """
-
+async def _build_user_response(*, user: User, service: UserService) -> UserResponse:
     profile_image_url: str | None = None
-
     if user.profile_image_path:
-        profile_image_url = (
-            await service.get_profile_image_url(
-                current_user=user,
-            )
-        )
-
+        try:
+            profile_image_url = await service.get_profile_image_url(current_user=user)
+        except (ResourceNotFoundError, ConflictError):
+            profile_image_url = None
     role = user.role
-
     if role is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="User role could not be loaded.",
-        )
-
+        raise HTTPException(status_code=500, detail="User role could not be loaded.")
     return UserResponse(
-        public_id=user.public_id,
-        phone_number=user.phone_number,
-        phone_verified_at=user.phone_verified_at,
-        first_name=user.first_name,
-        middle_name=user.middle_name,
-        surname=user.surname,
-        alternate_phone_number=user.alternate_phone_number,
-        alternate_phone_verified_at=(
-            user.alternate_phone_verified_at
-        ),
-        date_of_birth=user.date_of_birth,
-        gender=user.gender,
-        profile_image_url=profile_image_url,
-        preferred_language=user.preferred_language,
-        timezone=user.timezone,
-        occupation=user.occupation,
-        bio=user.bio,
-        role=RoleResponse(
-            public_id=role.public_id,
-            name=role.name,
-            description=role.description,
-            created_at=role.created_at,
-            updated_at=role.updated_at,
-        ),
-        account_status=(
-            user.account_status.value
-            if hasattr(user.account_status, "value")
-            else str(user.account_status)
-        ),
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-        last_login_at=user.last_login_at,
+        public_id=user.public_id, phone_number=user.phone_number, phone_verified_at=user.phone_verified_at,
+        first_name=user.first_name, middle_name=user.middle_name, surname=user.surname,
+        alternate_phone_number=user.alternate_phone_number, alternate_phone_verified_at=user.alternate_phone_verified_at,
+        date_of_birth=user.date_of_birth, gender=user.gender, profile_image_url=profile_image_url,
+        preferred_language=user.preferred_language, timezone=user.timezone, occupation=user.occupation, bio=user.bio,
+        role=RoleResponse(public_id=role.public_id, name=role.name, description=role.description, created_at=role.created_at, updated_at=role.updated_at),
+        account_status=user.account_status.value if hasattr(user.account_status, "value") else str(user.account_status),
+        created_at=user.created_at, updated_at=user.updated_at, last_login_at=user.last_login_at,
     )
 
 
-# ============================================================
-# EXCEPTION TRANSLATION
-# ============================================================
-
-
-def _service_exception_to_http(
-    exc: Exception,
-) -> HTTPException:
-    """
-    Translate application/service exceptions into HTTP errors.
-    """
-
-    if isinstance(
-        exc,
-        ResourceNotFoundError,
-    ):
-        return HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        )
-
-    if isinstance(
-        exc,
-        ResourceAlreadyExistsError,
-    ):
-        return HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        )
-
-    if isinstance(
-        exc,
-        ConflictError,
-    ):
-        return HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        )
-
-    if isinstance(
-        exc,
-        ForbiddenOperationError,
-    ):
-        return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc),
-        )
-
-    if isinstance(
-        exc,
-        ValidationError,
-    ):
-        return HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        )
-
-    return HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail="Unable to complete the requested operation.",
-    )
-
-
-# ============================================================
-# GET CURRENT USER
-# ============================================================
-
+def _service_exception_to_http(exc: Exception) -> HTTPException:
+    if isinstance(exc, ResourceNotFoundError):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, ResourceAlreadyExistsError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, ConflictError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, ForbiddenOperationError):
+        return HTTPException(status_code=403, detail=str(exc))
+    if isinstance(exc, ValidationError):
+        return HTTPException(status_code=422, detail=str(exc))
+    return HTTPException(status_code=500, detail="Internal server error.")
 
 @router.get(
     "/me",
@@ -219,7 +106,7 @@ async def get_my_user(
     service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
-    Return the authenticated user's complete profile.
+    Return the authenticated user's complete user/profile record.
     """
 
     try:
@@ -257,6 +144,11 @@ async def update_my_user(
 ) -> UserResponse:
     """
     Update generic profile fields for the authenticated user.
+
+    Primary phone number, role, account status, PIN and verification
+    fields cannot be changed through this endpoint.
+
+    Primary-phone changes should have their own OTP-protected flow.
     """
 
     try:
@@ -280,7 +172,7 @@ async def update_my_user(
 
 
 # ============================================================
-# PROFILE IMAGE - UPLOAD / REPLACE
+# PROFILE IMAGE - UPLOAD
 # ============================================================
 
 
@@ -294,16 +186,17 @@ async def upload_my_profile_image(
     file: Annotated[
         UploadFile,
         File(
-            description=(
-                "JPEG, PNG, or WebP profile image."
-            ),
+            description="JPEG, PNG, or WebP profile image.",
         ),
     ],
     current_user: User = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ) -> ProfileImageResponse:
     """
-    Upload or replace the authenticated user's profile image.
+    Upload a profile image.
+
+    The storage path is generated entirely by UserService.
+    The client never controls the storage path.
     """
 
     content_type = (
@@ -319,15 +212,15 @@ async def upload_my_profile_image(
     if content_type not in allowed_content_types:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "Only JPEG, PNG, and WebP "
-                "profile images are allowed."
-            ),
+            detail="Only JPEG, PNG, and WebP profile images are allowed.",
         )
 
     max_size = settings.storage_max_upload_size_bytes
 
     try:
+        # Read one byte beyond the configured limit so an oversized
+        # upload can be rejected without accepting arbitrary amounts
+        # of data into memory.
         file_bytes = await file.read(
             max_size + 1,
         )
@@ -348,25 +241,21 @@ async def upload_my_profile_image(
         )
 
     if len(file_bytes) > max_size:
-        limit_mb = max_size / (
-            1024 * 1024
-        )
+        limit_mb = max_size / (1024 * 1024)
 
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=(
-                "Profile image exceeds the maximum "
+                f"Profile image exceeds the maximum "
                 f"upload size of {limit_mb:g} MB."
             ),
         )
 
     try:
-        user, image_url = (
-            await service.upload_profile_image(
-                current_user=current_user,
-                file_bytes=file_bytes,
-                content_type=content_type,
-            )
+        user, image_url = await service.upload_profile_image(
+            current_user=current_user,
+            file_bytes=file_bytes,
+            content_type=content_type,
         )
 
         return ProfileImageResponse(
@@ -400,8 +289,8 @@ async def get_my_profile_image_url(
     service: UserService = Depends(get_user_service),
 ) -> ProfileImageUrlResponse:
     """
-    Generate a temporary signed URL for the private
-    profile image.
+    Generate a short-lived signed URL for the authenticated
+    user's private profile image.
     """
 
     try:
@@ -436,7 +325,10 @@ async def delete_my_profile_image(
     service: UserService = Depends(get_user_service),
 ) -> MessageResponse:
     """
-    Delete the authenticated user's profile image.
+    Remove the authenticated user's profile image.
+
+    The database reference is cleared before storage cleanup,
+    as implemented by UserService.
     """
 
     try:
@@ -482,9 +374,20 @@ async def list_users(
     service: UserService = Depends(get_user_service),
 ) -> list[UserResponse]:
     """
-    List users for privileged roles.
+    List users.
+
+    NOTE:
+    This endpoint is currently authentication-protected but should
+    receive role-based authorization before being exposed to normal
+    customers/farmers.
+
+    Keep authorization in a dedicated authorization dependency rather
+    than silently allowing every authenticated user to enumerate users.
     """
 
+    # Until role-based authorization dependencies are introduced,
+    # prevent this endpoint from being accidentally exposed to
+    # ordinary users.
     role_name = getattr(
         getattr(current_user, "role", None),
         "name",
@@ -543,9 +446,9 @@ async def get_user(
     service: UserService = Depends(get_user_service),
 ) -> UserResponse:
     """
-    Get another user by public UUID.
+    Get a user by public UUID.
 
-    Restricted to privileged roles.
+    This endpoint is restricted to privileged roles.
     """
 
     role_name = getattr(
