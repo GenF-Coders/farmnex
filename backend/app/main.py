@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
@@ -12,6 +12,9 @@ from app.core.database import (
     create_tables,
 )
 from app.repositories.role_repository import RoleRepository
+from fastapi.responses import JSONResponse
+
+from app.core.exceptions import AppException
 
 
 DEFAULT_ROLES = {
@@ -70,6 +73,27 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(AppException)
+async def app_exception_handler(
+    request: Request,
+    exc: AppException,
+) -> JSONResponse:
+    content = {
+        "detail": exc.detail,
+    }
+
+    if exc.code:
+        content["code"] = exc.code
+
+    if exc.data is not None:
+        content["data"] = exc.data
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=content,
+        headers=exc.headers,
+    )
+    
 @app.get("/health", tags=["System"])
 async def health():
     return {"status": "healthy"}

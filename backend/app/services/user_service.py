@@ -18,9 +18,10 @@ from app.services.exceptions import (
 )
 from app.services.storage_service import (
     StorageError,
+    StorageNotFoundError,
     StorageProviderError,
-    StorageValidationError,
     StorageService,
+    StorageValidationError,
 )
 
 
@@ -57,7 +58,6 @@ class UserService:
 
     PROFILE_IMAGE_FOLDER = "profile_image"
 
-    # Generic profile fields that a normal authenticated user may edit.
     PROFILE_UPDATE_FIELDS = frozenset(
         {
             "first_name",
@@ -73,8 +73,6 @@ class UserService:
         }
     )
 
-    # Fields that must never be accepted through generic user/profile
-    # create/update requests.
     PROTECTED_FIELDS = frozenset(
         {
             "id",
@@ -122,16 +120,6 @@ class UserService:
         cls,
         data: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Accept flexible frontend data while allowing only supported
-        editable profile fields.
-
-        Unknown fields are ignored.
-
-        Protected fields are ignored.
-
-        None remains meaningful for nullable fields.
-        """
         cleaned: dict[str, Any] = {}
 
         for key, value in data.items():
@@ -172,7 +160,9 @@ class UserService:
         return value
 
     @staticmethod
-    def _role_name(user: User) -> str | None:
+    def _role_name(
+        user: User,
+    ) -> str | None:
         role = getattr(user, "role", None)
 
         if role is None:
@@ -187,7 +177,11 @@ class UserService:
 
     @staticmethod
     def _storage_bucket() -> str:
-        bucket = settings.storage_bucket
+        bucket = getattr(
+            settings,
+            "storage_bucket",
+            None,
+        )
 
         if not isinstance(bucket, str) or not bucket.strip():
             raise ConflictError(
@@ -197,18 +191,96 @@ class UserService:
         return bucket.strip()
 
     @classmethod
-    def _profile_image_path(cls, *, user_public_id: UUID, content_type: str) -> str:
-        extension_map = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
-        extension = extension_map.get(content_type.strip().lower())
-        if extension is None:
-            raise ValidationError("Only JPEG, PNG, and WebP profile images are allowed.")
-        return f"{cls.PROFILE_IMAGE_FOLDER}/{uuid4()}.{extension}"
+    def _profile_image_path(
+        cls,
+        *,
+        content_type: str,
+    ) -> str:
+        """
+        Generate the canonical FarmNex profile-image path.
+
+        Result:
+
+            profile_image/<uuid>.jpg
+            profile_image/<uuid>.png
+            profile_image/<uuid>.webp
+
+        No user ID is placed in the path.
+        """
+
+        normalized = content_type.strip().lower()
+
+        if normalized not in cls.PROFILE_IMAGE_CONTENT_TYPES:
+            raise ValidationError(
+                "Only JPEG, PNG, and WebP profile images are allowed."
+            )
+
+        if cls.storage_service_for_path is None:
+            raise ConflictError(
+                "Storage service is not configured."
+            )
+
+        return cls.storage_service_for_path.build_uuid_path(
+            folder=cls.PROFILE_IMAGE_FOLDER,
+            content_type=normalized,
+        )
 
     @classmethod
-    def _validate_profile_image_path(cls, path: str) -> None:
-        parts = path.split("/")
-        if len(parts) != 2 or parts[0] != cls.PROFILE_IMAGE_FOLDER or not parts[1]:
-            raise ConflictError("Profile image storage reference is invalid.")
+    def _validate_profile_image_path(
+        cls,
+        path: str,
+    ) -> str:
+        """
+        Validate an existing profile-image database reference.
+
+        Only:
+
+            profile_image/<filename>
+
+        is accepted.
+        """
+
+        if not isinstance(path, str) or not path.strip():
+            raise ConflictError(
+                "Profile image storage reference is invalid."
+            )
+
+        value = path.strip()
+
+        parts = value.split("/")
+
+        if (
+            len(parts) != 2
+            or parts[0] != cls.PROFILE_IMAGE_FOLDER
+        ):
+            raise ConflictError(
+                "Profile image storage reference is invalid."
+            )
+
+        if cls.storage_service_for_path is None:
+            raise ConflictError(
+                "Storage service is not configured."
+            )
+
+        try:
+            return cls.storage_service_for_path.validate_managed_path(
+                value
+            )
+        except StorageValidationError as exc:
+            raise ConflictError(
+                "Profile image storage reference is invalid."
+            ) from exc
+
+    # This class-level reference is used only by the path helper.
+    # The instance is assigned during __init__.
+    storage_service_for_path: StorageService | None = None
+
+    # ============================================================
+    # INITIALIZATION HOOK
+    # ============================================================
+
+    def _set_storage_service_reference(self) -> None:
+        self.__class__.storage_service_for_path = self.storage_service
 
     # ============================================================
     # READ
@@ -332,15 +404,6 @@ class UserService:
         phone_verified_at: datetime | None = None,
         account_status: AccountStatus = AccountStatus.ACTIVE,
     ) -> User:
-        """
-        Create a user.
-
-        `user_data` may contain arbitrary frontend data.
-
-        Only supported profile columns are accepted from it.
-
-        Authentication/system fields are controlled by this service.
-        """
         phone_number = self._normalize_phone(
             phone_number
         )
@@ -460,11 +523,6 @@ class UserService:
         *,
         current_user: User,
     ) -> User:
-        """
-        Profile is now part of User.
-
-        No separate Profile table is used.
-        """
         user = await self.user_repository.get_by_id(
             current_user.id
         )
@@ -482,18 +540,6 @@ class UserService:
         current_user: User,
         profile_data: dict[str, Any],
     ) -> User:
-        """
-        Update generic profile information.
-
-        Business rules:
-            - system fields cannot be changed
-            - primary phone cannot be changed here
-            - role cannot be changed here
-            - account status cannot be changed here
-            - alternate phone verification resets when number changes
-            - alternate phone cannot equal primary phone
-            - alternate phone must be unique
-        """
         updates = self._clean_profile_data(
             profile_data
         )
@@ -683,6 +729,22 @@ class UserService:
         file_bytes: bytes,
         content_type: str,
     ) -> tuple[User, str]:
+        """
+        Upload or replace the authenticated user's profile image.
+
+        Storage lifecycle:
+
+            validate
+                ↓
+            upload new object
+                ↓
+            update DB reference
+                ↓
+            best-effort delete old object
+                ↓
+            generate signed URL
+        """
+
         if self.storage_service is None:
             raise ConflictError(
                 "Storage service is not configured."
@@ -703,11 +765,18 @@ class UserService:
                 "Only JPEG, PNG, and WebP profile images are allowed."
             )
 
+        # Make sure the instance-level storage reference used by
+        # the path helper is current.
+        self.__class__.storage_service_for_path = (
+            self.storage_service
+        )
+
         try:
             normalized_content_type = (
                 self.storage_service.validate_file(
                     file_bytes=file_bytes,
                     content_type=normalized_content_type,
+                    verify_signature=True,
                 )
             )
         except StorageValidationError as exc:
@@ -715,12 +784,22 @@ class UserService:
                 str(exc)
             ) from exc
 
+        # StorageService is now responsible for generating the
+        # canonical flat-folder UUID path.
         new_path = self._profile_image_path(
-            user_public_id=user.public_id,
             content_type=normalized_content_type,
         )
 
         old_path = user.profile_image_path
+
+        if old_path:
+            self._validate_profile_image_path(
+                old_path
+            )
+
+        # --------------------------------------------------------
+        # Upload new object
+        # --------------------------------------------------------
 
         try:
             await self.storage_service.upload(
@@ -728,19 +807,26 @@ class UserService:
                 path=new_path,
                 file_bytes=file_bytes,
                 content_type=normalized_content_type,
+                upsert=False,
+                verify_signature=False,
             )
+
         except StorageValidationError as exc:
             raise ValidationError(
                 str(exc)
             ) from exc
-        except StorageProviderError as exc:
-            raise ConflictError(
-                "Unable to upload profile image."
-            ) from exc
-        except StorageError as exc:
-            raise ConflictError(
-                "Profile image upload failed."
-            ) from exc
+
+        except StorageProviderError:
+            # Keep the original storage exception so the controller
+            # can return the correct 503 storage response.
+            raise
+
+        except StorageError:
+            raise
+
+        # --------------------------------------------------------
+        # Persist new DB reference
+        # --------------------------------------------------------
 
         try:
             updated_user = (
@@ -757,6 +843,8 @@ class UserService:
                 )
 
         except Exception:
+            # Database update failed after storage upload.
+            # Remove the newly uploaded object to avoid an orphan.
             try:
                 await self.storage_service.delete(
                     bucket=self._storage_bucket(),
@@ -767,20 +855,51 @@ class UserService:
 
             raise
 
-        # Old object is deleted only after DB references the new object.
-        if old_path and old_path != new_path:
+        # --------------------------------------------------------
+        # Cleanup old object
+        # --------------------------------------------------------
+
+        if (
+            old_path
+            and old_path != new_path
+        ):
             try:
                 await self.storage_service.delete(
                     bucket=self._storage_bucket(),
                     path=old_path,
                 )
-            except StorageError:
-                # The database already points to the correct object.
+
+            except StorageNotFoundError:
                 pass
 
-        image_url = await self.get_profile_image_url(
-            current_user=updated_user
-        )
+            except StorageError:
+                # DB already points to the new object.
+                # Do not make a successful replacement look like
+                # a failed request because old-object cleanup failed.
+                pass
+
+        # --------------------------------------------------------
+        # Generate signed URL
+        # --------------------------------------------------------
+
+        try:
+            image_url = await self.storage_service.create_signed_url(
+                bucket=self._storage_bucket(),
+                path=new_path,
+                expires_in=settings.storage_signed_url_expire_seconds,
+            )
+
+        except StorageNotFoundError as exc:
+            raise ConflictError(
+                "Profile image was uploaded, but the stored object "
+                "could not be found."
+            ) from exc
+
+        except StorageProviderError:
+            raise
+
+        except StorageError:
+            raise
 
         return updated_user, image_url
 
@@ -805,7 +924,13 @@ class UserService:
                 "Profile image not found."
             )
 
-        self._validate_profile_image_path(path)
+        self.__class__.storage_service_for_path = (
+            self.storage_service
+        )
+
+        path = self._validate_profile_image_path(
+            path
+        )
 
         try:
             return await self.storage_service.create_signed_url(
@@ -813,18 +938,22 @@ class UserService:
                 path=path,
                 expires_in=settings.storage_signed_url_expire_seconds,
             )
-        except StorageProviderError as exc:
-            raise ConflictError(
-                "Unable to generate profile image URL."
+
+        except StorageNotFoundError as exc:
+            raise ResourceNotFoundError(
+                "Profile image was not found in storage."
             ) from exc
-        except StorageError as exc:
+
+        except StorageProviderError:
+            raise
+
+        except StorageValidationError as exc:
             raise ConflictError(
-                "Unable to access profile image."
+                "Profile image storage reference is invalid."
             ) from exc
-        except Exception as exc:
-            raise ConflictError(
-                "Unable to generate profile image URL."
-            ) from exc
+
+        except StorageError:
+            raise
 
     async def delete_profile_image(
         self,
@@ -847,8 +976,15 @@ class UserService:
                 "Profile image not found."
             )
 
-        self._validate_profile_image_path(path)
+        self.__class__.storage_service_for_path = (
+            self.storage_service
+        )
 
+        path = self._validate_profile_image_path(
+            path
+        )
+
+        # Clear DB reference first.
         updated_user = (
             await self.user_repository
             .clear_profile_image(
@@ -861,11 +997,23 @@ class UserService:
                 "User not found."
             )
 
+        # Then remove storage object.
         try:
             await self.storage_service.delete(
                 bucket=self._storage_bucket(),
                 path=path,
             )
+
+        except StorageNotFoundError:
+            # DB reference is already cleared and object is already absent.
+            return
+
+        except StorageProviderError as exc:
+            raise ConflictError(
+                "Profile image reference was removed, but the "
+                "storage object could not be deleted."
+            ) from exc
+
         except StorageError as exc:
             raise ConflictError(
                 "Profile image reference was removed, but the "

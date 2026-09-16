@@ -1,172 +1,598 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from app.core.config import settings
+from app.core.exceptions import (
+    ConflictError,
+    NotFoundError,
+    ValidationError,
+)
 from app.models.farm import Farm
-from app.models.user import User
 from app.repositories.farm_repository import FarmRepository
-from app.services.exceptions import ConflictError, ForbiddenOperationError, ResourceAlreadyExistsError, ResourceNotFoundError, ValidationError
-from app.services.storage_service import StorageError, StorageProviderError, StorageService, StorageValidationError
+from app.services.storage_service import (
+    StorageError,
+    storage_service,
+)
 
 
 class FarmService:
-    REQUIRED_ROLE = "FARMER"
-    FARM_FILE_CONTENT_TYPES = frozenset({"application/pdf", "image/jpeg", "image/png", "image/webp"})
+    """
+    Business/application service for Farm.
+
+    Storage:
+        storage-bucket/
+            farm-files/
+                <uuid>.<extension>
+
+    Database stores only the permanent storage path.
+    Signed URLs are generated dynamically.
+    """
+
     FARM_FILE_FOLDER = "farm-files"
 
-    def __init__(self, *, farm_repository: FarmRepository, storage_service: StorageService) -> None:
-        self.farm_repository = farm_repository
+    def __init__(
+        self,
+        repository: FarmRepository,
+    ) -> None:
+        self.repository = repository
         self.storage_service = storage_service
 
-    def _ensure_farmer(self, *, current_user: User) -> None:
-        role = getattr(getattr(current_user, "role", None), "name", None)
-        if str(role).upper() != self.REQUIRED_ROLE:
-            raise ForbiddenOperationError("Only farmers can manage farms.")
+    # ================================================================
+    # VALIDATION HELPERS
+    # ================================================================
 
     @staticmethod
-    def _clean_data(data: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"farm_name", "description", "address_line_1", "address_line_2", "landmark", "village", "city", "district", "state", "postal_code", "country", "latitude", "longitude", "is_active"}
-        return {k: (v.strip() or None if isinstance(v, str) else v) for k, v in data.items() if k in allowed}
+    def _normalize_farm_name(
+        farm_name: str | None,
+    ) -> str:
+        if farm_name is None:
+            raise ValidationError(
+                "Farm name is required."
+            )
 
-    @staticmethod
-    def _storage_bucket() -> str:
-        bucket = settings.storage_bucket
-        if not isinstance(bucket, str) or not bucket.strip():
-            raise ConflictError("Storage bucket is not configured.")
-        return bucket.strip()
+        normalized = farm_name.strip()
 
-    @classmethod
-    def _build_farm_file_path(cls, *, content_type: str) -> str:
-        ext = {"application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}.get(content_type)
-        if not ext:
-            raise ValidationError("Only PDF, JPEG, PNG, and WebP farm files are allowed.")
-        return f"{cls.FARM_FILE_FOLDER}/{uuid4()}.{ext}"
+        if not normalized:
+            raise ValidationError(
+                "Farm name is required."
+            )
 
-    @classmethod
-    def _validate_stored_path(cls, path: str) -> None:
-        parts = path.split("/")
-        if len(parts) != 2 or parts[0] != cls.FARM_FILE_FOLDER or not parts[1]:
-            raise ConflictError("Farm file storage reference is invalid.")
+        return normalized
 
-    def _validate_file(self, *, file_bytes: bytes, content_type: str) -> str:
-        normalized = (content_type or "").strip().lower()
-        if normalized not in self.FARM_FILE_CONTENT_TYPES:
-            raise ValidationError("Only PDF, JPEG, PNG, and WebP farm files are allowed.")
+    # ================================================================
+    # CREATE
+    # ================================================================
+
+    async def create_farm(
+        self,
+        *,
+        user_id: int,
+        farm_data: dict[str, Any],
+    ) -> Farm:
+        data = dict(farm_data)
+
+        farm_name = self._normalize_farm_name(
+            data.get("farm_name")
+        )
+
+        data["farm_name"] = farm_name
+        data["user_id"] = user_id
+
+        # Never allow API data to control protected fields.
+        protected_fields = {
+            "id",
+            "public_id",
+            "user_id",
+            "created_at",
+            "updated_at",
+            "farm_file_path",
+            "farm_file_content_type",
+        }
+
+        data = {
+            key: value
+            for key, value in data.items()
+            if key not in protected_fields
+        }
+
+        if await self.repository.exists_for_user(
+            user_id=user_id,
+            farm_name=farm_name,
+        ):
+            raise ConflictError(
+                f"A farm named '{farm_name}' already exists."
+            )
+
         try:
-            return self.storage_service.validate_file(file_bytes=file_bytes, content_type=normalized)
-        except StorageValidationError as exc:
-            raise ValidationError(str(exc)) from exc
+            return await self.repository.create(
+                user_id=user_id,
+                **data,
+            )
+        except Exception as exc:
+            # The DB unique index is the final protection
+            # against concurrent duplicate creation.
+            raise ConflictError(
+                f"Unable to create farm '{farm_name}'."
+            ) from exc
 
-    async def get_farm(self, *, current_user: User, farm_public_id: UUID) -> Farm:
-        self._ensure_farmer(current_user=current_user)
-        farm = await self.farm_repository.get_user_farm_by_public_id(user_id=current_user.id, public_id=farm_public_id)
+    # ================================================================
+    # READ
+    # ================================================================
+
+    async def get_farm(
+        self,
+        *,
+        user_id: int,
+        farm_public_id: UUID,
+    ) -> Farm:
+        farm = await self.repository.get_user_farm_by_public_id(
+            user_id=user_id,
+            public_id=farm_public_id,
+        )
+
         if farm is None:
-            raise ResourceNotFoundError("Farm not found.")
+            raise NotFoundError(
+                "Farm not found."
+            )
+
         return farm
 
-    async def list_farms(self, *, current_user: User, offset: int = 0, limit: int = 20) -> tuple[list[Farm], int]:
-        self._ensure_farmer(current_user=current_user)
-        return await self.farm_repository.list_by_user_id(user_id=current_user.id, offset=offset, limit=limit), await self.farm_repository.count_by_user_id(current_user.id)
+    async def list_farms(
+        self,
+        *,
+        user_id: int,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> tuple[list[Farm], int]:
+        if offset < 0:
+            raise ValidationError(
+                "Offset cannot be negative."
+            )
 
-    async def create_farm(self, *, current_user: User, farm_data: dict[str, Any]) -> Farm:
-        self._ensure_farmer(current_user=current_user)
-        data = self._clean_data(farm_data)
-        if not data.get("farm_name"):
-            raise ValidationError("Farm name is required.")
-        if await self.farm_repository.get_user_farm_by_name(user_id=current_user.id, farm_name=data["farm_name"]):
-            raise ResourceAlreadyExistsError("You already have a farm with this name.")
-        try:
-            return await self.farm_repository.create(public_id=uuid4(), user_id=current_user.id, **data)
-        except Exception as exc:
-            raise ConflictError("Unable to create farm.") from exc
+        if limit < 1 or limit > 100:
+            raise ValidationError(
+                "Limit must be between 1 and 100."
+            )
 
-    async def update_farm(self, *, current_user: User, farm_public_id: UUID, farm_data: dict[str, Any]) -> Farm:
-        farm = await self.get_farm(current_user=current_user, farm_public_id=farm_public_id)
-        updates = self._clean_data(farm_data)
-        if "farm_name" in updates:
-            if not updates["farm_name"]:
-                raise ValidationError("Farm name cannot be empty.")
-            existing = await self.farm_repository.get_user_farm_by_name(user_id=current_user.id, farm_name=updates["farm_name"])
-            if existing and existing.id != farm.id:
-                raise ResourceAlreadyExistsError("You already have a farm with this name.")
-        return await self.farm_repository.update(farm, **updates) if updates else farm
+        farms = await self.repository.list_by_user_id(
+            user_id=user_id,
+            offset=offset,
+            limit=limit,
+        )
 
-    async def upload_farm_file(self, *, current_user: User, farm_public_id: UUID, file_bytes: bytes, content_type: str) -> Farm:
-        farm = await self.get_farm(current_user=current_user, farm_public_id=farm_public_id)
-        normalized = self._validate_file(file_bytes=file_bytes, content_type=content_type)
-        new_path = self._build_farm_file_path(content_type=normalized)
-        bucket = self._storage_bucket()
+        total = await self.repository.count_by_user_id(
+            user_id=user_id,
+        )
+
+        return farms, total
+
+    # ================================================================
+    # UPDATE
+    # ================================================================
+
+    async def update_farm(
+        self,
+        *,
+        user_id: int,
+        farm_public_id: UUID,
+        farm_data: dict[str, Any],
+    ) -> Farm:
+        farm = await self.get_farm(
+            user_id=user_id,
+            farm_public_id=farm_public_id,
+        )
+
+        data = dict(farm_data)
+
+        # Never allow protected fields to be updated.
+        protected_fields = {
+            "id",
+            "public_id",
+            "user_id",
+            "created_at",
+            "updated_at",
+            "farm_file_path",
+            "farm_file_content_type",
+        }
+
+        data = {
+            key: value
+            for key, value in data.items()
+            if key not in protected_fields
+        }
+
+        if "farm_name" in data:
+            farm_name = self._normalize_farm_name(
+                data["farm_name"]
+            )
+
+            if await self.repository.exists_for_user(
+                user_id=user_id,
+                farm_name=farm_name,
+                exclude_id=farm.id,
+            ):
+                raise ConflictError(
+                    f"A farm named '{farm_name}' already exists."
+                )
+
+            data["farm_name"] = farm_name
+
+        updated_farm = await self.repository.update(
+            farm,
+            **data,
+        )
+
+        if updated_farm is None:
+            raise NotFoundError(
+                "Farm not found."
+            )
+
+        return updated_farm
+
+    # ================================================================
+    # DELETE
+    # ================================================================
+
+    async def delete_farm(
+        self,
+        *,
+        user_id: int,
+        farm_public_id: UUID,
+    ) -> None:
+        farm = await self.get_farm(
+            user_id=user_id,
+            farm_public_id=farm_public_id,
+        )
+
         old_path = farm.farm_file_path
-        try:
-            await self.storage_service.upload(bucket=bucket, path=new_path, file_bytes=file_bytes, content_type=normalized)
-            updated = await self.farm_repository.update_file(farm, file_path=new_path, content_type=normalized)
-        except StorageValidationError as exc:
-            raise ValidationError(str(exc)) from exc
-        except StorageProviderError as exc:
-            raise ConflictError("Unable to upload farm file.") from exc
-        except StorageError as exc:
-            raise ConflictError("Farm file upload failed.") from exc
-        except Exception:
-            try: await self.storage_service.delete(bucket=bucket, path=new_path)
-            except StorageError: pass
-            raise
-        if updated is None:
-            raise ResourceNotFoundError("Farm not found.")
+
+        await self.repository.delete(farm)
+
+        # DB deletion has succeeded.
+        # Storage cleanup is intentionally best effort.
         if old_path:
-            try: await self.storage_service.delete(bucket=bucket, path=old_path)
-            except StorageError: pass
-        return updated
+            try:
+                self._validate_stored_path(
+                    old_path
+                )
 
-    async def replace_farm_file(self, *, current_user: User, farm_public_id: UUID, file_bytes: bytes, content_type: str) -> Farm:
-        return await self.upload_farm_file(current_user=current_user, farm_public_id=farm_public_id, file_bytes=file_bytes, content_type=content_type)
+                await self.storage_service.delete(
+                    bucket=settings.storage_bucket,
+                    path=old_path,
+                )
+            except Exception:
+                pass
 
-    async def get_farm_file_url(self, *, current_user: User, farm_public_id: UUID) -> tuple[Farm, str, int]:
-        farm = await self.get_farm(current_user=current_user, farm_public_id=farm_public_id)
-        if not farm.farm_file_path or not farm.farm_file_content_type:
-            raise ResourceNotFoundError("Farm file not found.")
-        self._validate_stored_path(farm.farm_file_path)
-        expires = settings.storage_signed_url_expire_seconds
+    # ================================================================
+    # FARM FILE HELPERS
+    # ================================================================
+
+    def _build_farm_file_path(
+        self,
+        content_type: str,
+    ) -> str:
+        return self.storage_service.build_uuid_path(
+            folder=self.FARM_FILE_FOLDER,
+            content_type=content_type,
+        )
+
+    def _validate_file(
+        self,
+        *,
+        file_bytes: bytes,
+        content_type: str,
+    ) -> None:
+        self.storage_service.validate_file(
+            file_bytes=file_bytes,
+            content_type=content_type,
+            verify_signature=True,
+        )
+
+    def _validate_stored_path(
+        self,
+        path: str,
+    ) -> None:
+        validated_path = (
+            self.storage_service.validate_managed_path(
+                path
+            )
+        )
+
+        if not validated_path.startswith(
+            f"{self.FARM_FILE_FOLDER}/"
+        ):
+            raise ValidationError(
+                "Invalid farm file storage path."
+            )
+
+    # ================================================================
+    # UPLOAD / REPLACE FARM FILE
+    # ================================================================
+
+    async def upload_farm_file(
+        self,
+        *,
+        user_id: int,
+        farm_public_id: UUID,
+        file_bytes: bytes,
+        content_type: str,
+        filename: str | None = None,
+    ) -> tuple[str, str]:
+        farm = await self.get_farm(
+            user_id=user_id,
+            farm_public_id=farm_public_id,
+        )
+
+        if not file_bytes:
+            raise ValidationError(
+                "Farm file cannot be empty."
+            )
+
+        normalized_content_type = (
+            self.storage_service.normalize_content_type(
+                content_type
+            )
+        )
+
+        self._validate_file(
+            file_bytes=file_bytes,
+            content_type=normalized_content_type,
+        )
+
+        bucket = settings.storage_bucket
+
+        new_path = self._build_farm_file_path(
+            normalized_content_type
+        )
+
+        old_path = farm.farm_file_path
+
+        # ------------------------------------------------------------
+        # Upload new file first.
+        # ------------------------------------------------------------
+
+        await self.storage_service.upload(
+            bucket=bucket,
+            path=new_path,
+            file_bytes=file_bytes,
+            content_type=normalized_content_type,
+        )
+
         try:
-            url = await self.storage_service.create_signed_url(bucket=self._storage_bucket(), path=farm.farm_file_path, expires_in=expires)
-        except StorageProviderError as exc:
-            raise ConflictError("Unable to generate farm file URL.") from exc
-        except StorageError as exc:
-            raise ConflictError("Unable to access farm file.") from exc
-        return farm, url, expires
+            # StorageService returns ONLY the signed URL.
+            signed_url = (
+                await self.storage_service.create_signed_url(
+                    bucket=bucket,
+                    path=new_path,
+                )
+            )
 
-    async def download_farm_file(self, *, current_user: User, farm_public_id: UUID) -> tuple[Farm, bytes, str]:
-        farm = await self.get_farm(current_user=current_user, farm_public_id=farm_public_id)
-        if not farm.farm_file_path or not farm.farm_file_content_type:
-            raise ResourceNotFoundError("Farm file not found.")
-        self._validate_stored_path(farm.farm_file_path)
-        try:
-            data = await self.storage_service.download(bucket=self._storage_bucket(), path=farm.farm_file_path)
-        except StorageProviderError as exc:
-            raise ConflictError("Unable to download farm file.") from exc
-        except StorageError as exc:
-            raise ConflictError("Farm file download failed.") from exc
-        return farm, data, farm.farm_file_content_type
+            # DB stores ONLY permanent storage path.
+            updated_farm = (
+                await self.repository.update_file(
+                    farm,
+                    file_path=new_path,
+                    content_type=normalized_content_type,
+                )
+            )
 
-    async def delete_farm_file(self, *, current_user: User, farm_public_id: UUID) -> None:
-        farm = await self.get_farm(current_user=current_user, farm_public_id=farm_public_id)
+            if updated_farm is None:
+                raise RuntimeError(
+                    "Failed to update farm file metadata."
+                )
+
+        except Exception:
+            # Remove newly uploaded object if DB update
+            # or signed URL generation fails.
+            try:
+                await self.storage_service.delete(
+                    bucket=bucket,
+                    path=new_path,
+                )
+            except Exception:
+                pass
+
+            raise
+
+        # ------------------------------------------------------------
+        # Delete old file only after DB has been updated.
+        # ------------------------------------------------------------
+
+        if old_path and old_path != new_path:
+            try:
+                self._validate_stored_path(
+                    old_path
+                )
+
+                await self.storage_service.delete(
+                    bucket=bucket,
+                    path=old_path,
+                )
+            except Exception:
+                # Old-file cleanup must not make a successful
+                # replacement fail.
+                pass
+
+        return (
+            signed_url,
+            normalized_content_type,
+        )
+
+    # ================================================================
+    # GET FARM FILE URL
+    # ================================================================
+
+    async def get_farm_file_url(
+        self,
+        *,
+        user_id: int,
+        farm_public_id: UUID,
+    ) -> tuple[str, str | None]:
+        farm = await self.get_farm(
+            user_id=user_id,
+            farm_public_id=farm_public_id,
+        )
+
         if not farm.farm_file_path:
-            raise ResourceNotFoundError("Farm file not found.")
-        path = farm.farm_file_path
-        self._validate_stored_path(path)
-        updated = await self.farm_repository.clear_file(farm)
-        if updated is None:
-            raise ResourceNotFoundError("Farm not found.")
-        try: await self.storage_service.delete(bucket=self._storage_bucket(), path=path)
-        except StorageError as exc: raise ConflictError("Farm file reference was removed, but the storage object could not be deleted.") from exc
+            raise NotFoundError(
+                "Farm does not have a file."
+            )
 
-    async def delete_farm(self, *, current_user: User, farm_public_id: UUID) -> None:
-        farm = await self.get_farm(current_user=current_user, farm_public_id=farm_public_id)
-        path = farm.farm_file_path
-        if path: self._validate_stored_path(path)
-        if not await self.farm_repository.delete(farm):
-            raise ResourceNotFoundError("Farm not found.")
-        if path:
-            try: await self.storage_service.delete(bucket=self._storage_bucket(), path=path)
-            except StorageError: pass
+        self._validate_stored_path(
+            farm.farm_file_path
+        )
+
+        signed_url = (
+            await self.storage_service.create_signed_url(
+                bucket=settings.storage_bucket,
+                path=farm.farm_file_path,
+            )
+        )
+
+        return (
+            signed_url,
+            farm.farm_file_content_type,
+        )
+
+    # ================================================================
+    # DOWNLOAD FARM FILE
+    # ================================================================
+
+    async def download_farm_file(
+        self,
+        *,
+        user_id: int,
+        farm_public_id: UUID,
+    ) -> tuple[bytes, str]:
+        farm = await self.get_farm(
+            user_id=user_id,
+            farm_public_id=farm_public_id,
+        )
+
+        if not farm.farm_file_path:
+            raise NotFoundError(
+                "Farm does not have a file."
+            )
+
+        self._validate_stored_path(
+            farm.farm_file_path
+        )
+
+        file_bytes = (
+            await self.storage_service.download(
+                bucket=settings.storage_bucket,
+                path=farm.farm_file_path,
+            )
+        )
+
+        return (
+            file_bytes,
+            farm.farm_file_content_type
+            or "application/octet-stream",
+        )
+
+    # ================================================================
+    # DELETE FARM FILE
+    # ================================================================
+
+    async def delete_farm_file(
+        self,
+        *,
+        user_id: int,
+        farm_public_id: UUID,
+    ) -> None:
+        farm = await self.get_farm(
+            user_id=user_id,
+            farm_public_id=farm_public_id,
+        )
+
+        if not farm.farm_file_path:
+            raise NotFoundError(
+                "Farm does not have a file."
+            )
+
+        old_path = farm.farm_file_path
+
+        # Clear DB first.
+        updated_farm = (
+            await self.repository.clear_file(farm)
+        )
+
+        if updated_farm is None:
+            raise NotFoundError(
+                "Farm not found."
+            )
+
+        # Storage cleanup is best effort.
+        try:
+            self._validate_stored_path(
+                old_path
+            )
+
+            await self.storage_service.delete(
+                bucket=settings.storage_bucket,
+                path=old_path,
+            )
+        except Exception:
+            pass
+
+    # ================================================================
+    # RESPONSE
+    # ================================================================
+
+    async def build_farm_response_data(
+        self,
+        farm: Farm,
+    ) -> dict[str, Any]:
+        data = {
+            "public_id": str(
+                farm.public_id
+            ),
+            "farm_name": farm.farm_name,
+            "description": farm.description,
+
+            "address_line_1": farm.address_line_1,
+            "address_line_2": farm.address_line_2,
+            "landmark": farm.landmark,
+            "village": farm.village,
+            "city": farm.city,
+            "district": farm.district,
+            "state": farm.state,
+            "postal_code": farm.postal_code,
+            "country": farm.country,
+            "latitude": farm.latitude,
+            "longitude": farm.longitude,
+
+            "is_active": farm.is_active,
+
+            "farm_file_url": None,
+            "farm_file_content_type": (
+                farm.farm_file_content_type
+            ),
+
+            "created_at": farm.created_at,
+            "updated_at": farm.updated_at,
+        }
+
+        if farm.farm_file_path:
+            try:
+                self._validate_stored_path(
+                    farm.farm_file_path
+                )
+
+                signed_url = (
+                    await self.storage_service.create_signed_url(
+                        bucket=settings.storage_bucket,
+                        path=farm.farm_file_path,
+                    )
+                )
+
+                data["farm_file_url"] = signed_url
+
+            except Exception:
+                # Never expose internal storage paths.
+                data["farm_file_url"] = None
+
+        return data

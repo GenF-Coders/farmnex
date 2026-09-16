@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     )
 
     storage_max_upload_size_bytes: int = Field(
-        default=2 * 1024 * 1024,
+        default=10 * 1024 * 1024,
         ge=1,
         le=10 * 1024 * 1024,
     )
@@ -444,7 +444,7 @@ class Settings(BaseSettings):
     enable_registration: bool = True
     enable_email_verification: bool = False
     enable_otp_login: bool = True
-    enable_file_uploads: bool = False
+    enable_file_uploads: bool = True
 
     # ============================================================
     # PYDANTIC SETTINGS CONFIG
@@ -513,6 +513,22 @@ class Settings(BaseSettings):
         Enforce additional security requirements based on
         the deployment environment.
         """
+
+        # --------------------------------------------------------
+        # Supabase Storage
+        # --------------------------------------------------------
+
+        if self.storage_provider != "supabase":
+            raise ValueError("STORAGE_PROVIDER must be supabase.")
+
+        if not self.supabase_url.strip():
+            raise ValueError("SUPABASE_URL is required for storage.")
+
+        if not self.supabase_secret_key.get_secret_value().strip():
+            raise ValueError("SUPABASE_SECRET_KEY is required for storage.")
+
+        if not self.storage_bucket.strip():
+            raise ValueError("STORAGE_BUCKET is required for storage.")
 
         # --------------------------------------------------------
         # Production security

@@ -21,7 +21,7 @@ from app.models.user import User
 from app.repositories.role_repository import RoleRepository
 from app.repositories.user_repository import UserRepository
 from app.services.exceptions import ConflictError, ForbiddenOperationError, ResourceAlreadyExistsError, ResourceNotFoundError, ValidationError
-from app.services.storage_service import storage_service
+from app.services.storage_service import StorageProviderError, StorageValidationError, storage_service
 from app.services.user_service import UserService
 
 
@@ -93,6 +93,10 @@ def _service_exception_to_http(exc: Exception) -> HTTPException:
         return HTTPException(status_code=403, detail=str(exc))
     if isinstance(exc, ValidationError):
         return HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, StorageValidationError):
+        return HTTPException(status_code=422, detail=str(exc))
+    if isinstance(exc, StorageProviderError):
+        return HTTPException(status_code=503, detail="File storage service is temporarily unavailable.")
     return HTTPException(status_code=500, detail="Internal server error.")
 
 @router.get(
