@@ -21,14 +21,13 @@ from app.core.config import settings
 # Base.metadata.create_all() is executed.
 # ---------------------------------------------------------------------------
 
-from app.models.address import Address  # noqa: F401,E402
-from app.models.auth_event import AuthEvent  # noqa: F401,E402
-from app.models.farm import Farm  # noqa: F401,E402
-from app.models.otp_verifications import OTPVerification  # noqa: F401,E402
-from app.models.profile import Profile  # noqa: F401,E402
-from app.models.role import Role  # noqa: F401,E402
-from app.models.user import User  # noqa: F401,E402
-from app.models.user_session import UserSession  # noqa: F401,E402
+# from app.models.address import Address  # noqa: F401,E402
+# from app.models.auth_event import AuthEvent  # noqa: F401,E402
+# from app.models.farm import Farm  # noqa: F401,E402
+# from app.models.otp_verifications import OTPVerification  # noqa: F401,E402
+# from app.models.role import Role  # noqa: F401,E402
+# from app.models.user import User  # noqa: F401,E402
+# from app.models.user_session import UserSession  # noqa: F401,E402
 
 
 # ---------------------------------------------------------------------------

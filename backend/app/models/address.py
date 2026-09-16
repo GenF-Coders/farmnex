@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from uuid import uuid4
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID, uuid4
 
 from sqlalchemy import (
     Boolean,
-    Column,
     DateTime,
     ForeignKey,
     Index,
@@ -14,8 +15,8 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
@@ -34,21 +35,29 @@ class Address(Base):
         ),
     )
 
-    id = Column(
+    # ============================================================
+    # Primary / Public Identity
+    # ============================================================
+
+    id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
+        autoincrement=True,
     )
 
-    public_id = Column(
-        PG_UUID(as_uuid=True),
+    public_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
         unique=True,
         nullable=False,
         index=True,
         default=uuid4,
     )
 
-    user_id = Column(
-        Integer,
+    # ============================================================
+    # Owner
+    # ============================================================
+
+    user_id: Mapped[int] = mapped_column(
         ForeignKey(
             "users.id",
             ondelete="CASCADE",
@@ -57,100 +66,111 @@ class Address(Base):
         index=True,
     )
 
-    address_line_1 = Column(
+    # ============================================================
+    # Address Information
+    # ============================================================
+
+    address_line_1: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
     )
 
-    address_line_2 = Column(
+    address_line_2: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
 
-    landmark = Column(
+    landmark: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
     )
 
-    village = Column(
+    village: Mapped[str | None] = mapped_column(
         String(150),
         nullable=True,
     )
 
-    city = Column(
+    city: Mapped[str] = mapped_column(
         String(150),
         nullable=False,
     )
 
-    district = Column(
+    district: Mapped[str | None] = mapped_column(
         String(150),
         nullable=True,
     )
 
-    state = Column(
+    state: Mapped[str] = mapped_column(
         String(150),
         nullable=False,
     )
 
-    postal_code = Column(
+    postal_code: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
     )
 
-    country = Column(
+    country: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
         default="India",
         server_default="India",
     )
 
-    latitude = Column(
+    # ============================================================
+    # Geographic Coordinates
+    # ============================================================
+
+    latitude: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 7),
         nullable=True,
     )
 
-    longitude = Column(
+    longitude: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 7),
         nullable=True,
     )
 
-    is_default = Column(
+    # ============================================================
+    # Status
+    # ============================================================
+
+    is_default: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=False,
         server_default="false",
     )
 
-    is_active = Column(
+    is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
         default=True,
         server_default="true",
     )
 
-    created_at = Column(
+    # ============================================================
+    # Timestamps
+    # ============================================================
+
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
     )
 
-    updated_at = Column(
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
     )
 
-    # ------------------------------------------------------------------
+    # ============================================================
     # Relationships
-    # ------------------------------------------------------------------
+    # ============================================================
 
-    user = relationship(
+    user: Mapped["User"] = relationship(
         "User",
         back_populates="addresses",
-    )
-
-    farms = relationship(
-        "Farm",
-        back_populates="address",
     )

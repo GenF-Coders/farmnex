@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID, uuid4
 
+from app.core.config import settings
 from app.models.farm import Farm
 from app.models.user import User
-from app.repositories.address_repository import AddressRepository
 from app.repositories.farm_repository import FarmRepository
 from app.services.exceptions import (
     ConflictError,
@@ -13,37 +14,86 @@ from app.services.exceptions import (
     ResourceNotFoundError,
     ValidationError,
 )
+from app.services.storage_service import (
+    StorageError,
+    StorageProviderError,
+    StorageService,
+    StorageValidationError,
+)
 
 
 class FarmService:
     """
     Business/application service for farms.
 
-    Critical security rule:
+    Responsibilities:
+        - farmer authorization
+        - farm ownership
+        - farm validation
+        - farm address management
+        - farm file lifecycle
+        - storage ownership/path rules
 
-        A farmer may only assign an address that belongs to
-        the same authenticated user.
+    Transaction rule:
+        This service does not commit or rollback.
 
-    Database integer IDs are never accepted from the API.
+        The database transaction boundary owns commits
+        and rollbacks.
+
+    Storage rule:
+        FarmService owns farm-specific storage rules.
+
+        StorageService owns generic storage infrastructure.
     """
 
     REQUIRED_ROLE = "FARMER"
+
+    FARM_FILE_CONTENT_TYPES = frozenset(
+        {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "application/pdf",
+        }
+    )
+
+    FARM_STORAGE_PREFIX = "users"
+
+    # ============================================================
+    # CONSTRUCTOR
+    # ============================================================
 
     def __init__(
         self,
         *,
         farm_repository: FarmRepository,
-        address_repository: AddressRepository,
+        storage_service: StorageService,
     ) -> None:
         self.farm_repository = farm_repository
-        self.address_repository = address_repository
+        self.storage_service = storage_service
 
     # ============================================================
     # HELPERS
     # ============================================================
 
     @staticmethod
-    def _normalize_text(value: str | None) -> str | None:
+    def _storage_bucket() -> str:
+        bucket = settings.storage_bucket
+
+        if (
+            not isinstance(bucket, str)
+            or not bucket.strip()
+        ):
+            raise ConflictError(
+                "Storage bucket is not configured."
+            )
+
+        return bucket.strip()
+
+    @staticmethod
+    def _normalize_text(
+        value: str | None,
+    ) -> str | None:
         if value is None:
             return None
 
@@ -51,63 +101,17 @@ class FarmService:
 
         return value or None
 
-    @staticmethod
-    def _clean_create_data(data: dict) -> dict:
-        protected_fields = {
-            "id",
-            "public_id",
-            "user_id",
-            "address_id",
-            "created_at",
-            "updated_at",
-        }
-
-        result = {
-            key: value
-            for key, value in data.items()
-            if key not in protected_fields
-        }
-
-        for key, value in result.items():
-            if isinstance(value, str):
-                result[key] = (
-                    value.strip() or None
-                )
-
-        return result
-
-    @staticmethod
-    def _clean_update_data(data: dict) -> dict:
-        protected_fields = {
-            "id",
-            "public_id",
-            "user_id",
-            "address_id",
-            "created_at",
-            "updated_at",
-        }
-
-        result = {
-            key: value
-            for key, value in data.items()
-            if key not in protected_fields
-        }
-
-        for key, value in result.items():
-            if isinstance(value, str):
-                result[key] = (
-                    value.strip() or None
-                )
-
-        return result
-
     def _ensure_farmer(
         self,
         *,
         current_user: User,
     ) -> None:
         role = getattr(
-            getattr(current_user, "role", None),
+            getattr(
+                current_user,
+                "role",
+                None,
+            ),
             "name",
             None,
         )
@@ -122,37 +126,133 @@ class FarmService:
                 "Only farmers can manage farms."
             )
 
-    # ============================================================
-    # ADDRESS OWNERSHIP
-    # ============================================================
-
-    async def _get_owned_address(
-        self,
-        *,
-        current_user: User,
-        address_public_id: UUID,
-    ):
-        address = (
-            await self.address_repository
-            .get_user_address_by_public_id(
-                user_id=current_user.id,
-                public_id=address_public_id,
-            )
+    @classmethod
+    def _farm_file_prefix(
+        cls,
+        user_public_id: UUID,
+        farm_public_id: UUID,
+    ) -> str:
+        return (
+            f"{cls.FARM_STORAGE_PREFIX}/"
+            f"{user_public_id}/"
+            f"farm/"
+            f"{farm_public_id}/"
         )
 
-        if address is None:
-            # Do not reveal whether the address belongs to another
-            # user. Treat it as unavailable to this caller.
-            raise ResourceNotFoundError(
-                "Address not found."
-            )
+    @classmethod
+    def _farm_file_path(
+        cls,
+        *,
+        user_public_id: UUID,
+        farm_public_id: UUID,
+        content_type: str,
+    ) -> str:
+        extension_map = {
+            "image/jpeg": "jpg",
+            "image/png": "png",
+            "image/webp": "webp",
+            "application/pdf": "pdf",
+        }
 
-        if not address.is_active:
+        extension = extension_map.get(
+            content_type.strip().lower()
+        )
+
+        if extension is None:
             raise ValidationError(
-                "The selected address is inactive."
+                "Unsupported farm file type."
             )
 
-        return address
+        prefix = cls._farm_file_prefix(
+            user_public_id=user_public_id,
+            farm_public_id=farm_public_id,
+        )
+
+        return f"{prefix}{uuid4()}.{extension}"
+
+    @classmethod
+    def _validate_farm_file_path(
+        cls,
+        *,
+        user_public_id: UUID,
+        farm_public_id: UUID,
+        path: str,
+    ) -> None:
+        expected_prefix = cls._farm_file_prefix(
+            user_public_id=user_public_id,
+            farm_public_id=farm_public_id,
+        )
+
+        if not path.startswith(expected_prefix):
+            raise ConflictError(
+                "Farm file storage reference is invalid."
+            )
+
+    @staticmethod
+    def _clean_create_data(
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        allowed_fields = {
+            "farm_name",
+            "description",
+            "address_line_1",
+            "address_line_2",
+            "landmark",
+            "village",
+            "city",
+            "district",
+            "state",
+            "postal_code",
+            "country",
+            "latitude",
+            "longitude",
+        }
+
+        result: dict[str, Any] = {}
+
+        for key, value in data.items():
+            if key not in allowed_fields:
+                continue
+
+            if isinstance(value, str):
+                value = value.strip() or None
+
+            result[key] = value
+
+        return result
+
+    @staticmethod
+    def _clean_update_data(
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
+        allowed_fields = {
+            "farm_name",
+            "description",
+            "address_line_1",
+            "address_line_2",
+            "landmark",
+            "village",
+            "city",
+            "district",
+            "state",
+            "postal_code",
+            "country",
+            "latitude",
+            "longitude",
+        }
+
+        result: dict[str, Any] = {}
+
+        for key, value in data.items():
+            if key not in allowed_fields:
+                continue
+
+            if isinstance(value, str):
+                value = value.strip() or None
+
+            result[key] = value
+
+        return result
 
     # ============================================================
     # READ
@@ -165,7 +265,7 @@ class FarmService:
         farm_public_id: UUID,
     ) -> Farm:
         self._ensure_farmer(
-            current_user=current_user
+            current_user=current_user,
         )
 
         farm = (
@@ -191,7 +291,7 @@ class FarmService:
         limit: int = 50,
     ) -> tuple[list[Farm], int]:
         self._ensure_farmer(
-            current_user=current_user
+            current_user=current_user,
         )
 
         if offset < 0:
@@ -204,17 +304,23 @@ class FarmService:
                 "Limit must be between 1 and 100."
             )
 
-        farms = await self.farm_repository.list_by_user_id(
-            user_id=current_user.id,
-            offset=offset,
-            limit=limit,
+        items = (
+            await self.farm_repository
+            .list_by_user_id(
+                user_id=current_user.id,
+                offset=offset,
+                limit=limit,
+            )
         )
 
-        total = await self.farm_repository.count_by_user_id(
-            user_id=current_user.id,
+        total = (
+            await self.farm_repository
+            .count_by_user_id(
+                user_id=current_user.id,
+            )
         )
 
-        return farms, total
+        return items, total
 
     # ============================================================
     # CREATE
@@ -224,44 +330,41 @@ class FarmService:
         self,
         *,
         current_user: User,
-        farm_data: dict,
+        farm_data: dict[str, Any],
     ) -> Farm:
         self._ensure_farmer(
-            current_user=current_user
-        )
-
-        data = dict(farm_data)
-
-        address_public_id = data.pop(
-            "address_public_id",
-            None,
-        )
-
-        if address_public_id is None:
-            raise ValidationError(
-                "Farm address is required."
-            )
-
-        address = await self._get_owned_address(
             current_user=current_user,
-            address_public_id=address_public_id,
         )
 
         clean_data = self._clean_create_data(
-            data
+            farm_data
         )
 
-        farm_name = clean_data.get("farm_name")
+        required_fields = (
+            "farm_name",
+            "address_line_1",
+            "city",
+            "state",
+            "postal_code",
+        )
 
-        if not farm_name:
-            raise ValidationError(
-                "Farm name is required."
+        for field in required_fields:
+            value = clean_data.get(field)
+
+            if value is None or (
+                isinstance(value, str)
+                and not value.strip()
+            ):
+                raise ValidationError(
+                    f"{field} is required."
+                )
+
+        existing = (
+            await self.farm_repository
+            .get_user_farm(
+                user_id=current_user.id,
+                farm_name=clean_data["farm_name"],
             )
-
-        # This is intentionally an ownership-scoped check.
-        existing = await self.farm_repository.get_user_farm(
-            user_id=current_user.id,
-            farm_name=farm_name,
         )
 
         if existing is not None:
@@ -273,7 +376,6 @@ class FarmService:
             farm = await self.farm_repository.create(
                 public_id=uuid4(),
                 user_id=current_user.id,
-                address_id=address.id,
                 **clean_data,
             )
         except Exception as exc:
@@ -292,23 +394,19 @@ class FarmService:
         *,
         current_user: User,
         farm_public_id: UUID,
-        farm_data: dict,
+        farm_data: dict[str, Any],
     ) -> Farm:
         farm = await self.get_farm(
             current_user=current_user,
             farm_public_id=farm_public_id,
         )
 
-        data = dict(farm_data)
-
-        address_public_id = data.pop(
-            "address_public_id",
-            None,
-        )
-
         updates = self._clean_update_data(
-            data
+            farm_data
         )
+
+        if not updates:
+            return farm
 
         if "farm_name" in updates:
             farm_name = updates["farm_name"]
@@ -318,9 +416,12 @@ class FarmService:
                     "Farm name cannot be empty."
                 )
 
-            existing = await self.farm_repository.get_user_farm(
-                user_id=current_user.id,
-                farm_name=farm_name,
+            existing = (
+                await self.farm_repository
+                .get_user_farm(
+                    user_id=current_user.id,
+                    farm_name=farm_name,
+                )
             )
 
             if (
@@ -331,90 +432,37 @@ class FarmService:
                     "You already have a farm with this name."
                 )
 
-        if updates:
-            try:
-                updated_farm = (
-                    await self.farm_repository.update(
-                        farm,
-                        **updates,
-                    )
-                )
-            except Exception as exc:
-                raise ConflictError(
-                    "Unable to update farm."
-                ) from exc
-
-            if updated_farm is None:
-                raise ResourceNotFoundError(
-                    "Farm not found."
-                )
-
-            farm = updated_farm
-
-        # Address is updated separately because the service must
-        # validate ownership before touching farm.address_id.
-        if address_public_id is not None:
-            address = await self._get_owned_address(
-                current_user=current_user,
-                address_public_id=address_public_id,
-            )
-
-            if address.id != farm.address_id:
-                try:
-                    updated_farm = (
-                        await self.farm_repository.update_address(
-                            farm,
-                            address.id,
-                        )
-                    )
-                except Exception as exc:
-                    raise ConflictError(
-                        "Unable to change farm address."
-                    ) from exc
-
-                if updated_farm is None:
-                    raise ResourceNotFoundError(
-                        "Farm not found."
-                    )
-
-                farm = updated_farm
-
-        return farm
-
-    # ============================================================
-    # CHANGE ADDRESS
-    # ============================================================
-
-    async def change_farm_address(
-        self,
-        *,
-        current_user: User,
-        farm_public_id: UUID,
-        address_public_id: UUID,
-    ) -> Farm:
-        farm = await self.get_farm(
-            current_user=current_user,
-            farm_public_id=farm_public_id,
+        required_address_fields = (
+            "address_line_1",
+            "city",
+            "state",
+            "postal_code",
         )
 
-        address = await self._get_owned_address(
-            current_user=current_user,
-            address_public_id=address_public_id,
-        )
+        for field in required_address_fields:
+            if field not in updates:
+                continue
 
-        if farm.address_id == address.id:
-            return farm
+            value = updates[field]
+
+            if value is None or (
+                isinstance(value, str)
+                and not value.strip()
+            ):
+                raise ValidationError(
+                    f"{field} cannot be empty."
+                )
 
         try:
             updated = (
-                await self.farm_repository.update_address(
+                await self.farm_repository.update(
                     farm,
-                    address.id,
+                    **updates,
                 )
             )
         except Exception as exc:
             raise ConflictError(
-                "Unable to change farm address."
+                "Unable to update farm."
             ) from exc
 
         if updated is None:
@@ -425,7 +473,311 @@ class FarmService:
         return updated
 
     # ============================================================
-    # DELETE
+    # FARM FILE - UPLOAD / REPLACE
+    # ============================================================
+
+    async def upload_farm_file(
+        self,
+        *,
+        current_user: User,
+        farm_public_id: UUID,
+        file_bytes: bytes,
+        content_type: str,
+    ) -> tuple[Farm, str]:
+        self._ensure_farmer(
+            current_user=current_user,
+        )
+
+        farm = await self.get_farm(
+            current_user=current_user,
+            farm_public_id=farm_public_id,
+        )
+
+        normalized_content_type = (
+            content_type or ""
+        ).strip().lower()
+
+        if (
+            normalized_content_type
+            not in self.FARM_FILE_CONTENT_TYPES
+        ):
+            raise ValidationError(
+                "Only JPEG, PNG, WebP, and PDF farm files "
+                "are allowed."
+            )
+
+        try:
+            normalized_content_type = (
+                self.storage_service.validate_file(
+                    file_bytes=file_bytes,
+                    content_type=normalized_content_type,
+                )
+            )
+        except StorageValidationError as exc:
+            raise ValidationError(
+                str(exc)
+            ) from exc
+
+        new_path = self._farm_file_path(
+            user_public_id=current_user.public_id,
+            farm_public_id=farm.public_id,
+            content_type=normalized_content_type,
+        )
+
+        old_path = farm.farm_file_path
+
+        try:
+            await self.storage_service.upload(
+                bucket=self._storage_bucket(),
+                path=new_path,
+                file_bytes=file_bytes,
+                content_type=normalized_content_type,
+            )
+        except StorageValidationError as exc:
+            raise ValidationError(
+                str(exc)
+            ) from exc
+        except StorageProviderError as exc:
+            raise ConflictError(
+                "Unable to upload farm file."
+            ) from exc
+        except StorageError as exc:
+            raise ConflictError(
+                "Farm file upload failed."
+            ) from exc
+
+        try:
+            updated_farm = (
+                await self.farm_repository.update_file(
+                    farm,
+                    farm_file_path=new_path,
+                    farm_file_content_type=(
+                        normalized_content_type
+                    ),
+                )
+            )
+
+            if updated_farm is None:
+                raise ResourceNotFoundError(
+                    "Farm not found."
+                )
+
+        except Exception:
+            try:
+                await self.storage_service.delete(
+                    bucket=self._storage_bucket(),
+                    path=new_path,
+                )
+            except StorageError:
+                pass
+
+            raise
+
+        if old_path and old_path != new_path:
+            try:
+                self._validate_farm_file_path(
+                    user_public_id=current_user.public_id,
+                    farm_public_id=farm.public_id,
+                    path=old_path,
+                )
+
+                await self.storage_service.delete(
+                    bucket=self._storage_bucket(),
+                    path=old_path,
+                )
+            except StorageError:
+                pass
+            except ConflictError:
+                pass
+
+        try:
+            file_url = (
+                await self.storage_service
+                .create_signed_url(
+                    bucket=self._storage_bucket(),
+                    path=new_path,
+                    expires_in=(
+                        settings
+                        .storage_signed_url_expire_seconds
+                    ),
+                )
+            )
+        except StorageProviderError as exc:
+            raise ConflictError(
+                "Unable to generate farm file URL."
+            ) from exc
+        except StorageError as exc:
+            raise ConflictError(
+                "Unable to access farm file."
+            ) from exc
+
+        return updated_farm, file_url
+
+    # ============================================================
+    # FARM FILE - GET SIGNED URL
+    # ============================================================
+
+    async def get_farm_file_url(
+        self,
+        *,
+        current_user: User,
+        farm_public_id: UUID,
+    ) -> str:
+        self._ensure_farmer(
+            current_user=current_user,
+        )
+
+        farm = await self.get_farm(
+            current_user=current_user,
+            farm_public_id=farm_public_id,
+        )
+
+        path = farm.farm_file_path
+
+        if not path:
+            raise ResourceNotFoundError(
+                "Farm file not found."
+            )
+
+        self._validate_farm_file_path(
+            user_public_id=current_user.public_id,
+            farm_public_id=farm.public_id,
+            path=path,
+        )
+
+        try:
+            return (
+                await self.storage_service
+                .create_signed_url(
+                    bucket=self._storage_bucket(),
+                    path=path,
+                    expires_in=(
+                        settings
+                        .storage_signed_url_expire_seconds
+                    ),
+                )
+            )
+        except StorageProviderError as exc:
+            raise ConflictError(
+                "Unable to generate farm file URL."
+            ) from exc
+        except StorageError as exc:
+            raise ConflictError(
+                "Unable to access farm file."
+            ) from exc
+
+    # ============================================================
+    # FARM FILE - DOWNLOAD
+    # ============================================================
+
+    async def download_farm_file(
+        self,
+        *,
+        current_user: User,
+        farm_public_id: UUID,
+    ) -> tuple[bytes, str]:
+        self._ensure_farmer(
+            current_user=current_user,
+        )
+
+        farm = await self.get_farm(
+            current_user=current_user,
+            farm_public_id=farm_public_id,
+        )
+
+        path = farm.farm_file_path
+        content_type = farm.farm_file_content_type
+
+        if not path:
+            raise ResourceNotFoundError(
+                "Farm file not found."
+            )
+
+        if not content_type:
+            raise ConflictError(
+                "Farm file content type is missing."
+            )
+
+        self._validate_farm_file_path(
+            user_public_id=current_user.public_id,
+            farm_public_id=farm.public_id,
+            path=path,
+        )
+
+        try:
+            file_bytes = (
+                await self.storage_service.download(
+                    bucket=self._storage_bucket(),
+                    path=path,
+                )
+            )
+        except StorageProviderError as exc:
+            raise ConflictError(
+                "Unable to download farm file."
+            ) from exc
+        except StorageError as exc:
+            raise ConflictError(
+                "Farm file download failed."
+            ) from exc
+
+        return file_bytes, content_type
+
+    # ============================================================
+    # FARM FILE - DELETE
+    # ============================================================
+
+    async def delete_farm_file(
+        self,
+        *,
+        current_user: User,
+        farm_public_id: UUID,
+    ) -> None:
+        self._ensure_farmer(
+            current_user=current_user,
+        )
+
+        farm = await self.get_farm(
+            current_user=current_user,
+            farm_public_id=farm_public_id,
+        )
+
+        path = farm.farm_file_path
+
+        if not path:
+            raise ResourceNotFoundError(
+                "Farm file not found."
+            )
+
+        self._validate_farm_file_path(
+            user_public_id=current_user.public_id,
+            farm_public_id=farm.public_id,
+            path=path,
+        )
+
+        updated_farm = (
+            await self.farm_repository.clear_file(
+                farm
+            )
+        )
+
+        if updated_farm is None:
+            raise ResourceNotFoundError(
+                "Farm not found."
+            )
+
+        try:
+            await self.storage_service.delete(
+                bucket=self._storage_bucket(),
+                path=path,
+            )
+        except StorageError as exc:
+            raise ConflictError(
+                "Farm file reference was removed, but the "
+                "storage object could not be deleted."
+            ) from exc
+
+    # ============================================================
+    # DELETE FARM
     # ============================================================
 
     async def delete_farm(
@@ -439,9 +791,20 @@ class FarmService:
             farm_public_id=farm_public_id,
         )
 
+        file_path = farm.farm_file_path
+
+        if file_path:
+            self._validate_farm_file_path(
+                user_public_id=current_user.public_id,
+                farm_public_id=farm.public_id,
+                path=file_path,
+            )
+
         try:
-            deleted = await self.farm_repository.delete(
-                farm
+            deleted = (
+                await self.farm_repository.delete(
+                    farm
+                )
             )
         except Exception as exc:
             raise ConflictError(
@@ -452,3 +815,15 @@ class FarmService:
             raise ResourceNotFoundError(
                 "Farm not found."
             )
+
+        if file_path:
+            try:
+                await self.storage_service.delete(
+                    bucket=self._storage_bucket(),
+                    path=file_path,
+                )
+            except StorageError as exc:
+                raise ConflictError(
+                    "Farm was deleted, but its storage file "
+                    "could not be deleted."
+                ) from exc

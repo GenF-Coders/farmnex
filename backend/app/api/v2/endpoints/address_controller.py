@@ -34,18 +34,9 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
 )
 async def list_my_addresses(
-    offset: int = Query(
-        default=0,
-        ge=0,
-    ),
-    limit: int = Query(
-        default=20,
-        ge=1,
-        le=100,
-    ),
-    active_only: bool = Query(
-        default=True,
-    ),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    active_only: bool = Query(default=True),
     current_user: User = Depends(get_current_user),
     service: AddressService = Depends(get_address_service),
 ) -> AddressListResponse:
@@ -79,7 +70,6 @@ async def get_my_address(
             current_user=current_user,
             address_public_id=address_public_id,
         )
-
     except ResourceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -100,21 +90,18 @@ async def create_my_address(
     try:
         return await service.create_address(
             current_user=current_user,
-            data=payload.model_dump(exclude_unset=True),
+            address_data=payload.model_dump(exclude_unset=True),
         )
-
     except ResourceAlreadyExistsError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-
     except ConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -137,27 +124,23 @@ async def update_my_address(
         return await service.update_address(
             current_user=current_user,
             address_public_id=address_public_id,
-            data=payload.model_dump(exclude_unset=True),
+            address_data=payload.model_dump(exclude_unset=True),
         )
-
     except ResourceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-
     except ResourceAlreadyExistsError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-
     except ConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -180,19 +163,16 @@ async def set_default_address(
             current_user=current_user,
             address_public_id=address_public_id,
         )
-
     except ResourceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-
     except ConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -215,13 +195,11 @@ async def clear_default_address(
             current_user=current_user,
             address_public_id=address_public_id,
         )
-
     except ResourceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-
     except ConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -244,13 +222,11 @@ async def deactivate_address(
             current_user=current_user,
             address_public_id=address_public_id,
         )
-
     except ResourceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-
     except ConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -273,13 +249,11 @@ async def activate_address(
             current_user=current_user,
             address_public_id=address_public_id,
         )
-
     except ResourceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-
     except ConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -301,13 +275,11 @@ async def delete_my_address(
             current_user=current_user,
             address_public_id=address_public_id,
         )
-
     except ResourceNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-
     except ConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

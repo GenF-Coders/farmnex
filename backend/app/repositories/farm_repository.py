@@ -13,11 +13,14 @@ class FarmRepository:
     """
     Database repository for Farm.
 
-    Farm ownership checks that depend on the authenticated user
-    are handled by FarmService.
+    Ownership/business rules remain in FarmService.
+    The repository only performs database operations.
     """
 
-    def __init__(self, db: AsyncSession) -> None:
+    def __init__(
+        self,
+        db: AsyncSession,
+    ) -> None:
         self.db = db
 
     # ============================================================
@@ -30,7 +33,7 @@ class FarmRepository:
     ) -> Farm | None:
         result = await self.db.execute(
             select(Farm).where(
-                Farm.id == farm_id
+                Farm.id == farm_id,
             )
         )
 
@@ -42,7 +45,7 @@ class FarmRepository:
     ) -> Farm | None:
         result = await self.db.execute(
             select(Farm).where(
-                Farm.public_id == public_id
+                Farm.public_id == public_id,
             )
         )
 
@@ -56,18 +59,18 @@ class FarmRepository:
         farm_id: int | None = None,
     ) -> Farm | None:
         query = select(Farm).where(
-            Farm.user_id == user_id
+            Farm.user_id == user_id,
         )
 
         if farm_id is not None:
             query = query.where(
-                Farm.id == farm_id
+                Farm.id == farm_id,
             )
 
         if farm_name is not None:
             query = query.where(
                 func.lower(Farm.farm_name)
-                == farm_name.strip().lower()
+                == farm_name.strip().lower(),
             )
 
         result = await self.db.execute(query)
@@ -89,18 +92,6 @@ class FarmRepository:
 
         return result.scalar_one_or_none()
 
-    async def get_by_address_id(
-        self,
-        address_id: int,
-    ) -> Farm | None:
-        result = await self.db.execute(
-            select(Farm)
-            .where(Farm.address_id == address_id)
-            .limit(1)
-        )
-
-        return result.scalar_one_or_none()
-
     async def list_by_user_id(
         self,
         *,
@@ -110,27 +101,9 @@ class FarmRepository:
     ) -> list[Farm]:
         result = await self.db.execute(
             select(Farm)
-            .where(Farm.user_id == user_id)
-            .order_by(
-                Farm.created_at.desc(),
-                Farm.id.desc(),
+            .where(
+                Farm.user_id == user_id,
             )
-            .offset(offset)
-            .limit(limit)
-        )
-
-        return list(result.scalars().all())
-
-    async def list_by_address_id(
-        self,
-        *,
-        address_id: int,
-        offset: int = 0,
-        limit: int = 50,
-    ) -> list[Farm]:
-        result = await self.db.execute(
-            select(Farm)
-            .where(Farm.address_id == address_id)
             .order_by(
                 Farm.created_at.desc(),
                 Farm.id.desc(),
@@ -151,7 +124,9 @@ class FarmRepository:
     ) -> bool:
         result = await self.db.execute(
             select(Farm.id)
-            .where(Farm.id == farm_id)
+            .where(
+                Farm.id == farm_id,
+            )
             .limit(1)
         )
 
@@ -163,7 +138,9 @@ class FarmRepository:
     ) -> bool:
         result = await self.db.execute(
             select(Farm.id)
-            .where(Farm.public_id == public_id)
+            .where(
+                Farm.public_id == public_id,
+            )
             .limit(1)
         )
 
@@ -194,7 +171,9 @@ class FarmRepository:
         self,
         **values: Any,
     ) -> Farm:
-        farm = Farm(**values)
+        farm = Farm(
+            **values,
+        )
 
         self.db.add(farm)
 
@@ -218,26 +197,65 @@ class FarmRepository:
         allowed_fields = {
             "farm_name",
             "description",
+            "address_line_1",
+            "address_line_2",
+            "landmark",
+            "village",
+            "city",
+            "district",
+            "state",
+            "postal_code",
+            "country",
+            "latitude",
+            "longitude",
         }
 
         for field, value in values.items():
             if field in allowed_fields:
-                setattr(farm, field, value)
+                setattr(
+                    farm,
+                    field,
+                    value,
+                )
 
         await self.db.flush()
         await self.db.refresh(farm)
 
         return farm
 
-    async def update_address(
+    # ============================================================
+    # FARM FILE
+    # ============================================================
+
+    async def update_file(
         self,
         farm: Farm,
-        address_id: int,
+        *,
+        farm_file_path: str,
+        farm_file_content_type: str,
     ) -> Farm | None:
         if farm is None:
             return None
 
-        farm.address_id = address_id
+        farm.farm_file_path = farm_file_path
+        farm.farm_file_content_type = (
+            farm_file_content_type
+        )
+
+        await self.db.flush()
+        await self.db.refresh(farm)
+
+        return farm
+
+    async def clear_file(
+        self,
+        farm: Farm,
+    ) -> Farm | None:
+        if farm is None:
+            return None
+
+        farm.farm_file_path = None
+        farm.farm_file_content_type = None
 
         await self.db.flush()
         await self.db.refresh(farm)
@@ -264,25 +282,31 @@ class FarmRepository:
         self,
         farm_id: int,
     ) -> bool:
-        farm = await self.get_by_id(farm_id)
+        farm = await self.get_by_id(
+            farm_id,
+        )
 
         if farm is None:
             return False
 
-        return await self.delete(farm)
+        return await self.delete(
+            farm,
+        )
 
     async def delete_by_public_id(
         self,
         public_id: UUID,
     ) -> bool:
         farm = await self.get_by_public_id(
-            public_id
+            public_id,
         )
 
         if farm is None:
             return False
 
-        return await self.delete(farm)
+        return await self.delete(
+            farm,
+        )
 
     # ============================================================
     # COUNT
@@ -293,26 +317,24 @@ class FarmRepository:
         user_id: int,
     ) -> int:
         result = await self.db.execute(
-            select(func.count(Farm.id))
-            .where(Farm.user_id == user_id)
+            select(
+                func.count(Farm.id)
+            ).where(
+                Farm.user_id == user_id,
+            )
         )
 
-        return int(result.scalar_one())
-
-    async def count_by_address_id(
-        self,
-        address_id: int,
-    ) -> int:
-        result = await self.db.execute(
-            select(func.count(Farm.id))
-            .where(Farm.address_id == address_id)
+        return int(
+            result.scalar_one()
         )
-
-        return int(result.scalar_one())
 
     async def count(self) -> int:
         result = await self.db.execute(
-            select(func.count(Farm.id))
+            select(
+                func.count(Farm.id)
+            )
         )
 
-        return int(result.scalar_one())
+        return int(
+            result.scalar_one()
+        )

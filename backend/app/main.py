@@ -70,28 +70,28 @@ app.add_middleware(
 )
 
 
-# @app.get("/health", tags=["System"])
-# async def health():
-#     return {"status": "healthy"}
+@app.get("/health", tags=["System"])
+async def health():
+    return {"status": "healthy"}
 
 
-# @app.get("/db", tags=["System"])
-# async def database_health_check():
-#     try:
-#         await check_database_connection()
-#         return {"status": "ok", "database": "connected"}
-#     except Exception as exc:
-#         return {
-#             "status": "error",
-#             "database": "disconnected",
-#             "error_type": type(exc).__name__,
-#             "error": str(exc),
-#         }
+@app.get("/db", tags=["System"])
+async def database_health_check():
+    try:
+        await check_database_connection()
+        return {"status": "ok", "database": "connected"}
+    except Exception as exc:
+        return {
+            "status": "error",
+            "database": "disconnected",
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+        }
 
 
-# @app.get("/ready", tags=["System"])
-# async def readiness():
-#     return {"status": "ready"}
+@app.get("/ready", tags=["System"])
+async def readiness():
+    return {"status": "ready"}
 
 
 app.include_router(api_router, prefix="/api")

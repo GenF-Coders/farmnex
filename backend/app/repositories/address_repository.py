@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.address import Address
@@ -13,24 +13,82 @@ class AddressRepository:
     """
     Database repository for Address.
 
-    No authorization or business rules belong here.
+    Responsibilities:
+        - address queries
+        - address persistence
+        - address status/default-state persistence
+
+    This repository does NOT:
+        - commit transactions
+        - rollback transactions
+        - enforce HTTP/API rules
+        - enforce authorization
+
+    Ownership/business decisions belong to the service layer.
     """
+
+    CREATE_FIELDS = frozenset(
+        {
+            "user_id",
+            "address_line_1",
+            "address_line_2",
+            "landmark",
+            "village",
+            "city",
+            "district",
+            "state",
+            "postal_code",
+            "country",
+            "latitude",
+            "longitude",
+            "is_default",
+            "is_active",
+        }
+    )
+
+    UPDATE_FIELDS = frozenset(
+        {
+            "address_line_1",
+            "address_line_2",
+            "landmark",
+            "village",
+            "city",
+            "district",
+            "state",
+            "postal_code",
+            "country",
+            "latitude",
+            "longitude",
+            "is_default",
+            "is_active",
+        }
+    )
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     # ============================================================
+    # INTERNAL HELPERS
+    # ============================================================
+
+    @staticmethod
+    def _filter_values(
+        values: dict[str, Any],
+        allowed_fields: frozenset[str],
+    ) -> dict[str, Any]:
+        return {
+            field: value
+            for field, value in values.items()
+            if field in allowed_fields
+        }
+
+    # ============================================================
     # READ
     # ============================================================
 
-    async def get_by_id(
-        self,
-        address_id: int,
-    ) -> Address | None:
+    async def get_by_id(self, address_id: int) -> Address | None:
         result = await self.db.execute(
-            select(Address).where(
-                Address.id == address_id
-            )
+            select(Address).where(Address.id == address_id)
         )
         return result.scalar_one_or_none()
 
@@ -39,9 +97,7 @@ class AddressRepository:
         public_id: UUID,
     ) -> Address | None:
         result = await self.db.execute(
-            select(Address).where(
-                Address.public_id == public_id
-            )
+            select(Address).where(Address.public_id == public_id)
         )
         return result.scalar_one_or_none()
 
@@ -57,7 +113,6 @@ class AddressRepository:
                 Address.user_id == user_id,
             )
         )
-
         return result.scalar_one_or_none()
 
     async def get_user_address_by_public_id(
@@ -72,7 +127,6 @@ class AddressRepository:
                 Address.user_id == user_id,
             )
         )
-
         return result.scalar_one_or_none()
 
     async def list_by_user_id(
@@ -83,10 +137,17 @@ class AddressRepository:
         offset: int = 0,
         limit: int = 50,
     ) -> list[Address]:
+        query = select(Address).where(
+            Address.user_id == user_id
+        )
+
+        if active_only:
+            query = query.where(
+                Address.is_active.is_(True)
+            )
+
         query = (
-            select(Address)
-            .where(Address.user_id == user_id)
-            .order_by(
+            query.order_by(
                 Address.is_default.desc(),
                 Address.created_at.desc(),
                 Address.id.desc(),
@@ -95,13 +156,7 @@ class AddressRepository:
             .limit(limit)
         )
 
-        if active_only:
-            query = query.where(
-                Address.is_active.is_(True)
-            )
-
         result = await self.db.execute(query)
-
         return list(result.scalars().all())
 
     async def list_active_by_user_id(
@@ -129,23 +184,18 @@ class AddressRepository:
                 Address.is_active.is_(True),
             )
         )
-
         return result.scalar_one_or_none()
 
     # ============================================================
     # EXISTS
     # ============================================================
 
-    async def exists(
-        self,
-        address_id: int,
-    ) -> bool:
+    async def exists(self, address_id: int) -> bool:
         result = await self.db.execute(
             select(Address.id)
             .where(Address.id == address_id)
             .limit(1)
         )
-
         return result.scalar_one_or_none() is not None
 
     async def exists_for_user(
@@ -162,21 +212,32 @@ class AddressRepository:
             )
             .limit(1)
         )
+        return result.scalar_one_or_none() is not None
 
+    async def exists_by_public_id(
+        self,
+        public_id: UUID,
+    ) -> bool:
+        result = await self.db.execute(
+            select(Address.id)
+            .where(Address.public_id == public_id)
+            .limit(1)
+        )
         return result.scalar_one_or_none() is not None
 
     # ============================================================
     # CREATE
     # ============================================================
 
-    async def create(
-        self,
-        **values: Any,
-    ) -> Address:
-        address = Address(**values)
+    async def create(self, **values: Any) -> Address:
+        filtered_values = self._filter_values(
+            values,
+            self.CREATE_FIELDS,
+        )
+
+        address = Address(**filtered_values)
 
         self.db.add(address)
-
         await self.db.flush()
         await self.db.refresh(address)
 
@@ -194,25 +255,16 @@ class AddressRepository:
         if address is None:
             return None
 
-        allowed_fields = {
-            "address_line_1",
-            "address_line_2",
-            "landmark",
-            "village",
-            "city",
-            "district",
-            "state",
-            "postal_code",
-            "country",
-            "latitude",
-            "longitude",
-            "is_default",
-            "is_active",
-        }
+        filtered_values = self._filter_values(
+            values,
+            self.UPDATE_FIELDS,
+        )
 
-        for field, value in values.items():
-            if field in allowed_fields:
-                setattr(address, field, value)
+        if not filtered_values:
+            return address
+
+        for field, value in filtered_values.items():
+            setattr(address, field, value)
 
         await self.db.flush()
         await self.db.refresh(address)
@@ -229,6 +281,12 @@ class AddressRepository:
         user_id: int,
         exclude_address_id: int | None = None,
     ) -> int:
+        """
+        Clear every default flag for this user.
+
+        We intentionally do not filter on is_active here so any stale
+        inactive default flag is also repaired.
+        """
         query = (
             update(Address)
             .where(
@@ -244,7 +302,6 @@ class AddressRepository:
             )
 
         result = await self.db.execute(query)
-
         await self.db.flush()
 
         return int(result.rowcount or 0)
@@ -314,10 +371,7 @@ class AddressRepository:
     # DELETE
     # ============================================================
 
-    async def delete(
-        self,
-        address: Address,
-    ) -> bool:
+    async def delete(self, address: Address) -> bool:
         if address is None:
             return False
 
@@ -326,10 +380,7 @@ class AddressRepository:
 
         return True
 
-    async def delete_by_id(
-        self,
-        address_id: int,
-    ) -> bool:
+    async def delete_by_id(self, address_id: int) -> bool:
         address = await self.get_by_id(address_id)
 
         if address is None:
@@ -359,12 +410,10 @@ class AddressRepository:
             )
 
         result = await self.db.execute(query)
-
         return int(result.scalar_one())
 
     async def count(self) -> int:
         result = await self.db.execute(
             select(func.count(Address.id))
         )
-
         return int(result.scalar_one())
