@@ -5,10 +5,13 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, Integer, String, ForeignKey, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
+
+from app.models.order import Order
+from app.models.user import User
 
 
 
@@ -46,6 +49,6 @@ class Delivery(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    order: Mapped["Order"] = relationship("Order", foreign_keys=[Delivery.order_id])
+    order: Mapped["Order"] = relationship("Order", foreign_keys=[order_id])
 
-    seller: Mapped["User"] = relationship("User", foreign_keys=[Delivery.seller_id])
+    seller: Mapped["User"] = relationship("User", foreign_keys=[seller_id])

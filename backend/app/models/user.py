@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from email.headerregistry import Address
 from uuid import UUID, uuid4
 
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, func
@@ -9,6 +10,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 from app.core.enums import AccountStatus
+
+from app.models.auth_event import AuthEvent
+from app.models.farm import Farm
+from app.models.role import Role
 
 
 class User(Base):

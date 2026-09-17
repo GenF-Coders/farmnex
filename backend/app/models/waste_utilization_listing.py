@@ -4,11 +4,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Integer, Numeric, String, Text, ForeignKey, func
+from sqlalchemy import DateTime, Integer, Numeric, String, Text, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
+
+from app.models.user import User
+from app.models.waste_record import WasteRecord
 
 
 
@@ -44,6 +47,6 @@ class WasteUtilizationListing(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    waste_record: Mapped["WasteRecord"] = relationship("WasteRecord", foreign_keys=[WasteUtilizationListing.waste_record_id])
+    waste_record: Mapped["WasteRecord"] = relationship("WasteRecord", foreign_keys=[waste_record_id])
 
-    seller: Mapped["User"] = relationship("User", foreign_keys=[WasteUtilizationListing.seller_id])
+    seller: Mapped["User"] = relationship("User", foreign_keys=[seller_id])

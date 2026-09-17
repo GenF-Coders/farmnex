@@ -10,6 +10,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.crop_batch import CropBatch
+from app.models.farm import Farm
+from app.models.user import User
+
 
 
 class ProductListing(Base):
@@ -56,8 +60,8 @@ class ProductListing(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    seller: Mapped["User"] = relationship("User", foreign_keys=[ProductListing.seller_id])
+    seller: Mapped["User"] = relationship("User", foreign_keys=[seller_id])
 
-    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[ProductListing.farm_id])
+    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[farm_id])
 
-    crop_batch: Mapped["CropBatch"] = relationship("CropBatch", foreign_keys=[ProductListing.crop_batch_id])
+    crop_batch: Mapped["CropBatch"] = relationship("CropBatch", foreign_keys=[crop_batch_id])

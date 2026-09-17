@@ -10,6 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.farm_crop import FarmCrop
+
 
 
 class FarmCropActivity(Base):
@@ -44,4 +46,4 @@ class FarmCropActivity(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    farm_crop: Mapped["FarmCrop"] = relationship("FarmCrop", foreign_keys=[FarmCropActivity.farm_crop_id])
+    farm_crop: Mapped["FarmCrop"] = relationship("FarmCrop", foreign_keys=[farm_crop_id])

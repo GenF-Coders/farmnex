@@ -10,6 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.product_listing import ProductListing
+
 
 
 class BidEvent(Base):
@@ -42,4 +44,4 @@ class BidEvent(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    listing: Mapped["ProductListing"] = relationship("ProductListing", foreign_keys=[BidEvent.listing_id])
+    listing: Mapped["ProductListing"] = relationship("ProductListing", foreign_keys=[listing_id])

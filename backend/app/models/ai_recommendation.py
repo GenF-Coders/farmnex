@@ -4,11 +4,15 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Integer, String, Text, ForeignKey, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import DateTime, Integer, String, Text, ForeignKey, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
+
+from app.models.ai_prediction import AIPrediction
+from app.models.farm import Farm
+from app.models.farm_crop import FarmCrop
 
 
 
@@ -46,8 +50,8 @@ class AIRecommendation(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[AIRecommendation.farm_id])
+    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[farm_id])
 
-    farm_crop: Mapped["FarmCrop"] = relationship("FarmCrop", foreign_keys=[AIRecommendation.farm_crop_id])
+    farm_crop: Mapped["FarmCrop"] = relationship("FarmCrop", foreign_keys=[farm_crop_id])
 
-    prediction: Mapped["AIPrediction"] = relationship("AIPrediction", foreign_keys=[AIRecommendation.prediction_id])
+    prediction: Mapped["AIPrediction"] = relationship("AIPrediction", foreign_keys=[prediction_id])

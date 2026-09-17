@@ -10,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.order import Order
+from app.models.user import User
+
 
 
 class Payment(Base):
@@ -46,6 +49,6 @@ class Payment(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    order: Mapped["Order"] = relationship("Order", foreign_keys=[Payment.order_id])
+    order: Mapped["Order"] = relationship("Order", foreign_keys=[order_id])
 
-    payer: Mapped["User"] = relationship("User", foreign_keys=[Payment.payer_id])
+    payer: Mapped["User"] = relationship("User", foreign_keys=[payer_id])

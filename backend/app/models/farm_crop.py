@@ -4,11 +4,15 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Date, Integer, Numeric, String, Text, ForeignKey, func
+from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Text, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
+
+from app.models.crop_type import CropType
+from app.models.farm import Farm
+from app.models.user import User
 
 
 
@@ -48,8 +52,8 @@ class FarmCrop(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    farmer: Mapped["User"] = relationship("User", foreign_keys=[FarmCrop.farmer_id])
+    farmer: Mapped["User"] = relationship("User", foreign_keys=[farmer_id])
 
-    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[FarmCrop.farm_id])
+    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[farm_id])
 
-    crop_type: Mapped["CropType"] = relationship("CropType", foreign_keys=[FarmCrop.crop_type_id])
+    crop_type: Mapped["CropType"] = relationship("CropType", foreign_keys=[crop_type_id])

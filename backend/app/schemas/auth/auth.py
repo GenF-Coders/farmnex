@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import re
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-
+from app.core.config import settings
 
 # ================================================================
 # COMMON VALIDATION
@@ -61,12 +60,6 @@ def _validate_otp(value: str) -> str:
     return otp
 
 
-# ================================================================
-# PUBLIC REGISTRATION ROLE
-# ================================================================
-
-
-RegistrationRole = Literal["FARMER", "BUYER"]
 
 
 # ================================================================
@@ -149,15 +142,6 @@ class RegisterVerifyRequest(BaseModel):
 class RegisterCompleteRequest(BaseModel):
     """
     Complete registration after OTP verification.
-
-    Frontend may send only:
-        {
-            "registration_token": "...",
-            "role": "FARMER"
-        }
-
-    The phone number is intentionally not accepted here. The backend
-    obtains the verified phone from the registration proof/token.
     """
 
     model_config = ConfigDict(
@@ -172,7 +156,7 @@ class RegisterCompleteRequest(BaseModel):
         description="Short-lived proof returned after registration OTP verification.",
     )
 
-    role: RegistrationRole = Field(
+    role: str = Field(
         ...,
         description="Public registration role.",
         examples=["FARMER"],
@@ -188,6 +172,18 @@ class RegisterCompleteRequest(BaseModel):
 
         return token
 
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        role = value.strip().upper()
+
+        if role not in settings.public_registration_roles:
+            raise ValueError(
+                f"Invalid registration role. Allowed roles: "
+                f"{', '.join(settings.public_registration_roles)}"
+            )
+
+        return role
 
 # ================================================================
 # LOGIN REQUESTS

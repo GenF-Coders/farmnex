@@ -10,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.order import Order
+from app.models.user import User
+
 
 
 class OrderDispute(Base):
@@ -42,6 +45,6 @@ class OrderDispute(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    order: Mapped["Order"] = relationship("Order", foreign_keys=[OrderDispute.order_id])
+    order: Mapped["Order"] = relationship("Order", foreign_keys=[order_id])
 
-    raised_by: Mapped["User"] = relationship("User", foreign_keys=[OrderDispute.raised_by_id])
+    raised_by: Mapped["User"] = relationship("User", foreign_keys=[raised_by_id])

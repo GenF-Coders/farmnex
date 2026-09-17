@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, Integer, Numeric, String, ForeignKey, func
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
@@ -48,4 +48,4 @@ class Order(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    buyer: Mapped["User"] = relationship("User", foreign_keys=[Order.buyer_id])
+    buyer: Mapped["User"] = relationship("User", foreign_keys=[buyer_id])

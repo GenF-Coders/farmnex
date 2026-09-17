@@ -4,11 +4,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Date, Integer, Numeric, String, Text, ForeignKey, func
+from sqlalchemy import Date, DateTime, Integer, Numeric, String, Text, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
+
+from app.models.crop_type import CropType
+from app.models.user import User
 
 
 
@@ -48,6 +51,6 @@ class BuyerDemandRequest(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    buyer: Mapped["User"] = relationship("User", foreign_keys=[BuyerDemandRequest.buyer_id])
+    buyer: Mapped["User"] = relationship("User", foreign_keys=[buyer_id])
 
-    crop_type: Mapped["CropType"] = relationship("CropType", foreign_keys=[BuyerDemandRequest.crop_type_id])
+    crop_type: Mapped["CropType"] = relationship("CropType", foreign_keys=[crop_type_id])

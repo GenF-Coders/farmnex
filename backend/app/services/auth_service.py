@@ -30,7 +30,6 @@ from app.services.otp.service import OTPService
 class AuthService:
     """Application service for registration, OTP login and sessions."""
 
-    PUBLIC_REGISTRATION_ROLES = {"FARMER", "BUYER"}
 
     def __init__(
         self,
@@ -46,6 +45,19 @@ class AuthService:
         self.session_repository = session_repository
         self.auth_event_repository = auth_event_repository
         self.otp_service = otp_service
+
+    def _validate_public_registration_role(self, role_name: str) -> str:
+        """Normalize and validate a publicly selectable registration role."""
+
+        role_name = role_name.strip().upper()
+
+        if role_name not in settings.public_registration_roles:
+            allowed_roles = ", ".join(settings.public_registration_roles)
+            raise ValueError(
+                f"Invalid registration role. Allowed roles: {allowed_roles}."
+            )
+
+        return role_name
 
     async def request_registration_otp(
         self,
@@ -82,9 +94,7 @@ class AuthService:
         if not settings.enable_registration:
             raise ValueError("Registration is currently disabled.")
 
-        role_name = role_name.strip().upper()
-        if role_name not in self.PUBLIC_REGISTRATION_ROLES:
-            raise ValueError("Registration role must be FARMER or BUYER.")
+        role_name = self._validate_public_registration_role(role_name)
 
         role = await self.role_repository.get_by_name(role_name)
         if role is None:
@@ -149,9 +159,7 @@ class AuthService:
 
         phone_number = self._decode_registration_token(registration_token)
 
-        role_name = role_name.strip().upper()
-        if role_name not in self.PUBLIC_REGISTRATION_ROLES:
-            raise ValueError("Registration role must be FARMER or BUYER.")
+        role_name = self._validate_public_registration_role(role_name)
 
         role = await self.role_repository.get_by_name(role_name)
         if role is None:

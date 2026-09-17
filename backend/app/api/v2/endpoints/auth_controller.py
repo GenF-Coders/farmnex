@@ -345,7 +345,7 @@ async def register_complete(
     Frontend sends only:
         {
             "registration_token": "...",
-            "role": "FARMER"
+            "role": "BUYER"
         }
 
     The backend obtains the verified phone number from the

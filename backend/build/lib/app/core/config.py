@@ -36,6 +36,18 @@ class Settings(BaseSettings):
 
     host: str = "0.0.0.0"
     port: int = Field(default=8000, ge=1, le=65535)
+    
+    
+    # ============================================================
+    # REGISTRATION ROLE POLICY
+    # ============================================================
+
+    public_registration_roles: list[str] = Field(
+        default=["FARMER", "BUYER","VENDOR"],
+        min_length=1,
+    )
+
+
 
     # ============================================================
     # DATABASE

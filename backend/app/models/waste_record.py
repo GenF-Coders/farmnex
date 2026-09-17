@@ -10,6 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.farm import Farm
+
 
 
 class WasteRecord(Base):
@@ -44,4 +46,4 @@ class WasteRecord(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[WasteRecord.farm_id])
+    farm: Mapped["Farm"] = relationship("Farm", foreign_keys=[farm_id])

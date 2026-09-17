@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Integer, Boolean, String, Text, ForeignKey, func
+from sqlalchemy import DateTime, Integer, Boolean, String, Text, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

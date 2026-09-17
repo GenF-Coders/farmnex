@@ -19,7 +19,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.base import Base
 from app.core.enums import AuthEventType
 
-
 class AuthEvent(Base):
     __tablename__ = "auth_events"
 

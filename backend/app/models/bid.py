@@ -10,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.bid_event import BidEvent
+from app.models.user import User
+
 
 
 class Bid(Base):
@@ -38,6 +41,6 @@ class Bid(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    bid_event: Mapped["BidEvent"] = relationship("BidEvent", foreign_keys=[Bid.bid_event_id])
+    bid_event: Mapped["BidEvent"] = relationship("BidEvent", foreign_keys=[bid_event_id])
 
-    bidder: Mapped["User"] = relationship("User", foreign_keys=[Bid.bidder_id])
+    bidder: Mapped["User"] = relationship("User", foreign_keys=[bidder_id])

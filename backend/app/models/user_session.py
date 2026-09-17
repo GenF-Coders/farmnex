@@ -9,6 +9,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.user import User
+
 
 class UserSession(Base):
     __tablename__ = "user_sessions"

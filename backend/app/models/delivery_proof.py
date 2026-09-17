@@ -10,6 +10,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base import Base
 
+from app.models.delivery import Delivery
+from app.models.user import User
+
 
 
 class DeliveryProof(Base):
@@ -38,6 +41,6 @@ class DeliveryProof(Base):
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
-    delivery: Mapped["Delivery"] = relationship("Delivery", foreign_keys=[DeliveryProof.delivery_id])
+    delivery: Mapped["Delivery"] = relationship("Delivery", foreign_keys=[delivery_id])
 
-    uploaded_by: Mapped["User"] = relationship("User", foreign_keys=[DeliveryProof.uploaded_by_id])
+    uploaded_by: Mapped["User"] = relationship("User", foreign_keys=[uploaded_by_id])
