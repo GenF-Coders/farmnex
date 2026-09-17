@@ -30,7 +30,7 @@ from app.services.otp.service import OTPService
 class AuthService:
     """Application service for registration, OTP login and sessions."""
 
-    PUBLIC_REGISTRATION_ROLES = {"FARMER", "CUSTOMER"}
+    PUBLIC_REGISTRATION_ROLES = {"FARMER", "BUYER"}
 
     def __init__(
         self,
@@ -84,7 +84,7 @@ class AuthService:
 
         role_name = role_name.strip().upper()
         if role_name not in self.PUBLIC_REGISTRATION_ROLES:
-            raise ValueError("Registration role must be FARMER or CUSTOMER.")
+            raise ValueError("Registration role must be FARMER or BUYER.")
 
         role = await self.role_repository.get_by_name(role_name)
         if role is None:
@@ -151,7 +151,7 @@ class AuthService:
 
         role_name = role_name.strip().upper()
         if role_name not in self.PUBLIC_REGISTRATION_ROLES:
-            raise ValueError("Registration role must be FARMER or CUSTOMER.")
+            raise ValueError("Registration role must be FARMER or BUYER.")
 
         role = await self.role_repository.get_by_name(role_name)
         if role is None:
@@ -315,7 +315,7 @@ class AuthService:
 
         access_token = create_access_token(
             user_id=user.public_id,
-            role=user.role.name if user.role else "CUSTOMER",
+            role=user.role.name if user.role else "BUYER",
         )
 
         return (
@@ -514,7 +514,7 @@ class AuthService:
 
         access_token = create_access_token(
             user_id=user.public_id,
-            role=user.role.name if user.role else "CUSTOMER",
+            role=user.role.name if user.role else "BUYER",
         )
 
         return (

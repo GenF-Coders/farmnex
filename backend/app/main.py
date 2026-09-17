@@ -26,7 +26,7 @@ DEFAULT_ROLES = {
     "DELIVERY_AGENT": "Delivers customer orders",
     "SUPPORT": "Customer support staff",
     "VENDOR": "Marketplace vendor",
-    "CUSTOMER": "FarmNex customer",
+    "BUYER": "FarmNex buyer",
     "FARMER": "FarmNex farmer",
 }
 

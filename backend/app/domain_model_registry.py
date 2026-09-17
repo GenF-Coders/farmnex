@@ -1,0 +1,24 @@
+"""Register new domain models."""
+from app.models.ai_prediction import *  # noqa: F401,F403
+from app.models.ai_recommendation import *  # noqa: F401,F403
+from app.models.audit_log import *  # noqa: F401,F403
+from app.models.bid import *  # noqa: F401,F403
+from app.models.bid_event import *  # noqa: F401,F403
+from app.models.buyer_demand_request import *  # noqa: F401,F403
+from app.models.crop_batch import *  # noqa: F401,F403
+from app.models.crop_type import *  # noqa: F401,F403
+from app.models.delivery import *  # noqa: F401,F403
+from app.models.delivery_proof import *  # noqa: F401,F403
+from app.models.delivery_tracking_event import *  # noqa: F401,F403
+from app.models.farm_crop import *  # noqa: F401,F403
+from app.models.farm_crop_activity import *  # noqa: F401,F403
+from app.models.notification import *  # noqa: F401,F403
+from app.models.order import *  # noqa: F401,F403
+from app.models.order_dispute import *  # noqa: F401,F403
+from app.models.order_item import *  # noqa: F401,F403
+from app.models.payment import *  # noqa: F401,F403
+from app.models.product_image import *  # noqa: F401,F403
+from app.models.product_listing import *  # noqa: F401,F403
+from app.models.review import *  # noqa: F401,F403
+from app.models.waste_record import *  # noqa: F401,F403
+from app.models.waste_utilization_listing import *  # noqa: F401,F403

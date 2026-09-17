@@ -1,5 +1,7 @@
 from fastapi import APIRouter
-from app.api.v2.endpoints import auth_controller, role_controller, user_controller, storage_controller, address_controller, farm_controller,  otp_controller
+from app.api.v2.endpoints import auth_controller, role_controller, user_controller, storage_controller, address_controller, farm_controller, otp_controller
+
+#from app.api.v2.endpoints import ai_prediction_controller, ai_recommendation_controller, audit_log_controller 
 
 router = APIRouter()
 
@@ -11,6 +13,12 @@ modules = [
     farm_controller,
     #storage_controller,
     #otp_controller,
+    
+    #ai_prediction_controller,
+    #ai_recommendation_controller,
+    #audit_log_controller,
+    
+    
 
 ]
 

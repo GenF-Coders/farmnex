@@ -352,7 +352,7 @@ async def register_complete(
     registration proof/token.
 
     Public registration roles must be restricted by the service
-    layer to FARMER and CUSTOMER. The frontend never sends role_id.
+    layer to FARMER and BUYER. The frontend never sends role_id.
 
     On success the backend creates the user/session/audit records
     and returns FarmNex access and refresh tokens.

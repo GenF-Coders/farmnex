@@ -66,7 +66,7 @@ def _validate_otp(value: str) -> str:
 # ================================================================
 
 
-RegistrationRole = Literal["FARMER", "CUSTOMER"]
+RegistrationRole = Literal["FARMER", "BUYER"]
 
 
 # ================================================================
