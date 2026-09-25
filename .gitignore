@@ -1,13 +1,91 @@
-# Environments & Secrets
+# ==========================================
+# Environment & Secrets
+# ==========================================
 .env
 .env.*
 !.env.example
 
 secrets/
 *.pem
+*.key
 
-# Python cache files
+# ==========================================
+# Python / FastAPI
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+.venv/
+venv/
+env/
+
+*.egg-info/
+
+# ==========================================
+# Flutter / Dart
+# ==========================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+
+# Flutter generated documentation
+**/doc/api/
+
+# Flutter iOS generated files
+**/ios/Flutter/.last_build_id
+
+# Flutter build artifacts
+**/build/
+**/coverage/
+
+# Android build artifacts
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+
+# Widget Preview
+.widget_preview/
+
+# ==========================================
+# Flutter Symbolication / Obfuscation
+# ==========================================
+app.*.symbols
+app.*.map.json
+
+# ==========================================
+# IDE / Editor
+# ==========================================
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+# Uncomment if you do NOT want to commit VS Code settings
+# .vscode/
+
+# ==========================================
+# Miscellaneous
+# ==========================================
+*.class
+*.log
+*.pyc
+*.swp
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.atom/
+.build/
+.buildlog/
+.history/
+.svn/
+.swiftpm/
+migrate_working_dir/
