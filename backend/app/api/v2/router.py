@@ -49,6 +49,9 @@ from app.api.v2.endpoints import (
     # Waste Management
     waste_record_controller,
     waste_utilization_listing_controller,
+    
+    home_controller,
+    me_controller
 )
 
 
@@ -67,10 +70,15 @@ modules = [
     #otp_controller,
     
     
+    #Home
+    home_controller,
+    me_controller,
+    
+    
     # Crops
-    crop_batch_controller,
     crop_type_controller,
     farm_crop_controller,
+    crop_batch_controller,
     farm_crop_activity_controller,
     
     
