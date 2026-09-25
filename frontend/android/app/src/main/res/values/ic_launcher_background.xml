@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FarmNex brand primary green (AppTheme.primaryGreen, #166534) -->
+    <color name="ic_launcher_background">#166534</color>
+</resources>
