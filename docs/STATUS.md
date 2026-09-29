@@ -36,11 +36,11 @@ tick items in the tables and add one line to the log (newest first).
 
 ## Open decisions (Atharv)
 
-1. Unmount the unused modules (F1 fast path)? — recommended: yes.
-2. Route optimizer's `rt_loads` replaces core `deliveries` for the prototype? — recommended: yes.
-3. Live-tracking link works without login (private-link style)? — recommended: yes for the prototype.
-4. Pre-bid winner: farmer accepts a bid, or server closes at the end? — recommended: farmer accepts.
-5. Voice assistant database: separate free Supabase project? — recommended: yes.
+1. Unmount the unused modules (F1 fast path)? — yes.
+2. Route optimizer's `rt_loads` replaces core `deliveries` for the prototype? — yes.
+3. Live-tracking link works without login (private-link style)? — yes for the prototype.
+4. Pre-bid winner: farmer accepts a bid, or server closes at the end? — farmer accepts.
+5. Voice assistant database: separate free Supabase project? — yes.
 
 ## Log
 
