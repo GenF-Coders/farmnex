@@ -88,7 +88,7 @@ class LogisticsProvider extends ChangeNotifier {
       cropName: 'Yellow Soybean',
       emoji: '🌱',
       pickup: 'Ausa Road, Latur',
-      drop: 'Adani Wilmar Plant, Pune',
+      drop: 'Sunrise Edible Oils Plant, Pune',
       distanceKm: 386,
       weightQuintal: 50,
       payout: 11200,
