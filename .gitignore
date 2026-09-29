@@ -89,3 +89,5 @@ desktop.ini
 .svn/
 .swiftpm/
 migrate_working_dir/
+# Archives (e.g. an old copy of the backend committed by mistake)
+*.zip
