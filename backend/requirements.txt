@@ -28,7 +28,6 @@ httptools==0.8.0
 httpx==0.28.1
 hyperframe==6.1.0
 idna==3.19
-iniconfig==2.3.0
 Jinja2==3.1.6
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
@@ -36,10 +35,8 @@ mdurl==0.1.2
 multidict==6.8.0
 packaging==26.3
 passlib==1.7.4
-pluggy==1.6.0
 postgrest==2.31.0
 propcache==0.5.2
-psycopg2==2.9.13
 pycparser==3.0
 pydantic==2.13.5
 pydantic-extra-types==2.11.1
@@ -47,8 +44,6 @@ pydantic-settings==2.15.0
 pydantic_core==2.46.5
 Pygments==2.21.0
 PyJWT==2.14.0
-PyMySQL==1.2.0
-pytest==9.1.1
 python-dotenv==1.2.3
 python-multipart==0.0.32
 PyYAML==6.0.3
@@ -69,7 +64,27 @@ typer==0.27.2
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 urllib3==2.7.0
-uvicorn==0.52.4
+uvicorn==0.54.0
 watchfiles==1.2.0
 websockets==15.0.1
 yarl==1.24.5
+
+# ============================================================
+# Component sections. Each component session adds lines ONLY inside its own
+# section (and adds the same lines to pyproject.toml, which production installs).
+# ============================================================
+
+# --- Crop Rescue (ENABLE_CROP_RESCUE) ---
+
+# --- AI forecaster connector (ENABLE_FORECAST) ---
+
+# --- Route optimizer (ENABLE_ROUTE_OPTIMIZER) ---
+
+# --- Voice tools (ENABLE_VOICE_TOOLS) ---
+
+# ============================================================
+# Development / tests only (not needed in production; see [dev] in pyproject.toml)
+# ============================================================
+iniconfig==2.3.0
+pluggy==1.6.0
+pytest==9.1.1
