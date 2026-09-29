@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()  # before any other app / component import: components read os.environ directly
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
