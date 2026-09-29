@@ -53,6 +53,8 @@ Short, current picture of where the main app stands. **Only the coordinator sess
 | User id given to components | `str(user.public_id)` (UUID string) | decision |
 | Component host files | `app/modules/<name>_host.py`, loaded by `app/modules/wiring.py` via its `ENABLE_*` flag | PARALLEL_SESSIONS §7 |
 | `wallet_ledger` | new core model, created by the startup `create_all` (no SQL file) | FIX_PLAN F12 |
+| Render free plan | Spins down after 15 min without requests; ~1 min to wake; 750 free instance hours/month per workspace | render.com/docs/free, 2026-09-29 |
+| FastAPI Cloud ↔ GitHub | Dashboard → app → **Settings** → **Source Repository** → **Connect** → pick the repo. App in a subfolder: Settings → **Application Directory** → `backend` → Update | fastapicloud.com docs, 2026-09-29 |
 | Public sign-up roles today | FARMER, BUYER, VENDOR (`public_registration_roles`, env-overridable) | `app/core/config.py` |
 
 ## Waiting for Atharv (manual steps from merged PRs)

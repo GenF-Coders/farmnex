@@ -58,9 +58,32 @@ ALTER TABLE public.fc_forecast_logs ENABLE ROW LEVEL SECURITY;  -- no policies: 
 COMMIT;
 ```
 
+## Where the forecaster runs, and keeping it awake
+
+**Why a separate service at all:** the forecaster loads machine-learning libraries (LightGBM, pandas,
+statsmodels, SHAP). Putting them inside the main backend would make every backend deploy slower and
+heavier, and a model problem could take the whole marketplace down. As its own small service it can
+fail or restart without touching logins, orders or payments — and "ML runs as a separate
+microservice" is a good architecture point to show judges.
+
+**Render free plan behaviour** (Render docs): a free web service **spins down after 15 minutes with no
+requests**, and waking it takes **about a minute**. Each workspace gets 750 free instance hours per
+month — enough for **one** service running all month.
+
+Pick one:
+1. **Render free + a keep-awake ping (₹0, recommended for the prototype):** use a free uptime
+   monitor (e.g. UptimeRobot or cron-job.org) to open `https://<forecaster>/health` every 10 minutes,
+   so it never reaches 15 idle minutes. Turn it on a day before judging and keep it on. Use only for
+   this one service (the 750 free hours cover one always-on service).
+2. **Render Starter (paid, about $7/month):** never sleeps; nothing else to set up. Good for the
+   finale month.
+3. **Still add the safety net either way:** longer timeout on forecast calls in the app (100 s) with a
+   "waking up the forecaster…" message, and open `/health` 5 minutes before any demo.
+
 ## Steps
 
-1. Deploy the forecaster (its `integration/INTEGRATION.md` Step 1). Check `https://<host>/health`.
+1. Deploy the forecaster (its `integration/INTEGRATION.md` Step 1) and set up option 1 or 2 above.
+   Check `https://<host>/health`.
 2. Add `backend/migrations/020_fc_forecast_logs.sql` (above); Atharv runs it in Supabase.
 3. Create `backend/app/modules/forecast/router.py` from the kit's `farmnex_forecast.py` with the
    three changes in the table. Read config through our settings/env: `FORECASTER_URL`,

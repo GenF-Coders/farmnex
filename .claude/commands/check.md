@@ -1,6 +1,9 @@
 ---
-description: Run all checks for backend and frontend and report in plain language
+description: Full check of the whole repo (backend + frontend) — for the coordinator after a wave, not for every task
 ---
+
+Full check — use after a wave or before a demo. For one task use `/check-backend`,
+`/check-frontend` or `/check-fast` instead (they're cheaper and faster).
 
 Run the checks and report results simply (what passed, what failed, what couldn't run and why).
 Don't fix anything unless asked — just report and suggest the next step.
