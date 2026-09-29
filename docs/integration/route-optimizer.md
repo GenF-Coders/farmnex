@@ -1,83 +1,231 @@
 # Route optimizer → main app
 
-**Source repo:** `atharvpatil1733-art/farmnex_route_optimizer` (being built; it could not be read
-during the 2026-09-29 review, so **check this file against that repo's README/CLAUDE.md before
-integrating** and update anything that differs).
-**What it does (planned):** pools nearby farmers' loads going to the same buyers, fills return trips
-(backhaul), suggests a nearby transporter or lets the farmer self-deliver, and quotes fares from each
-vehicle's current rate for the load carried. No background GPS.
+**Source repo:** `atharvpatil1733-art/farmnex_route_optimization` (checked at commit `22d4859`,
+2026-09-29). Package name **`farmnex_routes`**, tables **`rt_*`**.
+**What it does:** keeps a copy of each vehicle, turns an order into a "load", pools nearby loads
+into one truck, finds the best pickup/drop order (Crop Rescue loads first), quotes each farmer's fare
+(road km × tonnes × vehicle rate), offers return-trip loads (backhaul), and shows live GPS tracking
+with ETAs while the driver app is open.
+**Time budget (prototype):** ~10–14 h total — backend 5–6 h, Flutter 5–7 h, demo seeding 1 h.
 
-Follow the shared rules in `README.md` in this folder. This file lists what's specific.
+Read the component's own `docs/LINKING_ORDERS.md` for the idea ("four slips of paper"). **This file
+overrides it where they differ**, because that guide was written before it could see this repo. The
+differences are marked ⚠️.
 
-## What already exists in the main app (so the component doesn't duplicate it)
+Follow the shared rules in `README.md` in this folder.
 
-| Thing | Where | State |
+---
+
+## ⚠️ What's different in FarmNex (read first)
+
+| Component guide assumes | Reality in farmnex_main | What we do |
 |---|---|---|
-| Roles `DELIVERY_AGENT`, `LOGISTICS_MANAGER` | seeded in `backend/app/main.py` | real |
-| `deliveries` table: `order_id`, `seller_id`, `farm_id`, `delivery_agent_id`, `status`, `pickup_address_snapshot`, `delivery_address_snapshot`, `expected_at`, `delivered_at` | `backend/app/models/delivery.py` | real, but no ownership checks yet (FIX_PLAN F1) |
-| `delivery_tracking_events`, `delivery_proofs` | models + controllers | real, no ownership checks yet |
-| Farm & address coordinates (`latitude`, `longitude`) | `farms`, `addresses` | real |
-| Vehicles (type, capacity, rates) | — | **not in the backend**. Only demo data in Flutter `lib/providers/logistics_provider.dart` |
-| Driver screens (loads, active trip, earnings) | `lib/screens/logistics/logistics_screens.dart` | Flutter UI on demo data |
+| The main app has a vehicles table and a "register vehicle" endpoint | **No vehicles table in the backend.** Vehicles exist only as demo data in Flutter `logistics_provider.dart` | `rt_vehicles` becomes the source of truth. We add 3 small host endpoints (below) that call `upsert_vehicle`. No new core table. |
+| `DATABASE_URL` works for both | Ours is `postgresql+asyncpg://…` (async). The component is **sync** (`psycopg`). Its URL fixer only rewrites `postgres://`/`postgresql://`, so our URL breaks it. If no URL is found it **silently uses a local SQLite file** — on FastAPI Cloud that file is wiped on every redeploy. | Always set **`ROUTES_DATABASE_URL`** (Supabase **session pooler**, port 5432, `postgresql://…?sslmode=require`). `wiring.py` refuses to mount if it's missing, empty, `sqlite…` or `+asyncpg`. |
+| Mount at `/routes`, "protect with your auth" | Login alone isn't enough: any logged-in user could mark someone's load **delivered** (which will release payment) or read driver phones and live locations. | Mount at `/api/v2/routes` with an **allow-list + ownership guard** (below). Endpoints only our server should call are not exposed at all. |
+| ids like `order.id`, `driver.id` | Our internal ids are ints; the app only knows `public_id` UUIDs | Always pass `str(x.public_id)` for `order_id`, `farmer_id`, `buyer_id`, `driver_user_id`. Vehicle id = new `uuid4()` string. |
+| Listener `@on_delivery_update` calls "your existing wallet release" | There is no wallet yet (FIX_PLAN F12), and our DB code is **async** while the listener is **sync** | Listener hands off to async code with `anyio.from_thread.run(...)` (explained below). Wallet release comes with F12. |
+| Order confirmation exists | Orders are plain CRUD today (F12) | Slip 2 is wired when F12 adds the CONFIRMED step. Until then, a manager-only demo endpoint can create a load for an order. |
+| Main `deliveries` table | We have `deliveries`, `delivery_tracking_events`, `delivery_proofs` (unused by the app) | **Decision (confirm with Atharv):** for the prototype `rt_loads` is the delivery system; unmount those 3 controllers (FIX_PLAN F1 fast path) so there aren't two competing delivery systems. |
 
-So the component needs its own **vehicle** table (`ro_vehicles`) — that's "adding", which is allowed.
+---
 
-## Contract the component should follow (same as Crop Rescue)
+## How to install it (pick one, in this order)
 
-- Package `route_optimizer/` with public names: `router`, `settings`, `current_user_ref`
-  (+ `start_scheduler`/`stop_scheduler` only if it has background jobs).
-- Router prefix `/routes`, tag `route-optimizer` → mounted at **`/api/v2/routes/...`**.
-- Relative imports only; no `from app...`; no `FastAPI()` inside; no auth inside.
-- Tables `ro_*` only, e.g. `ro_vehicles` (owner `user_public_id`, type, capacity_kg, rate_per_km,
-  min_fare, home lat/lon, is_available), `ro_trip_plans`, `ro_trip_stops`, `ro_quotes`. No FKs to core
-  tables; users as `user_public_id`; deliveries as `delivery_public_id`.
-- Pure algorithm code (distance, pooling, backhaul matching, fare) in `core/` with unit tests and no
-  DB access — easiest to test and to explain to judges.
-- If it's sync + psycopg like Crop Rescue: its own `RO_DATABASE_URL` (see README rule 6).
+1. **pip from GitHub, pinned to a commit** (keeps the import name `farmnex_routes`, which its
+   tracking page needs):
+   ```
+   farmnex-route-optimizer @ git+https://github.com/atharvpatil1733-art/farmnex_route_optimization.git@22d4859
+   ```
+   Pin a **commit hash**, never `@main` — otherwise a push to the component repo can break the main
+   app on its next deploy without anyone changing this repo.
+2. **If FastAPI Cloud's build can't install from git** (build log shows a git/clone error): copy the
+   `farmnex_routes/` folder to **`backend/farmnex_routes/`** (top level, next to `app/`, **not** in
+   `app/modules/`). Its tracking page loads `static/track.html` with
+   `importlib.resources.files("farmnex_routes")`, so the folder must stay importable as exactly
+   `farmnex_routes`. Add `psycopg[binary]>=3.1` to requirements.
 
-## How it gets core data (host adapter — rule 7)
+Check: `python -c "import farmnex_routes, importlib.resources as r; print(r.files('farmnex_routes').joinpath('static/track.html').is_file())"` prints `True`.
 
-The component must not read `deliveries`, `farms` or `addresses` itself. Pick one:
-- **Adapter function (recommended):** in `backend/app/modules/wiring.py`, write
-  `async def open_loads_for(user) -> list[LoadIn]` that uses our repositories and ownership rules to
-  build plain objects (pickup lat/lon, drop lat/lon, weight, ready time, delivery public_id), and pass
-  them into the component's planning function / endpoint. The component defines `LoadIn`.
-- **Read-only view:** `ro_open_loads` view over `deliveries` + `farms` + `addresses` in a
-  `backend/migrations/03x_ro_views.sql` file.
+---
 
-Writing back: when a plan is accepted, assigning a driver means setting
-`deliveries.delivery_agent_id` — do that **through our delivery service** (with its ownership/role
-checks), called from the host glue, not by component SQL.
+## Database
 
-## Who can do what
+- Copy `sql/001_create_route_tables.sql` → `backend/migrations/030_rt_route_tables.sql` (unchanged;
+  it only creates `rt_*` tables). Atharv runs it in the Supabase SQL editor.
+- Set `ROUTES_AUTO_CREATE_TABLES=false` (tables come from the SQL file, like every component).
+- `ROUTES_DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require`
+  (the component converts it to `psycopg` itself and disables prepared statements, so pooler ports
+  work).
+- **Settings are read when `farmnex_routes` is first imported.** So `load_dotenv()` must run at the
+  very top of `app/main.py` (see `README.md` rule 12), and `wiring.py` must import `farmnex_routes`
+  **inside** the mount function, after the flag check — never at the top of a file.
 
-| Action | Role |
+---
+
+## Security: allow-list + ownership guard
+
+Build two sub-routers in `backend/app/modules/wiring.py` by picking routes out of
+`farmnex_routes.router.routes` (match on the route's `path` and `methods`):
+
+**A. Not exposed at all** (our server calls the Python helpers instead):
+`PUT /vehicles/{vehicle_id}`, `GET /vehicles` (list), `POST /loads`, `GET /loads` (list),
+`POST /loads/{load_id}/cancel`, `POST /orders/{order_id}/cancel-delivery`.
+
+**B. Mounted with login + guard** at `/api/v2/routes` — `dependencies=[Depends(get_current_user), Depends(routes_guard)]`:
+
+| Route (component path) | Who may call |
 |---|---|
-| Register/edit own vehicle, set availability and rates | DELIVERY_AGENT (own vehicles only) |
-| Ask for a quote / pooled plan for own deliveries; choose self-delivery | FARMER (own deliveries) |
-| See loads offered to them, accept a trip, update stop status | DELIVERY_AGENT (only trips offered/assigned to them) |
-| See all plans, re-assign | LOGISTICS_MANAGER, ADMIN |
+| `GET /vehicles/{vehicle_id}`, `PATCH /vehicles/{vehicle_id}/status`, `POST /vehicles/{vehicle_id}/location`, `GET /vehicles/{vehicle_id}/current-trip`, `GET /vehicles/{vehicle_id}/backhaul`, `GET /vehicles/{vehicle_id}/notifications`, `POST /vehicles/{vehicle_id}/accept-load/{load_id}` | the vehicle's driver (`rt_vehicles.driver_user_id == str(user.public_id)`) |
+| `POST /notifications/{notification_id}/read` | driver of that notification's vehicle |
+| `POST /trips/plan` | driver of `body.vehicle_id` (read the JSON body in the guard) |
+| `GET /trips/{trip_id}`, `POST /trips/{trip_id}/start`, `POST /trips/{trip_id}/cancel`, `POST /trips/{trip_id}/stops/{stop_id}/complete` | driver of the trip's vehicle |
+| `GET /loads/{load_id}`, `GET /loads/{load_id}/track` | the load's farmer or buyer, or the driver of its trip's vehicle |
+| `GET /orders/{order_id}/delivery` | the load's farmer or buyer (look up the load by `order_id`) |
+| everything above | also LOGISTICS_MANAGER / ADMIN |
 
-Identity override: `current_user_ref` → `str(user.public_id)`; role checks in host dependencies.
+Not allowed → **404** (same as "not found"), never 403, so ids can't be probed.
 
-## Steps
+**C. Mounted without login:** `GET /track/{trip_id}` and `GET /track/{trip_id}/view` — the live map
+opens in a WebView, and its JavaScript polls the JSON without our token. Trip ids are random UUIDs,
+so the link works like a private share link. **Prototype trade-off:** anyone with the link sees the
+truck and the driver's phone. Only show the link to that order's farmer/buyer. (Later: short-lived
+signed links.)
 
-1. Read the component repo's docs; update this file if its contract differs.
-2. Copy `route_optimizer/` → `backend/app/modules/route_optimizer/`; record the commit hash.
-3. Requirements with version ranges (no OR-Tools unless really needed — it's large; check wheel
-   availability on FastAPI Cloud first).
-4. SQL: `backend/migrations/030_ro_route_optimizer.sql` (add-only, prefixed); Atharv runs it.
-5. Wiring: flag `ENABLE_ROUTE_OPTIMIZER`, mount under `/api/v2` with login dependency, identity
-   override, host adapter for loads.
-6. `.env.example`: `ENABLE_ROUTE_OPTIMIZER=false` + its `RO_` settings.
-7. Tests `backend/tests/modules/test_route_optimizer.py`: 401 without token; farmer can't plan
-   another farmer's delivery (404); agent can't edit another agent's vehicle (404); fare maths for a
-   known case.
-8. Flutter: `RouteApi(ApiClient().dio)`; switch `logistics_provider.dart` from demo data; add vehicle
-   registration form if not present; keep the three existing logistics screens.
+How the guard works (sketch — keep it this simple):
+```python
+async def routes_guard(request: Request, user: User = Depends(get_current_user)) -> None:
+    if user.role and user.role.name in {"LOGISTICS_MANAGER", "ADMIN", "SUPER_ADMIN"}:
+        return
+    me = str(user.public_id)
+    # The route's own path, WITHOUT our prefix on FastAPI 0.141 (e.g. "/trips/{trip_id}/start"),
+    # so only use "contains"/"endswith" checks, never an exact full path.
+    path = request.scope["route"].path
+    params = dict(request.path_params)
+    body = await request.json() if path.endswith("/trips/plan") else None   # endpoint still gets the body (tested)
+    ok = await run_in_threadpool(_allowed, path, params, body, me)          # sync DB check off the event loop
+    if not ok:
+        raise HTTPException(404, "Not found.")
+
+def _allowed(path, p, body, me) -> bool:
+    with session_scope() as s:                            # component's sync session
+        if "{vehicle_id}" in path:        return _driver_of_vehicle(s, p["vehicle_id"], me)
+        if "{trip_id}" in path:           return _driver_of_trip(s, p["trip_id"], me)
+        if "{notification_id}" in path:   return _driver_of_notification(s, p["notification_id"], me)
+        if "{load_id}" in path:           return _party_of_load(s, p["load_id"], me)
+        if "{order_id}" in path:          return _party_of_order_load(s, p["order_id"], me)
+        if path.endswith("/trips/plan"):  return _driver_of_vehicle(s, (body or {}).get("vehicle_id"), me)
+        return False                                      # unknown route → deny by default
+```
+Deny by default: a new route added to the component later stays blocked until someone adds a rule.
+Check order matters: `/vehicles/{vehicle_id}/accept-load/{load_id}` must be checked as the
+**vehicle's driver** (it's listed first above), not as a party of the load.
+
+---
+
+## Host endpoints we add (vehicles + demo)
+
+In `backend/app/modules/logistics_host.py`, mounted at `/api/v2/logistics` with login:
+
+| Endpoint | Role | Does |
+|---|---|---|
+| `POST /vehicles` | DELIVERY_AGENT, or FARMER (self-delivery → `owner_role="farmer"`) | new `str(uuid4())` id → `upsert_vehicle(..., driver_user_id=str(user.public_id), driver_name, driver_phone from the user)` |
+| `PATCH /vehicles/{vehicle_id}` | that vehicle's driver | re-calls `upsert_vehicle` (rate/capacity/base change) |
+| `GET /my-vehicles` | any | vehicles where `driver_user_id == me` |
+| `POST /orders/{order_public_id}/request-transport` | LOGISTICS_MANAGER / ADMIN (demo, until F12) | builds and calls `create_delivery_for_order` |
+
+Validate inputs here: `vehicle_type` ∈ `pickup | tempo | mini_truck | truck`; `capacity_kg > 0`;
+`rate_per_ton_km > 0`; base lat/lng present. These are async endpoints, so call the sync helpers with
+`await run_in_threadpool(fn)` — **never** call `session_scope()` directly inside `async def` (it
+blocks the whole server while it waits for the database).
+
+---
+
+## Slip 2 — order → load (after F12)
+
+Where F12 moves an order to **CONFIRMED** (and the buyer chose platform transport):
+- `order_id=str(order.public_id)`, `farmer_id=str(seller.public_id)`, `buyer_id=str(buyer.public_id)`.
+- Pickup = the listing's farm `latitude/longitude`; drop = `order.delivery_address_snapshot`
+  lat/lng. **If either is missing, don't create the load** — return a clear error ("Add your farm
+  location") instead of sending 0,0 (the optimizer would plan a trip to the ocean).
+- `weight_kg` from quantity + unit: kg ×1, quintal ×100, ton ×1000. Anything else → error.
+- `priority=2` for Crop Rescue sales, `1` urgent, else `0`.
+- It's idempotent per `order_id` (calling twice returns the same load), so a retry is safe.
+- On order cancel → `cancel_delivery_for_order` (only works while the load is `pending`; after that,
+  show "contact support").
+
+## Slip 3 — load status → order (listener)
+
+```python
+@on_delivery_update
+def _on_delivery(load, status):                       # sync, called by the component
+    if not load.order_id:
+        return
+    anyio.from_thread.run(handle_delivery_update, load.order_id, status)   # our async code
+```
+- This works because the component's endpoints are sync and run in FastAPI's worker threads. Don't
+  call it from any other thread.
+- `handle_delivery_update` opens its **own** `AsyncSessionLocal()` session, updates the order
+  status, and (after F12) releases escrow **only if not already released** — it can be called twice.
+- The component logs and swallows listener errors, so a failure here does not undo the delivery.
+  Log it clearly and add a manager-only "re-sync order from load" endpoint so it can be fixed by hand
+  during the demo.
+
+---
+
+## Flutter
+
+- `RouteApi(ApiClient().dio)` in `lib/core/network/route_api.dart`; all paths `/api/v2/routes/...`
+  and `/api/v2/logistics/...`.
+- Driver screens (`lib/screens/logistics/logistics_screens.dart`): my vehicle → go online →
+  current trip / plan trip → start → stop "picked up / delivered" buttons → notifications + backhaul
+  offers. Switch `logistics_provider.dart` off demo data.
+- GPS: needs `geolocator` (not in `pubspec.yaml` yet) + Android location permissions. Send a ping
+  every ~10 s **only while the trip screen is open** (no background GPS). Stop the timer in
+  `dispose()`.
+- Tracking: order card shows status/ETA from `GET /orders/{id}/delivery`; a **Track** button opens
+  `tracking_url` in a WebView (needs `webview_flutter`, not in `pubspec.yaml` yet).
+- Set `ROUTES_PUBLIC_BASE_URL=https://farmnex.fastapicloud.dev` (origin only, no path) so tracking
+  links are `https` — Android WebViews block `http`.
+
+## Env vars (`backend/.env.example` + FastAPI Cloud)
+
+```
+ENABLE_ROUTE_OPTIMIZER=false
+ROUTES_DATABASE_URL=
+ROUTES_AUTO_CREATE_TABLES=false
+ROUTES_PUBLIC_BASE_URL=https://farmnex.fastapicloud.dev
+ROUTING_PROVIDER=osrm        # switch to haversine if venue internet is bad
+```
+
+## What can go wrong (and how you'll notice)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Works locally, data gone after redeploy; or routes work but nothing appears in Supabase | `ROUTES_DATABASE_URL` not seen → SQLite fallback | Set it on FastAPI Cloud; `load_dotenv()` first in `main.py` for local runs; wiring must refuse SQLite |
+| `MissingGreenlet: greenlet_spawn has not been called` from `farmnex_routes` | It got our asyncpg `DATABASE_URL` | Set `ROUTES_DATABASE_URL` (plain `postgresql://`) |
+| Whole server slow/frozen when planning trips | Sync helper called inside `async def` | Wrap with `run_in_threadpool` |
+| Tracking page 500 "No module named farmnex_routes" | Copied into `app/modules/` | Copy to `backend/farmnex_routes/` or pip-install |
+| Tracking page blank on Android | `http` link, or no INTERNET permission | `ROUTES_PUBLIC_BASE_URL` with https; manifest permission |
+| ETAs say "Estimated" | Public OSRM server slow/blocked | Fine for demo; or `ROUTING_PROVIDER=haversine` |
+| "Plan trip" returns no loads | No `pending` loads within 30 km, or vehicle not `available` | Driver goes online first; seed loads near the vehicle base |
+| Order never shows Delivered | Listener error (logged) | Check logs; manager "re-sync" endpoint |
+| Main app breaks after a component push | Unpinned `@main` install | Pin the commit hash |
+
+## Tests (`backend/tests/modules/test_route_optimizer.py`, `ROUTES_DATABASE_URL` = test DB)
+
+- Flag off → no `/api/v2/routes` routes; flag on without `ROUTES_DATABASE_URL` → still unmounted,
+  error logged, app starts.
+- No token → 401 on guarded routes; `/track/{id}` works without token.
+- Driver B can't read/modify driver A's vehicle, trip or stops (404); a buyer can't complete stops.
+- Buyer and farmer of an order see `/orders/{id}/delivery`; another buyer gets 404.
+- Blocked routes (`POST /loads`, `PUT /vehicles/{id}`) are absent (404/405).
+- Listener: completing the last stop sets our order to DELIVERED once, even if called twice.
 
 ## Done when
 
-- A farmer gets a pooled plan + fare for two nearby deliveries to the same buyer.
-- A driver sees the load, accepts it, and the delivery shows that driver as assigned.
-- Backend starts with `ENABLE_ROUTE_OPTIMIZER=false`.
+- A driver registers a truck in the app, goes online, and gets a pooled trip for two nearby farmers'
+  loads to the same buyer, with each farmer's fare.
+- Buyer taps **Track** and sees the truck move (real phone or `demo/simulate_driver.py`).
+- Last drop → order shows Delivered; a return-trip offer appears for the driver.
+- Another driver can't see or change that trip.

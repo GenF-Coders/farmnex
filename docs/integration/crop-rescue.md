@@ -5,6 +5,8 @@
 check every 12 hours, alerts the farmer 48 hours before spoilage, and suggests the best nearby
 rescue buyers.
 **Priority:** top feature — integrate first (after P0 security fixes).
+**Time budget (prototype):** ~6–8 h — finish its Phase 5 (1 h, in its repo), backend wiring +
+tests (2–3 h), Flutter screens (3–4 h).
 
 Follow the shared rules in `README.md` in this folder. This file lists what's specific.
 
@@ -57,6 +59,14 @@ write the Dart client here following its `docs/SPEC.md` API contract.
    `crop_types` table has 12. Keep a simple name mapping in `wiring.py` or in the Dart client so the
    farmer can only pick supported crops for rescue.
 
+7. **`POST /rescue/check` runs the spoilage check for every farmer** and has no farmer check of its
+   own. Allow it only for ADMIN/MANAGER with a small host guard on that one path (the scheduler
+   already runs it every 12 h). Farmers use `/rescue/simulate` (their own lots) in the demo.
+8. **Settings file:** its settings read `.env` from the **current folder**, so run the backend from
+   `backend/` (as the commands in `CLAUDE.md` do). Settings are validated when the package is first
+   imported, so import it inside `mount_components` (shared rule 3) — a typo like `CR_Q10=abc` then
+   only disables Crop Rescue instead of crashing the backend.
+
 ## Steps
 
 1. `mkdir -p backend/app/modules` and copy `crop_rescue/` into it. Record the commit hash.
@@ -76,6 +86,20 @@ write the Dart client here following its `docs/SPEC.md` API contract.
    `lib/providers/rescue_provider.dart` from demo data to it; screens in `lib/screens/rescue/`
    (`crop_rescue_screen.dart`, `publish_rescue_sheet.dart`, `rescue_detail_screen.dart`). Poll
    alerts every 30 s on the farmer home screen, only while it's visible.
+
+## What can go wrong (and how you'll notice)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `MissingGreenlet` / asyncpg errors from `crop_rescue` | `CR_DATABASE_URL` unset → fell back to our async `DATABASE_URL` | Set `CR_DATABASE_URL` (`postgresql+psycopg://…:5432/postgres?sslmode=require`) |
+| `relation "cr_lots" does not exist` | SQL file not run on this database | Run `010_cr_crop_rescue.sql` in Supabase |
+| `SSL connection is required` / connection refused | Missing `?sslmode=require`, or used the direct host that needs IPv6 | Use the **session pooler** URL from Supabase → Connect |
+| Every call 401 | App not sending our token | Build the client on `ApiClient().dio` |
+| Every call 403 | Logged in as BUYER/VENDOR | Farmer account only (by design) |
+| No matches for a lot | Demo buyers not seeded, or all farther than `CR_RADIUS_KM` (50 km) | Run `011_cr_demo_seed.sql`; create lots near Pune |
+| No alerts appear | Scheduler off / not yet 12 h | Use `/rescue/simulate` in the demo; check `CR_ENABLE_SCHEDULER` |
+| Alerts sent twice | Backend runs 2+ instances, each with a scheduler | `CR_ENABLE_SCHEDULER=true` on one instance only (or keep 1 instance for the demo) |
+| Backend won't start after adding it | Bad `CR_*` value + top-level import | Import inside `mount_components`; fix the variable named in the error |
 
 ## Done when
 

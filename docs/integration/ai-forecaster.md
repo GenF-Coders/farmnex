@@ -8,6 +8,9 @@ Agmarknet (non-commercial licence — the CEDA credit must be shown).
 
 Follow the shared rules in `README.md` in this folder. This file lists what's specific.
 
+**Time budget (prototype):** ~5–6 h — deploy the service (1 h), connector + table + tests (2 h),
+Flutter (2–3 h).
+
 ## Shape
 
 The forecaster is a **separate service** (LightGBM + pandas — too heavy for the main backend). It runs
@@ -77,6 +80,20 @@ COMMIT;
    logo in `assets/`) on every screen with these prices. Remove the old `aiPricePredictionEndpoint`.
 8. Existing `ai_predictions` / `ai_recommendations` tables: leave them alone for now; don't write
    forecaster output into them unless Atharv decides to (they're core tables).
+
+## What can go wrong (and how you'll notice)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| App says "timeout" on the first forecast, works on retry | Render free plan sleeps; wake-up ~60 s, but our Dio timeout is 20 s | Forecast calls pass `Options(receiveTimeout: const Duration(seconds: 100))`; show "waking up the forecaster…"; **open `/health` 5 minutes before judging**; Starter plan if budget allows |
+| Every forecast call 401 | Kit's Supabase Auth check left in | Use our `get_current_user` (step 3) |
+| 503 "temporarily unavailable" | Wrong `FORECASTER_URL`, or key mismatch | Key must equal `FARMNEX_FORECASTER_API_KEY` on Render exactly (no spaces/quotes) |
+| Logs say "could not save forecast log" | `fc_forecast_logs` not created | Run `020_fc_forecast_logs.sql`; the user still gets the forecast |
+| "unknown market/crop" | App sent a name not in `/forecast/meta` | Fill dropdowns only from `/forecast/meta`; don't hard-code names |
+| "synthetic data is hidden" | No real data for that market × crop | Offer only crops listed under that market in `/meta` |
+| Render build fails with `libgomp.so.1` | LightGBM needs a system library | See the forecaster repo's INTEGRATION.md troubleshooting |
+| Env vars ignored locally | `.env` not loaded into `os.environ` | `load_dotenv()` first in `main.py` (shared rule 12) |
+| Judges ask about data licence | CEDA non-commercial terms | CEDA credit visible on every forecast screen |
 
 ## Done when
 

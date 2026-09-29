@@ -6,6 +6,10 @@ line to `docs/STATUS.md`.
 
 Each item says **why** (in plain words), **what to do**, and **how to check** it's really fixed.
 
+**Order to work in** (tests must exist before the security fixes can be proven):
+F4 → F5 → F11 → F3 → F1 + F2 (module by module) → F9 → F6, F7, F10, F17 → F12 → F13–F16 → F8.
+Time budgets and who does what: `docs/FINALE_PLAN.md`. Copy-paste prompts: `docs/PROMPTS.md`.
+
 ---
 
 ## P0 — Security (must fix before any demo or judging)
@@ -30,6 +34,14 @@ this order (demo-critical first): payment → bid → bid_event → order → or
 product_image → delivery → delivery_tracking_event → delivery_proof → crop_batch →
 farm_crop_activity → waste_record → waste_utilization_listing → buyer_demand_request → review →
 order_dispute → notification → ai_prediction → ai_recommendation → crop_type → audit_log.
+
+**Prototype fast path (saves ~4–5 h — confirm with Atharv first):** modules that no screen or demo
+step will use can be **unmounted** instead of fixed: remove them from the `modules` list in
+`backend/app/api/v2/router.py` (the code files and tables stay; nothing is deleted). Candidates:
+`ai_prediction`, `ai_recommendation` (the forecaster replaces them), `delivery`,
+`delivery_tracking_event`, `delivery_proof` (the route optimizer's `rt_loads` replaces them),
+`audit_log`, `order_dispute`, `review`, `farm_crop_activity`. An unmounted endpoint can't be
+attacked. That leaves 13 modules to fix. Re-mount one later only together with its F1 fix.
 
 **Suggested rules** (confirm with Atharv before implementing a row; these are business decisions):
 
@@ -127,7 +139,8 @@ don't need CORS; Flutter **web** builds do — include their origin.
 `.env.example` lists rate limits and security headers, but `app/core/middleware.py`, `jwt.py`,
 `logging.py`, `constants.py` are empty files. Either implement the minimum — security headers +
 a simple in-memory rate limit on `/api/v2/auth/*` (fine for one instance; note it resets on restart)
-— or remove the unused settings so nobody thinks they're active. Ask Atharv which.
+— or remove the unused settings so nobody thinks they're active. Ask Atharv which. (In the 40–50 h
+build: remove them + add only the security headers — 30 min. Rate limiting is stretch.)
 **Check:** 6 rapid `login/request-otp` calls from one IP → the 6th gets 429 (if implemented).
 
 ### - [ ] F9. Supabase pooler + asyncpg check
@@ -169,7 +182,29 @@ Today these services are plain save/edit/delete. Needed:
 - **Payments:** created only by the server from an order/bid flow; status machine
   (PENDING → HELD → RELEASED / REFUNDED / FAILED); idempotency key per attempt. For the prototype a
   clearly labelled "demo payment provider" is fine — never mark money as paid because the client said so.
-**Check:** tests for each rule (double bid race, own-listing bid, total tampering, early release).
+**Prototype minimum (≈8 h — build this, not more):**
+1. Orders: server-computed totals from listings, stock decrease, statuses
+   PLACED → CONFIRMED → DELIVERED / CANCELLED (skip SHIPPED — the route optimizer tracks movement).
+   On CONFIRMED → create the delivery load (route optimizer Slip 2).
+2. Pre-bidding: bid rules above + server closes the event and picks the winner (a manager/demo
+   "close now" endpoint is fine instead of a timer).
+3. Escrow: one new table `wallet_ledger` (add-only: user_public_id, order/bid public id, amount,
+   type HOLD/RELEASE/REFUND, idempotency key, created_at). Balance = sum of entries. HOLD 20% on
+   bid win, RELEASE on DELIVERED (route optimizer Slip 3), each exactly once.
+4. Payments: a clearly labelled demo provider ("Pay (demo)") that writes the ledger — no real
+   gateway in the prototype.
+Skip for the prototype: refunds UI, partial deliveries, disputes, multiple currencies.
+
+**Check:** tests for each rule (double bid race, own-listing bid, total tampering, early release,
+release called twice pays once).
+
+### - [ ] F17. Load `.env` first and list component settings
+**Why:** our settings read `.env` themselves, but Crop Rescue, the route optimizer and the forecaster
+connector read the process environment directly. Locally they would silently miss their settings
+(the route optimizer then quietly uses a SQLite file). **What to do:** first two lines of
+`backend/app/main.py`: `from dotenv import load_dotenv` / `load_dotenv()`. Add every component env
+var (flags default `false`) to `backend/.env.example` with a one-line comment each.
+**Check:** with `ROUTES_DATABASE_URL` only in `.env`, `python -c "import app.main, os; print(bool(os.getenv('ROUTES_DATABASE_URL')))"` prints `True`.
 
 ---
 

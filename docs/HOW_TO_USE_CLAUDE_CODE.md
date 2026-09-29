@@ -11,7 +11,9 @@ and how the four components plug in. You just give short commands.
 | `backend/CLAUDE.md`, `frontend/CLAUDE.md` | Extra rules when working in each folder |
 | `docs/FIX_PLAN.md` | Every known problem, in order, with how to check it's fixed |
 | `docs/STATUS.md` | Progress + decisions — Claude updates it after each task |
-| `docs/integration/*.md` | How Crop Rescue, AI forecaster, route optimizer and voice assistant plug in |
+| `docs/integration/*.md` | How Crop Rescue, AI forecaster, route optimizer and voice assistant plug in, and what can go wrong |
+| `docs/FINALE_PLAN.md` | The 40–50 h plan: streams, hours, checkpoints, cut lines |
+| `docs/PROMPTS.md` | Copy-paste prompts for every step |
 | `backend/migrations/` | SQL for new component tables — **you** run these in Supabase |
 | `.claude/commands/` | The shortcuts below |
 | `.claude/agents/security-reviewer.md` | A second Claude that checks security changes |
@@ -28,18 +30,16 @@ and how the four components plug in. You just give short commands.
 
 Component names for `/integrate`: `crop-rescue`, `ai-forecaster`, `route-optimizer`, `voice-assistant`.
 
-## Suggested order
+## Order of work
 
-1. **Security first (before any demo):**
-   `/fix F1 payment` → `/fix F1 bid` → `/fix F1 bid_event` → `/fix F1 order` → … (one module each,
-   order is in FIX_PLAN F1), then `/fix F2`, `/fix F3`.
-2. **Clean up and make deploys reliable:** `/fix F4` … `/fix F11`.
-3. **Crop Rescue** (top feature): `/integrate crop-rescue`, then `/connect-screen rescue`.
-4. **AI forecaster:** `/integrate ai-forecaster`.
-5. **Marketplace logic** (orders, bids, 20% advance): `/fix F12` — plan it together first.
-6. **Route optimizer:** `/integrate route-optimizer`, then `/connect-screen logistics`.
-7. **Voice assistant:** `/integrate voice-assistant` (needs step 1 done).
-8. Remaining screens: `/connect-screen listing`, `market`, `cart`, `bidding`, `waste`, `admin`.
+Don't follow a list from memory — use these two files:
+- **`docs/FINALE_PLAN.md`** — the 40–50 hour plan: three streams (backend security, components,
+  app screens), who waits for whom, checkpoints, and what to cut if you're behind.
+- **`docs/PROMPTS.md`** — the exact prompt for every step, in order, with a time budget each.
+
+The short version: **cleanup and test setup first** (F4 → F5 → F17 → F11), **then security**
+(F3 → F1 + F2), then components and screens in parallel. Tests come before the security fixes
+because they're how we prove a fix works.
 
 ## Things only you can do
 
@@ -50,6 +50,7 @@ Component names for `/integrate`: `crop-rescue`, `ai-forecaster`, `route-optimiz
 
 ## Tips
 
-- One fix or one component per session/branch keeps things easy to review.
+- One fix or one component per session/branch keeps things easy to review. At the end, ask Claude
+  to push the branch and open a pull request, then merge it before the next step.
 - If Claude's explanation is too technical, say "explain simpler" — `CLAUDE.md` tells it to.
 - If something looks wrong, ask Claude to run the `security-reviewer` agent on the current changes.
