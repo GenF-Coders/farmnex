@@ -70,7 +70,7 @@ write the Dart client here following its `docs/SPEC.md` API contract.
 ## Steps
 
 1. `mkdir -p backend/app/modules` and copy `crop_rescue/` into it. Record the commit hash.
-2. Add to `backend/requirements.txt`: `psycopg[binary]>=3.1`, `apscheduler>=3.10,<4`
+2. Add to `backend/pyproject.toml` **and** `backend/requirements.txt` (Crop Rescue section): `psycopg[binary]>=3.1`, `apscheduler>=3.10,<4`
    (`sqlalchemy`, `pydantic-settings`, `httpx` are already there).
 3. Copy its `migrations/001_crop_rescue.sql` → `backend/migrations/010_cr_crop_rescue.sql` and
    `002_demo_seed.sql` → `backend/migrations/011_cr_demo_seed.sql` (unchanged). Atharv runs them in
