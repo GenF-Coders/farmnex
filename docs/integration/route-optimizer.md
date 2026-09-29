@@ -123,9 +123,17 @@ Check order matters: `/vehicles/{vehicle_id}/accept-load/{load_id}` must be chec
 
 ---
 
+## Driver and manager accounts
+
+Public sign-up allows only FARMER, BUYER, VENDOR (`public_registration_roles` in
+`app/core/config.py`, overridable by env). For the prototype: add `DELIVERY_AGENT` to that list via
+the env var on FastAPI Cloud (drivers sign up in the app), and create LOGISTICS_MANAGER / ADMIN
+accounts with a small one-off script (`backend/scripts/create_staff_user.py`, run by Atharv against
+production with the phone number as input). Never make ADMIN or MANAGER a public sign-up role.
+
 ## Host endpoints we add (vehicles + demo)
 
-In `backend/app/modules/logistics_host.py`, mounted at `/api/v2/logistics` with login:
+In `backend/app/modules/logistics_host.py`, mounted at `/api/v2/logistics` with login (by `routes_host.mount()`, which also mounts the guarded `farmnex_routes` sub-routers):
 
 | Endpoint | Role | Does |
 |---|---|---|

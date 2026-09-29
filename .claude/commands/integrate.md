@@ -17,13 +17,16 @@ Integrate the **$ARGUMENTS** component into this repo.
 3. Check the time budget in the guide and `docs/FINALE_PLAN.md`; keep to the simplest version that
    meets the guide's "Done when". Give Atharv a short plan (files you'll add/change, SQL he must run, env vars he must set) and wait
    for OK — he wants to build components together, not have them appear.
-4. Work through the **Integration checklist** in `docs/integration/README.md`, one step per commit.
+4. Put all FarmNex glue in `backend/app/modules/<name>_host.py` (exposing `mount(app)`, and
+   `start()`/`stop()` if needed) — `wiring.py` already imports it when the flag is on; don't edit
+   `wiring.py` or `main.py`. Work through the **Integration checklist** in `docs/integration/README.md`, one step per commit.
    Never run SQL against the main Supabase database yourself; put it in `backend/migrations/` and
    show Atharv the file to run.
 5. Test: `/check`, plus the component's own "Done when" list. Start the backend once with the
    component flag **off** and once **on**; `/docs` must load both times.
 6. Ask the `security-reviewer` agent to review the integration diff.
-7. Update `docs/STATUS.md` (component table + log with the source commit hash). Push the branch and
-   open a pull request unless Atharv said not to.
+7. Don't edit `docs/STATUS.md` / `docs/FIX_PLAN.md` (the coordinator session does). In the PR
+   description write "Ticks:", "Component: <name> @ <source commit hash>" and "Manual steps:" (SQL
+   files, env vars). Push the branch and open a pull request unless Atharv said not to.
 8. Finish with a plain-language summary and a numbered list of what Atharv must do by hand
    (run SQL, set env vars on FastAPI Cloud, deploy the separate service, test on the phone).

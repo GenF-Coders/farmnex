@@ -1,5 +1,8 @@
 # Copy-paste prompts for Claude Code
 
+> **Running several sessions at once?** Use `docs/PARALLEL_SESSIONS.md` for the order and file
+> rules: paste its session header first, then the prompt from here that its session table points to.
+
 Use with `docs/FINALE_PLAN.md` (who does what, when). Rules:
 - **One fresh Claude Code session per prompt** (fewer mistakes, less usage).
 - **Merge the PR before the next prompt** in the same stream.
@@ -199,7 +202,7 @@ Read docs/FARMNEX_HOST.md and do changes 2 and 4: rename the pack to FarmNex, up
 
 **V2. In `farmnex_main`** (after Crop Rescue + forecaster are integrated; 2–3 h):
 ```
-/integrate voice-assistant — part 1: the read-only voice tool endpoints (demand, rescue-alerts, rescue-matches, pickup) in backend/app/modules/voice_tools.py, returning exactly the voice pack's fixture shapes, reusing our services so ownership applies. Tests: another farmer's data is never returned.
+/integrate voice-assistant — part 1: the read-only voice tool endpoints (demand, rescue-alerts, rescue-matches, pickup) in backend/app/modules/voice_tools_host.py (flag ENABLE_VOICE_TOOLS), returning exactly the voice pack's fixture shapes, reusing our services so ownership applies. Tests: another farmer's data is never returned.
 ```
 
 **V3. Back in the voice repo** (1 h):
