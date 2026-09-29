@@ -151,13 +151,13 @@ class AdminProvider extends ChangeNotifier {
     const PlatformUser(id: 'u2', name: 'Vikram Sethi', role: UserRole.buyer, location: 'Lasalgaon, MH', trades: 128),
     const PlatformUser(id: 'u3', name: 'Imran Shaikh', role: UserRole.logistics, location: 'Pune, MH', trades: 67, isVerified: false),
     const PlatformUser(id: 'u4', name: 'Balasaheb Shinde', role: UserRole.farmer, location: 'Latur, MH', trades: 19),
-    const PlatformUser(id: 'u5', name: 'Adani Wilmar Ltd', role: UserRole.buyer, location: 'Pune, MH', trades: 311),
+    const PlatformUser(id: 'u5', name: 'Sunrise Edible Oils Ltd', role: UserRole.buyer, location: 'Pune, MH', trades: 311),
     const PlatformUser(id: 'u6', name: 'Deepak Yadav', role: UserRole.logistics, location: 'Nashik, MH', trades: 8, isSuspended: true),
   ];
 
   final List<SettlementRow> settlements = const [
     SettlementRow(id: 's1', symbol: '🔒', party: 'Kishanlal Agro ➜ Ramesh Patil', amount: 252000, status: 'escrow', ago: '15 min'),
-    SettlementRow(id: 's2', symbol: '✅', party: 'Adani Wilmar ➜ B. Shinde', amount: 246000, status: 'settled', ago: '3 hr'),
+    SettlementRow(id: 's2', symbol: '✅', party: 'Sunrise Edible Oils ➜ B. Shinde', amount: 246000, status: 'settled', ago: '3 hr'),
     SettlementRow(id: 's3', symbol: '🚚', party: 'Freight payout ➜ I. Shaikh', amount: 11200, status: 'settled', ago: '5 hr'),
     SettlementRow(id: 's4', symbol: '↩️', party: 'Refund ➜ AgroCorp India', amount: 38400, status: 'refunded', ago: '1 day'),
   ];

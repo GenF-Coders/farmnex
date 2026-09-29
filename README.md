@@ -12,6 +12,34 @@
 
 ---
 
+## Run locally
+
+**Backend** (Python 3.11+; `.env` is never committed):
+
+```bash
+cd backend
+pip install -r requirements.txt
+python generate_jwt_keys.py          # creates secrets/jwt_*.pem (never commit)
+cp .env.example .env                 # then fill in DATABASE_URL etc.
+uvicorn app.main:app --reload        # http://localhost:8000/docs
+python -m pytest -q
+```
+
+**Frontend** (needs Flutter):
+
+```bash
+cd frontend
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+The app talks to `https://farmnex.fastapicloud.dev` by default; see `frontend/README.md` to point it at a
+local backend.
+
+---
+
 ## 🚜 About FarmNex
 
 FarmNex is an AI-powered agricultural marketplace designed to connect

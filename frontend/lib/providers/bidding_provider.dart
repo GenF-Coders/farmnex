@@ -29,7 +29,7 @@ class BiddingProvider extends ChangeNotifier {
       ),
       const LiveBid(
         id: 'bid-2',
-        companyName: 'Godrej Agrovet Logistics',
+        companyName: 'Harvest Link Logistics',
         buyerName: 'Sunil Rao',
         amount: 2490,
         timestamp: '3 mins ago',
@@ -50,7 +50,7 @@ class BiddingProvider extends ChangeNotifier {
     _bidsByCrop['crop-2'] = [
       const LiveBid(
         id: 'bid-201',
-        companyName: 'Adani Wilmar Refineries',
+        companyName: 'Sunrise Edible Oils',
         buyerName: 'Prakash Deshmukh',
         amount: 4920,
         timestamp: '2 mins ago',
@@ -113,8 +113,8 @@ class BiddingProvider extends ChangeNotifier {
 
     final buyers = [
       {'name': 'Kishanlal Agro Export', 'buyer': 'Manoj Agarwal'},
-      {'name': 'Godrej Agrovet Logistics', 'buyer': 'Sunil Rao'},
-      {'name': 'ITC Choupal Sagar', 'buyer': 'Anand Mishra'},
+      {'name': 'Harvest Link Logistics', 'buyer': 'Sunil Rao'},
+      {'name': 'Choupal Trade Hub', 'buyer': 'Anand Mishra'},
       {'name': 'South India Millers Co', 'buyer': 'K. Venkatesan'},
     ];
     final chosen = buyers[Random().nextInt(buyers.length)];

@@ -50,7 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       cropName: 'Yellow Soybean (सोयाबीन)',
       cropEmoji: '🌱',
       buyerName: 'Prakash Deshmukh',
-      buyerCompany: 'Adani Wilmar Edible Oils',
+      buyerCompany: 'Sunrise Edible Oils',
       buyerLocation: 'Latur APMC',
       bidPrice: 4920,
       quantity: 50,

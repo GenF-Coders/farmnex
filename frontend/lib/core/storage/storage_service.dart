@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class StorageService {
@@ -10,28 +11,61 @@ class StorageService {
 
   static StorageService? _instance;
   SharedPreferences? _prefs;
+  final FlutterSecureStorage _secure = const FlutterSecureStorage();
+
+  // Tokens live in secure storage; a copy is kept in memory so the getters stay synchronous.
+  String? _accessToken;
+  String? _refreshToken;
 
   StorageService._();
 
   static Future<StorageService> getInstance() async {
     if (_instance == null) {
-      _instance = StorageService._();
-      _instance!._prefs = await SharedPreferences.getInstance();
+      final service = StorageService._();
+      service._prefs = await SharedPreferences.getInstance();
+      await service._loadTokens();
+      _instance = service;
     }
     return _instance!;
   }
 
-  Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
-    await _prefs?.setString(_accessTokenKey, accessToken);
-    await _prefs?.setString(_refreshTokenKey, refreshToken);
+  Future<void> _loadTokens() async {
+    try {
+      _accessToken = await _secure.read(key: _accessTokenKey);
+      _refreshToken = await _secure.read(key: _refreshTokenKey);
+    } catch (_) {
+      // Secure storage unavailable: treat as logged out.
+    }
+
+    // One-time migration: move tokens from the old shared_preferences keys, then delete them.
+    final oldAccess = _prefs?.getString(_accessTokenKey);
+    final oldRefresh = _prefs?.getString(_refreshTokenKey);
+    if (oldAccess != null || oldRefresh != null) {
+      if ((_accessToken ?? '').isEmpty && oldAccess != null && oldRefresh != null) {
+        await saveTokens(accessToken: oldAccess, refreshToken: oldRefresh);
+      }
+      await _prefs?.remove(_accessTokenKey);
+      await _prefs?.remove(_refreshTokenKey);
+    }
   }
 
-  String? getAccessToken() => _prefs?.getString(_accessTokenKey);
-  String? getRefreshToken() => _prefs?.getString(_refreshTokenKey);
+  Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    await _secure.write(key: _accessTokenKey, value: accessToken);
+    await _secure.write(key: _refreshTokenKey, value: refreshToken);
+  }
+
+  String? getAccessToken() => _accessToken;
+  String? getRefreshToken() => _refreshToken;
 
   Future<void> clearTokens() async {
-    await _prefs?.remove(_accessTokenKey);
-    await _prefs?.remove(_refreshTokenKey);
+    _accessToken = null;
+    _refreshToken = null;
+    try {
+      await _secure.delete(key: _accessTokenKey);
+      await _secure.delete(key: _refreshTokenKey);
+    } catch (_) {}
     await _prefs?.remove(_userDataKey);
   }
 

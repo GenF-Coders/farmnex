@@ -33,14 +33,46 @@ class ApiConfig {
   static String farmFileEndpoint(String publicId) => '${farmEndpoint(publicId)}/file';
   static String farmFileDownloadEndpoint(String publicId) => '${farmFileEndpoint(publicId)}/download';
 
-  static const String cropsEndpoint = '/api/crops';
   static const String verificationUploadEndpoint = '/api/verification/upload';
-  static const String aiPricePredictionEndpoint = '/api/ai/price-prediction';
   static const String aiChatEndpoint = '/api/ai/chat';
-  static const String cropRescueEndpoint = '/api/rescue/request';
-  static const String wasteListingsEndpoint = '/api/waste/listings';
 
+  // Old URLs below do not exist on the backend yet. Each sits in the section of the feature that
+  // will replace it. A later session edits only between its own two marker lines.
+
+  // >>> listing >>>
+  static const String cropsEndpoint = '/api/crops';
+  // <<< listing <<<
+
+  // >>> market >>>
+  // <<< market <<<
+
+  // >>> cart >>>
+  // <<< cart <<<
+
+  // >>> payment >>>
+  // <<< payment <<<
+
+  // >>> bidding >>>
   static String cropBidsWsUrl(String cropId) => '$wsBaseUrl/ws/bidding/$cropId';
   static String cropBidsEndpoint(String cropId) => '$cropsEndpoint/$cropId/bids';
+  // <<< bidding <<<
+
+  // >>> rescue >>>
+  static const String cropRescueEndpoint = '/api/rescue/request';
+  // <<< rescue <<<
+
+  // >>> forecast >>>
+  static const String aiPricePredictionEndpoint = '/api/ai/price-prediction';
   static String cropPricePredictionEndpoint(String cropId) => '$aiPricePredictionEndpoint/$cropId';
+  // <<< forecast <<<
+
+  // >>> logistics >>>
+  // <<< logistics <<<
+
+  // >>> waste >>>
+  static const String wasteListingsEndpoint = '/api/waste/listings';
+  // <<< waste <<<
+
+  // >>> voice >>>
+  // <<< voice <<<
 }
