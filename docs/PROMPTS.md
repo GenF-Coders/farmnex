@@ -26,7 +26,7 @@ Read CLAUDE.md, docs/FINALE_PLAN.md, docs/FIX_PLAN.md and docs/STATUS.md. In sim
 /fix F4
 ```
 
-**A2. Dependencies** (30 min) — it will ask which file FastAPI Cloud installs from; answer "requirements.txt" if unsure.
+**A2. Dependencies** (30 min) — FastAPI Cloud installs from `backend/pyproject.toml` (STATUS → Verified facts); keep `requirements.txt` matching it.
 ```
 /fix F5
 ```
@@ -101,7 +101,7 @@ Act as a hackathon judge who tests security. Ask the security-reviewer agent to 
 
 ## Stream B — Components
 
-**B1. Crop Rescue: finish its Phase 5 — in the `farmnex_crop_rescue` repo** (1 h). Still needed: as of 2026-09-29 that repo has no `integration/` folder or `INTEGRATION.md` yet.
+**B1. Crop Rescue: finish its Phase 5 — in the `farmnex_crop_rescue` repo** (1 h). Start the session with the **component-repo header** from `PARALLEL_SESSIONS.md` §5 (that repo doesn't contain the main app's docs). Still needed: as of 2026-09-29 that repo has no `integration/` folder or `INTEGRATION.md` yet.
 ```
 /build-phase 5 — first read docs/FARMNEX_HOST.md in this repo and follow it where it differs from SPEC.md (farmer id = users.public_id, own CR_DATABASE_URL, never pass the host's async engine).
 ```
@@ -116,7 +116,7 @@ Act as a hackathon judge who tests security. Ask the security-reviewer agent to 
 
 **B4. Forecaster into the main app** (2 h)
 ```
-/integrate ai-forecaster — the forecaster is deployed at <paste your Render URL>. Our login is FarmNex's own JWT, not Supabase Auth; follow the "Important" table in the guide.
+/integrate ai-forecaster — the forecaster is deployed at the URL in docs/STATUS.md → Verified facts → Forecaster URL (if it still says `<not set>`, stop: M1 isn't done). Our login is FarmNex's own JWT, not Supabase Auth; follow the "Important" table in the guide.
 ```
 🧑 Run `020_fc_forecast_logs.sql`. Set `ENABLE_FORECAST=true`, `FORECASTER_URL`, `FORECASTER_API_KEY` on FastAPI Cloud.
 

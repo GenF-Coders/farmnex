@@ -1,6 +1,6 @@
 # AI voice assistant → main app
 
-**Source repo:** `atharvpatil1733-art/Farmnex-Voice-Assistant` (checked at commit `483599b`,
+**Source repo:** `atharvpatil1733-art/Farmnex-Voice-Assistant` (commit: see `docs/STATUS.md` → Components,
 2026-09-29 — milestone M4 done). Backend `backend/` (FastAPI, `voice_core` package, `uv`), domain
 pack `domain_packs/farm_marketplace/`, DB migration `supabase/migrations/0001_voice_core.sql`.
 **What it does:** push-to-talk in Hindi / Marathi / English over a WebSocket (`/v1/voice`), speech

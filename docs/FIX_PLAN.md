@@ -222,23 +222,26 @@ release called twice pays once).
 **Why:** our settings read `.env` themselves, but Crop Rescue, the route optimizer and the forecaster
 connector read the process environment directly. Locally they would silently miss their settings
 (the route optimizer then quietly uses a SQLite file). **What to do:** first two lines of
-`backend/app/main.py`: `from dotenv import load_dotenv` / `load_dotenv()`. Add every component env
-var (flags default `false`) to `backend/.env.example` with a one-line comment each.
+`backend/app/main.py`: `from dotenv import load_dotenv` / `load_dotenv()`. In `backend/.env.example`
+add one marked section per component (format: `PARALLEL_SESSIONS.md` §7) holding its `ENABLE_*` flag
+(default `false`) and every env var its guide in `docs/integration/` already names, one-line comment
+each. Component sessions add any further variables inside their own section.
 **Check:** with `ROUTES_DATABASE_URL` only in `.env`, `python -c "import app.main, os; print(bool(os.getenv('ROUTES_DATABASE_URL')))"` prints `True`.
 
 ### - [ ] F18. One crop list across the app and components
-**Why:** each part supports different crops. Main `crop_types`: rice, wheat, maize, tomato, potato,
-onion, cotton, sugarcane, groundnut, mango, banana, carrot. Crop Rescue: tomato, spinach, okra,
-brinjal, cauliflower, grapes, capsicum, cucumber. Forecaster: onion, tomato, potato. Voice pack:
-onion, tomato, soybean, pomegranate. **Only tomato is in all four.** A demo with any other crop
+**Why:** each part supports different crops (the exact lists are in `docs/STATUS.md` → Verified
+facts). **Only tomato is in all four.** A demo with any other crop
 breaks halfway (e.g. an onion lot can't go into Crop Rescue).
-**What to do (1 h):** add the missing Crop Rescue crops to `DEFAULT_CROP_TYPES` in `app/main.py`
-(it only inserts missing rows — nothing is renamed or deleted); add one mapping dict in
+**What to do (1 h):** add the 7 missing Crop Rescue crops to `DEFAULT_CROP_TYPES` in `app/main.py`
+(approved by Atharv 2026-09-29; the seeder only inserts missing rows — nothing is renamed or deleted); add one mapping dict in
 `app/modules/crops.py` (`crop_types.name` → Crop Rescue `crop_code` / forecaster crop / voice id);
 component calls use it and answer "not available for this crop yet" instead of erroring. Demo story
 uses **Tomato**.
-**Check:** a tomato listing works end to end (rescue lot, forecast, voice); a spinach lot works in
-Crop Rescue and says "forecast not available" politely.
+**Check (S01):** a small unit test `backend/tests/test_crops.py` — Tomato maps to all four; Spinach maps
+to Crop Rescue only and the others return `None`; every `crop_types.name` in the map exists in
+`DEFAULT_CROP_TYPES`. **Check (later, when the components are plugged in):** a tomato listing works end
+to end (rescue lot, forecast, voice); a spinach lot works in Crop Rescue and says "forecast not
+available" politely.
 
 ---
 

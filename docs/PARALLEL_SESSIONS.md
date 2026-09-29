@@ -151,6 +151,14 @@ Paste this, fill in the session id, then paste the task prompt from the table:
 You are session SNN of the FarmNex parallel build. First read docs/PARALLEL_SESSIONS.md sections 4 and 5 and your row SNN in section 6. Make sure you are on the latest main, then create branch sNN-<short-name>. Check that the prerequisites in your row are merged; if not, stop and tell me. Only change the files your row allows — if you need any other file, stop and ask me. Don't edit docs/STATUS.md or docs/FIX_PLAN.md; put "Ticks:", "Manual steps:" and "Doc conflicts:" in the PR description. If two docs disagree, follow section 4b (higher-ranked doc wins) instead of stopping, unless it affects files outside your row, the database, money or security. Before opening the PR, merge the latest main into your branch again and re-run the tests.
 ```
 
+### Header for sessions in a component repo (S03, S04, S07, S30, S31)
+
+Those repos don't contain this file, so the normal header can't be followed. Paste this instead:
+
+```
+You are session SNN of the FarmNex parallel build, working in this component repo only (not farmnex_main). Read this repo's CLAUDE.md and docs/FARMNEX_HOST.md (where it and SPEC.md disagree about the host, FARMNEX_HOST.md wins). Make sure you are on the latest main, then create branch sNN-<short-name>. Only change files inside this repo. Show me a short plan first and wait for my OK. Run this repo's own tests before the PR. PR title starts with "SNN:"; the description lists what changed, how it was tested, the final commit hash, and "Doc conflicts:" for anything in FARMNEX_HOST.md or the farmnex_main docs that looks wrong. Merge the latest main into your branch before opening the PR.
+```
+
 ---
 
 ## 6. The session table (in order)
@@ -163,11 +171,11 @@ other*. Times are Claude + review time.
 
 | Id | What | Prompt (after the header) | Files it owns | Needs merged | Time |
 |---|---|---|---|---|---|
-| **S01** | Backend foundation: F4, F5, F17, F18 + component slots | "Do FIX_PLAN F4, F5, F17 and F18. Also create `backend/app/modules/__init__.py` and `wiring.py` exactly as §7 of PARALLEL_SESSIONS.md describes, and add a marked section per component (Crop Rescue, forecaster, route optimizer, voice) to `pyproject.toml`, `requirements.txt` and `.env.example`; `pyproject.toml` is what FastAPI Cloud installs. One commit per item." | `backend/app.zip`, `backend/0.141`, `requirements.txt`, `pyproject.toml`, `.env.example`, `app/main.py`, `app/modules/*`, `.gitignore` | — | 2 h |
-| **S02** | Frontend foundation: F15, F16, F14 + slots | "Run `flutter analyze` and list existing errors (fix only ones that stop the build). Then do FIX_PLAN F15, F16, F14. Add these packages to `pubspec.yaml` in one go: `flutter_secure_storage`, `geolocator`, `webview_flutter` (check current versions on pub.dev). In `api_config.dart` add empty marked sections: listing, market, cart, payment, bidding, rescue, forecast, logistics, waste, voice." | `frontend/**` (except feature files later sessions create) | — | 2.5 h |
-| **S03** | Crop Rescue Phase 5 — **in the `farmnex_crop_rescue` repo** | PROMPTS.md **B1** | that repo only | — | 1 h |
+| **S01** | Backend foundation: F4, F5, F17, F18 + component slots | "Do FIX_PLAN F4, F5, F17 and F18. Also create `backend/app/modules/__init__.py` and `wiring.py` exactly as §7 of PARALLEL_SESSIONS.md describes, and add a marked section per component (Crop Rescue, forecaster, route optimizer, voice) to `pyproject.toml`, `requirements.txt` and `.env.example`, in the format of §7; `pyproject.toml` is what FastAPI Cloud installs. F18 is approved (add the 7 crops). One commit per item. Don't call F5 done until `pip install .` and `pip install -r requirements.txt` both work in a fresh venv." | `backend/app.zip`, `backend/0.141`, `requirements.txt`, `pyproject.toml`, `.env.example`, `app/main.py`, `app/modules/*`, `.gitignore`, and **new** test files `backend/tests/test_crops.py`, `backend/tests/test_wiring.py` (new files only; `conftest.py` is S05's) | — | 2 h |
+| **S02** | Frontend foundation: F15, F16, F14 + slots | "Run `flutter analyze` and list existing errors (fix only ones that stop the build). Put that list in the PR description under \"Analyze findings:\". Then do FIX_PLAN F15, F16, F14. Add these packages to `pubspec.yaml` in one go: `flutter_secure_storage`, `geolocator`, `webview_flutter` (check current versions on pub.dev). In `api_config.dart` add empty marked sections (format in §7): listing, market, cart, payment, bidding, rescue, forecast, logistics, waste, voice; move each existing dead URL into the section of the feature that will replace it (`cropsEndpoint`/`cropBids*` → listing/bidding, `aiPricePrediction*`/`cropPricePrediction*` → forecast, `cropRescueEndpoint` → rescue, `wasteListingsEndpoint` → waste); leave `verificationUploadEndpoint` and `aiChatEndpoint` where they are." | `frontend/**` (except feature files later sessions create) **and the root `README.md`** (F16 updates its "run locally" section) | — | 2.5 h |
+| **S03** | Crop Rescue Phase 5 — **in the `farmnex_crop_rescue` repo** (use the component-repo header, §5) | PROMPTS.md **B1** | that repo only | — | 1 h |
 | **S04** | Voice login adapter — **in the voice repo** (stretch; **skip in three-lane mode** — voice runs last) | PROMPTS.md **V1** (first prompt) | that repo only | — | 1–2 h |
-| M1 | 🧑 Deploy the forecaster to Render | PROMPTS.md **B2** | — | — | 1 h |
+| M1 | 🧑 Deploy the forecaster to Render (free plan + keep-awake ping — decided, STATUS → Verified facts); then ask the coordinator to record its URL in STATUS | PROMPTS.md **B2** | — | — | 1 h |
 
 ### Wave 1 — tests + small fixes (after S01 is merged)
 
@@ -287,6 +295,21 @@ PR; if a session gets long, use `/compact` (check with `/context`), or finish an
 
 ## 7. What S01 builds so component sessions never collide
 
+**Marked sections** (one format everywhere, so sessions can find and extend their own):
+S01 (backend) and S02 (`api_config.dart`) create them empty; a later session edits only between its
+own two marker lines.
+
+```
+# >>> crop-rescue >>>        (backend: pyproject.toml, requirements.txt, .env.example — use "#")
+# <<< crop-rescue <<<
+// >>> listing >>>           (frontend: api_config.dart — use "//")
+// <<< listing <<<
+```
+Backend section names: `crop-rescue`, `forecast`, `routes`, `voice`. Frontend section names: `listing`,
+`market`, `cart`, `payment`, `bidding`, `rescue`, `forecast`, `logistics`, `waste`, `voice`. In
+`pyproject.toml` the markers sit as comments inside the `dependencies` list. In `.env.example` each
+backend section already holds its `ENABLE_*` flag (default `false`) and the variables its guide names.
+
 `backend/app/modules/wiring.py` knows all four components up front; each component session only
 creates **its own** `<name>_host.py`.
 
@@ -381,7 +404,7 @@ grapes, capsicum, cucumber), forecaster crop (`Onion`, `Tomato`, `Potato`), voic
 
 ```
 Before each wave:        C pre-flight (docs only) → merge it → start the wave
-Wave 0 (now, parallel):  S01 backend foundation | S02 frontend foundation | S03 Crop Rescue Ph5 | S04 voice auth | M1 deploy forecaster
+Wave 0 (now, parallel):  S01 backend foundation | S02 frontend foundation | S03 Crop Rescue Ph5 | M1 deploy forecaster   (S04 voice auth: skip, voice runs last)
 Wave 1 (after S01):      S05 tests  ‖  S06 small fixes  ‖  S07 voice pack
 Wave 2 (after S05):      S08 roles+unmount → then ‖ S09 pay ‖ S10 bids ‖ S11 orders ‖ S12 listings ‖ S13 waste ‖ S14 misc
                          and ‖ S15 Crop Rescue ‖ S16 forecaster ‖ S17 routes pt1     (max 3–4 per person at once)

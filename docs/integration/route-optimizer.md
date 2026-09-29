@@ -1,7 +1,7 @@
 # Route optimizer → main app
 
-**Source repo:** `atharvpatil1733-art/farmnex_route_optimization` (checked at commit `22d4859`,
-2026-09-29). Package name **`farmnex_routes`**, tables **`rt_*`**.
+**Source repo:** `atharvpatil1733-art/farmnex_route_optimization` (commit: see `docs/STATUS.md` → Components;
+the pip pin below is the one to install). Package name **`farmnex_routes`**, tables **`rt_*`**.
 **What it does:** keeps a copy of each vehicle, turns an order into a "load", pools nearby loads
 into one truck, finds the best pickup/drop order (Crop Rescue loads first), quotes each farmer's fare
 (road km × tonnes × vehicle rate), offers return-trip loads (backhaul), and shows live GPS tracking
