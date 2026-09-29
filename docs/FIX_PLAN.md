@@ -7,7 +7,7 @@ line to `docs/STATUS.md`.
 Each item says **why** (in plain words), **what to do**, and **how to check** it's really fixed.
 
 **Order to work in** (tests must exist before the security fixes can be proven):
-F4 → F5 → F11 → F3 → F1 + F2 (module by module) → F9 → F6, F7, F10, F17 → F12 → F13–F16 → F8.
+F4 → F5 → F11 → F3 → F1 + F2 (module by module) → F9 → F6, F7, F10, F17, F18 → F12 → F13–F16 → F8.
 Time budgets and who does what: `docs/FINALE_PLAN.md`. Copy-paste prompts: `docs/PROMPTS.md`.
 
 ---
@@ -42,6 +42,18 @@ step will use can be **unmounted** instead of fixed: remove them from the `modul
 `delivery_tracking_event`, `delivery_proof` (the route optimizer's `rt_loads` replaces them),
 `audit_log`, `order_dispute`, `review`, `farm_crop_activity`. An unmounted endpoint can't be
 attacked. That leaves 13 modules to fix. Re-mount one later only together with its F1 fix.
+
+*Why unmount now instead of "fix them last" or delete them:*
+- **Leaving them mounted to fix at the end is the risky option.** The backend is live on the internet
+  (`/docs` is public), so every unfixed endpoint stays open to any logged-in user for the whole build,
+  and "the end" is exactly when time runs out. Anyone testing can also create junk rows (fake
+  payments, reviews) that show up in the demo.
+- **Deleting costs more than it saves.** Unmounting takes one line per module and is reversed in one
+  line; deleting code throws away finished models/services, makes the git history noisy, and to
+  bring a feature back you rebuild it. The tables stay either way (we never drop tables).
+- **So: unmount now → fix + re-mount later as add-ons** (F1 per module, then add it back to the
+  `modules` list), only if time is left after the demo story works. In the pitch, call them
+  "next release" features; judges see only working, safe endpoints in `/docs`.
 
 **Suggested rules** (confirm with Atharv before implementing a row; these are business decisions):
 
@@ -193,6 +205,12 @@ Today these services are plain save/edit/delete. Needed:
    bid win, RELEASE on DELIVERED (route optimizer Slip 3), each exactly once.
 4. Payments: a clearly labelled demo provider ("Pay (demo)") that writes the ledger — no real
    gateway in the prototype.
+5. **Decision needed (Atharv):** who picks the pre-bid winner? The voice assistant's `accept_bid`
+   tool assumes the **farmer accepts a bid**; this plan said the server closes the event. Recommended
+   for the prototype: **farmer accepts** (any time during the 7 days, or at the end) — simpler (no
+   timer) and matches the voice demo. Accepting = close the event + set `winner_bid_id` + HOLD 20%.
+6. Write endpoints the voice assistant calls (create pre-bid listing, accept bid) accept an
+   `Idempotency-Key` header and return the same result for the same key.
 Skip for the prototype: refunds UI, partial deliveries, disputes, multiple currencies.
 
 **Check:** tests for each rule (double bid race, own-listing bid, total tampering, early release,
@@ -205,6 +223,20 @@ connector read the process environment directly. Locally they would silently mis
 `backend/app/main.py`: `from dotenv import load_dotenv` / `load_dotenv()`. Add every component env
 var (flags default `false`) to `backend/.env.example` with a one-line comment each.
 **Check:** with `ROUTES_DATABASE_URL` only in `.env`, `python -c "import app.main, os; print(bool(os.getenv('ROUTES_DATABASE_URL')))"` prints `True`.
+
+### - [ ] F18. One crop list across the app and components
+**Why:** each part supports different crops. Main `crop_types`: rice, wheat, maize, tomato, potato,
+onion, cotton, sugarcane, groundnut, mango, banana, carrot. Crop Rescue: tomato, spinach, okra,
+brinjal, cauliflower, grapes, capsicum, cucumber. Forecaster: onion, tomato, potato. Voice pack:
+onion, tomato, soybean, pomegranate. **Only tomato is in all four.** A demo with any other crop
+breaks halfway (e.g. an onion lot can't go into Crop Rescue).
+**What to do (1 h):** add the missing Crop Rescue crops to `DEFAULT_CROP_TYPES` in `app/main.py`
+(it only inserts missing rows — nothing is renamed or deleted); add one mapping dict in
+`app/modules/wiring.py` (`crop_types.name` → Crop Rescue `crop_code` / forecaster crop / voice id);
+component calls use it and answer "not available for this crop yet" instead of erroring. Demo story
+uses **Tomato**.
+**Check:** a tomato listing works end to end (rescue lot, forecast, voice); a spinach lot works in
+Crop Rescue and says "forecast not available" politely.
 
 ---
 

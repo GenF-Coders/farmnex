@@ -8,7 +8,7 @@ rules they all follow here; each also has its own guide in this folder.
 | Crop Rescue | `farmnex_crop_rescue` @ `93eec60` | router package copied into `backend/app/modules/crop_rescue/` | `cr_` | `/api/v2/rescue/…` | 6–8 h |
 | AI forecaster | `farmnex_ai_forecaster` @ `2f6f170` | **separate service** + small connector router here | `fc_` | `/api/v2/forecast/…` | 5–6 h |
 | Route optimizer | `farmnex_route_optimization` @ `22d4859` | package `farmnex_routes` (pip from git, pinned) | `rt_` | `/api/v2/routes/…` + `/api/v2/logistics/…` | 10–14 h |
-| Voice assistant | not reviewed yet | **separate service** calling our API as the user | `va_` | — | stretch |
+| Voice assistant | `Farmnex-Voice-Assistant` @ `483599b` | **separate service** (own Supabase project) calling `/api/v2/voice-tools/…` as the user | own `voice` schema, separate project | `/api/v2/voice-tools/…` | stretch: 10–12 h read-only, +3–4 h writes |
 
 ## The picture
 
@@ -47,7 +47,7 @@ keys live only on the server.
    Components get it only from a dependency the host overrides, or from host code that passes it in.
    Being logged in is not enough: each guide lists who may call what.
 7. **Database:**
-   - Only **add** tables, with the component prefix: `cr_`, `fc_`, `rt_`, `va_`. Never alter, drop,
+   - Only **add** tables, with the component prefix: `cr_`, `fc_`, `rt_`, `va_` (voice only if it ever moves into the main DB — see its guide). Never alter, drop,
      or write to core tables from component SQL.
    - Users stored as text/UUID ids with **no foreign keys** to core tables.
    - SQL files go in `backend/migrations/` (numbered, idempotent, `BEGIN; … COMMIT;`), run by hand
@@ -82,6 +82,11 @@ keys live only on the server.
 14. **Failure isolation:** background jobs wrapped in `try/except` + `logger.exception`,
     `max_instances=1, coalesce=True`. A component with bad config logs one clear error and stays
     unmounted; the main backend still starts.
+
+15. **Crops:** each part supports different crops — **Tomato is the only crop all four understand**,
+    so the demo story uses Tomato. Map crop names in host code (FarmNex `crop_types.name` ↔ Crop Rescue
+    `crop_code` ↔ forecaster crop ↔ voice crop id) in one place (`wiring.py`), and answer "not available
+    for this crop yet" instead of failing. See FIX_PLAN F18.
 
 ## Common failures (all components)
 
