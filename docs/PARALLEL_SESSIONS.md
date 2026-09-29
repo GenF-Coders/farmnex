@@ -134,7 +134,7 @@ caught by git — they surface as a session stopping to ask. Rules that keep the
 4b. **Docs disagree?** Follow §4b: the higher-ranked doc wins, keep going, list it under
    "Doc conflicts:" in the PR. Stop only for files/DB/money/security.
 5. Show a short plan first; wait for OK (as `CLAUDE.md` says).
-6. Tests + `/check` must pass before the PR. Security-sensitive rows run the `security-reviewer`.
+6. Tests + `/check-backend` or `/check-frontend` (whichever side you changed) must pass before the PR. Security-sensitive rows run the `security-reviewer`.
 7. **Before opening the PR, merge the latest `main` into your branch again** and re-run the tests —
    other sessions may have merged meanwhile.
 8. PR title starts with the session id: `S09: ownership checks for payments (F1+F2)`. The PR
@@ -166,7 +166,7 @@ other*. Times are Claude + review time.
 | **S01** | Backend foundation: F4, F5, F17, F18 + component slots | "Do FIX_PLAN F4, F5, F17 and F18. Also create `backend/app/modules/__init__.py` and `wiring.py` exactly as §7 of PARALLEL_SESSIONS.md describes, and add a marked section per component (Crop Rescue, forecaster, route optimizer, voice) to `pyproject.toml`, `requirements.txt` and `.env.example`; `pyproject.toml` is what FastAPI Cloud installs. One commit per item." | `backend/app.zip`, `backend/0.141`, `requirements.txt`, `pyproject.toml`, `.env.example`, `app/main.py`, `app/modules/*`, `.gitignore` | — | 2 h |
 | **S02** | Frontend foundation: F15, F16, F14 + slots | "Run `flutter analyze` and list existing errors (fix only ones that stop the build). Then do FIX_PLAN F15, F16, F14. Add these packages to `pubspec.yaml` in one go: `flutter_secure_storage`, `geolocator`, `webview_flutter` (check current versions on pub.dev). In `api_config.dart` add empty marked sections: listing, market, cart, payment, bidding, rescue, forecast, logistics, waste, voice." | `frontend/**` (except feature files later sessions create) | — | 2.5 h |
 | **S03** | Crop Rescue Phase 5 — **in the `farmnex_crop_rescue` repo** | PROMPTS.md **B1** | that repo only | — | 1 h |
-| **S04** | Voice login adapter — **in the voice repo** (stretch) | PROMPTS.md **V1** (first prompt) | that repo only | — | 1–2 h |
+| **S04** | Voice login adapter — **in the voice repo** (stretch; **skip in three-lane mode** — voice runs last) | PROMPTS.md **V1** (first prompt) | that repo only | — | 1–2 h |
 | M1 | 🧑 Deploy the forecaster to Render | PROMPTS.md **B2** | — | — | 1 h |
 
 ### Wave 1 — tests + small fixes (after S01 is merged)
@@ -262,6 +262,28 @@ You are the coordinator session doing a docs pre-flight for wave N of docs/PARAL
 ```
 
 ---
+
+## 6b. Three-lane mode (one person running 3 sessions — recommended)
+
+If one person drives everything, run **exactly 3 sessions at a time**, one per lane. When a session
+finishes and its PR is merged, start that lane's next session. Same session ids, prompts and file
+rules as above — this only fixes the order per lane. Some rows are grouped into one session (commits
+stay separate) to cut start-up, review and merge overhead; keep each session under ~2 hours.
+
+| Lane | Model / effort | Sessions, in order (→ = wait for the previous one to merge) |
+|---|---|---|
+| **A — backend & security** (critical path) | strongest model, high effort for S08–S20 and S33; a lighter model is fine for S01/S05 | S01 → S05 → S08 → **S11+S09** (orders, then payments; one session) → S10 → S18 → S19 → S20 → S33 |
+| **B — components & catalogue** | medium model/effort; strongest for S17 (guard) | S03 (Crop Rescue repo) → S06 (after S01) → S12 (after S08) → S15 → S16 → S17 → **S13+S14** (one session) → S26 |
+| **C — Flutter** | medium model/effort | S02 → S21 (after S12) → S22 (after S15) → S23 (after S16) → S24 (after S17) → S25 → S27 (after S19) → S28 (after S20) → S34 |
+| **Coordinator** | lightest model, low effort; short (~15 min) | pre-flight before each lane moves to a new wave; status update after every 2–4 merges (§6 prompts). Not one of the 3 lanes. |
+| **Voice (last)** | — | Only after S26, S28 and S33 are merged **and** there's time left: S04 → S07 → S29 → S30 → S31 → S32. Otherwise skip; the demo video can mention it as next. |
+
+If a lane is waiting on another lane (e.g. C waits for S12), don't start something out of order —
+use the gap to review/merge PRs, run SQL, set env vars, or phone-test.
+
+**Keeping sessions cheap:** start each task with the session header + the short prompt (don't ask it
+to "understand the whole repo"); use `/check-fast` while working and the one-side check before the
+PR; if a session gets long, use `/compact` (check with `/context`), or finish and start a fresh one.
 
 ## 7. What S01 builds so component sessions never collide
 
@@ -367,5 +389,7 @@ Wave 2 (after S05):      S08 roles+unmount → then ‖ S09 pay ‖ S10 bids ‖
 Wave 3:                  S18 → S19 → S20 (F12 chain)  ‖  S21 listing/market ‖ S22 rescue ‖ S23 forecast ‖ S24 logistics ‖ S25 waste
 Wave 4:                  S26 routes pt2 ‖ S27 bidding ‖ S28 checkout   (+ voice S29–S32 if on budget)
 Wave 5 (one at a time):  S33 security review → S34 demo data → S35 dry run → FREEZE
+Voice (S04, S07, S29–S32): only after S26, S28, S33 — the lowest priority, an add-on
+One person?              use §6b three-lane mode instead of whole waves
 Coordinator C:           after every 2–4 merges
 ```

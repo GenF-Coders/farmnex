@@ -22,7 +22,7 @@ Integrate the **$ARGUMENTS** component into this repo.
    `wiring.py` or `main.py`. Work through the **Integration checklist** in `docs/integration/README.md`, one step per commit.
    Never run SQL against the main Supabase database yourself; put it in `backend/migrations/` and
    show Atharv the file to run.
-5. Test: `/check`, plus the component's own "Done when" list. Start the backend once with the
+5. Test: `/check-backend` (and `/check-frontend` if you changed Dart files), plus the component's own "Done when" list. Start the backend once with the
    component flag **off** and once **on**; `/docs` must load both times.
 6. Ask the `security-reviewer` agent to review the integration diff.
 7. Don't edit `docs/STATUS.md` / `docs/FIX_PLAN.md` (the coordinator session does). In the PR

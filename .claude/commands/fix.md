@@ -12,7 +12,8 @@ Fix item **$ARGUMENTS** from `docs/FIX_PLAN.md`.
    "ask Atharv" or involves a business decision (who may do what, money rules), ask first and wait.
 3. Make the change. Follow the existing layering and the ownership pattern
    (`services/farm_crop_service.py`). Never alter existing database tables.
-4. Add or update tests exactly as the item's **How to check** says. Run `/check`.
+4. Add or update tests exactly as the item's **How to check** says. Use `/check-fast` while working and
+   `/check-backend` (or `/check-frontend` for Dart files) before the PR — not the full `/check`.
 5. For auth / ownership / payment / bid changes: ask the `security-reviewer` agent to review the diff
    and fix what it finds.
 6. Don't edit `docs/FIX_PLAN.md` or `docs/STATUS.md` (several sessions run in parallel; the
@@ -20,5 +21,5 @@ Fix item **$ARGUMENTS** from `docs/FIX_PLAN.md`.
    "Ticks: <items done>" and "Doc conflicts:" (docs that disagreed, see `docs/PARALLEL_SESSIONS.md` §4b), "Manual steps: <SQL / env vars / none>" in the PR description.
 7. Commit with a clear message (`fix(F1): ownership checks for payments`). Push the branch and
    open a pull request unless Atharv said not to.
-8. Finish with a short plain-language summary: what changed, how you checked it, and anything Atharv
-   must do by hand.
+8. Finish with at most 5 short plain-language bullets: what changed, how you checked it, anything
+   Atharv must do by hand. No file-by-file walkthrough unless he asks.

@@ -27,7 +27,9 @@ and how the four components plug in. You just give short commands.
 | `/fix F1 payment` | Fixes one item from the fix plan (here: ownership checks for payments), tests it, ticks it off |
 | `/integrate crop-rescue` | Plugs a component in, step by step, after showing you the plan |
 | `/connect-screen listing` | Switches one app screen from fake data to the real backend |
-| `/check` | Runs all checks and tells you in simple words what passed or failed |
+| `/check-fast` | Quick check of just what this task changed (use while working) |
+| `/check-backend` / `/check-frontend` | Checks one side of the app (use before a pull request) |
+| `/check` | Full check of everything (coordinator, after each wave or before a demo) |
 
 Component names for `/integrate`: `crop-rescue`, `ai-forecaster`, `route-optimizer`, `voice-assistant`.
 
@@ -41,6 +43,32 @@ Don't follow a list from memory — use these two files:
 The short version: **cleanup and test setup first** (F4 → F5 → F17 → F11), **then security**
 (F3 → F1 + F2), then components and screens in parallel. Tests come before the security fixes
 because they're how we prove a fix works.
+
+## How the backend gets onto the internet (FastAPI Cloud) — plain version
+
+- **FastAPI Cloud** is the company that runs your backend for you at
+  `https://farmnex.fastapicloud.dev`. Its **dashboard** is the website where you manage it (log in at
+  fastapicloud.com with the account that first deployed FarmNex).
+- **GitHub** holds your code. Merging a pull request changes the code on GitHub — **it does not
+  change the live backend by itself.** Something has to copy the new code to FastAPI Cloud. That
+  copy is called a **deploy**. There are two ways:
+  1. **By hand:** someone runs `fastapi deploy` from the `backend/` folder on their computer (after
+     `fastapi login`). Whoever set FarmNex up probably did this.
+  2. **Automatically ("connecting GitHub"):** you link the GitHub repo to the FastAPI Cloud app once.
+     After that, every merge to `main` is deployed automatically.
+
+**Do you need to connect GitHub?** No, it's optional. Pick one and tell the team:
+- **Connect (recommended for a non-technical team):** nobody has to remember to deploy, and the live
+  app always matches `main`. Rule: merge only PRs whose checks passed, and set new environment
+  variables *before* merging the PR that needs them. How: dashboard → your app → **Settings** →
+  **Source Repository** → **Connect** → sign in to GitHub → allow the FastAPI Cloud app → pick
+  `farmnex_main` → **Connect**. Then Settings → **Application Directory** → type `backend` → **Update**
+  (the backend lives in that folder).
+- **Don't connect:** the live app only changes when someone runs `fastapi deploy`. More control, but
+  you must deploy after each wave (§8 of `PARALLEL_SESSIONS.md`).
+
+Either way, **environment variables** (secret settings like database URLs) are set in the same
+dashboard, under the app's settings — never in the code.
 
 ## Things only you can do
 
