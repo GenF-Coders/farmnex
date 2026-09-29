@@ -26,7 +26,7 @@ Integrate the **$ARGUMENTS** component into this repo.
    component flag **off** and once **on**; `/docs` must load both times.
 6. Ask the `security-reviewer` agent to review the integration diff.
 7. Don't edit `docs/STATUS.md` / `docs/FIX_PLAN.md` (the coordinator session does). In the PR
-   description write "Ticks:", "Component: <name> @ <source commit hash>" and "Manual steps:" (SQL
+   description write "Ticks:", "Component: <name> @ <source commit hash>" and "Doc conflicts:" (docs that disagreed, see `docs/PARALLEL_SESSIONS.md` §4b), "Manual steps:" (SQL
    files, env vars). Push the branch and open a pull request unless Atharv said not to.
 8. Finish with a plain-language summary and a numbered list of what Atharv must do by hand
    (run SQL, set env vars on FastAPI Cloud, deploy the separate service, test on the phone).

@@ -19,5 +19,6 @@ screens to the real backend. Follow `frontend/CLAUDE.md` → "When connecting a 
 6. Run `flutter analyze` and `flutter test`. If you can't run the app, write the exact taps Atharv
    should do to test it.
 7. Don't edit `docs/FIX_PLAN.md` / `docs/STATUS.md` (the coordinator session does); write
-   "Ticks: F13 <provider>" in the PR description. Commit, push the branch and open a pull request
+   "Ticks: F13 <provider>", "Doc conflicts:" (docs that disagreed, see `docs/PARALLEL_SESSIONS.md` §4b) and
+   "Manual steps:" in the PR description. Commit, push the branch and open a pull request
    unless Atharv said not to.

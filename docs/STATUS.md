@@ -1,7 +1,7 @@
 # FarmNex status
 
-Short, current picture of where the main app stands. Update this at the end of every task:
-tick items in the tables and add one line to the log (newest first).
+Short, current picture of where the main app stands. **Only the coordinator session edits this file**
+(see `docs/PARALLEL_SESSIONS.md`); other sessions put "Ticks:" / "Manual steps:" in their PR description.
 
 ## Fix plan progress (details in FIX_PLAN.md)
 
@@ -38,9 +38,26 @@ tick items in the tables and add one line to the log (newest first).
 - 2026-09-29 — Work runs as parallel Claude Code sessions per `docs/PARALLEL_SESSIONS.md`; only the
   coordinator session edits this file and `FIX_PLAN.md`.
 
+## Verified facts (the single source — other docs link here)
+
+| Fact | Value | Source / checked |
+|---|---|---|
+| Production dependency file | FastAPI Cloud installs from `backend/pyproject.toml` when it exists; `requirements.txt` only if there's no pyproject. Keep both in sync. | fastapicloud.com docs "Install Dependencies", 2026-09-29 |
+| Deploys | With FastAPI Cloud's GitHub integration, every push to the default branch (`main`) deploys; no PR previews. **Unconfirmed:** whether this project has GitHub connected, and that it deploys from `backend/`. | fastapicloud.com docs "GitHub Integration", 2026-09-29 |
+| Entrypoint | FastAPI Cloud auto-detects `app/main.py` (`app.main:app`). | fastapicloud.com docs "Migrate an Existing Project" |
+| Crop-name map | `backend/app/modules/crops.py` | decision 2026-09-29 |
+| Main crop names | `crop_types.name`, capitalised (`Tomato`, `Onion`, …) | `app/main.py` DEFAULT_CROP_TYPES |
+| Crop Rescue crop codes | lowercase: tomato, spinach, okra, brinjal, cauliflower, grapes, capsicum, cucumber | `farmnex_crop_rescue` `crop_rescue/data/crops.json` @ 6f90439 |
+| Forecaster crops | `Onion`, `Tomato`, `Potato` (exact case) | `farmnex_ai_forecaster` `config.yaml` @ 2f6f170 |
+| Voice crop ids | lowercase (`tomato`, `onion`, `potato`, + Crop Rescue codes after its FARMNEX_HOST change 3) | voice repo `docs/FARMNEX_HOST.md` |
+| User id given to components | `str(user.public_id)` (UUID string) | decision |
+| Component host files | `app/modules/<name>_host.py`, loaded by `app/modules/wiring.py` via its `ENABLE_*` flag | PARALLEL_SESSIONS §7 |
+| `wallet_ledger` | new core model, created by the startup `create_all` (no SQL file) | FIX_PLAN F12 |
+| Public sign-up roles today | FARMER, BUYER, VENDOR (`public_registration_roles`, env-overridable) | `app/core/config.py` |
+
 ## Waiting for Atharv (manual steps from merged PRs)
 
-- (none yet — the coordinator session fills this in)
+- Confirm in the FastAPI Cloud dashboard: is GitHub connected (auto-deploy on merge to `main`)? Does it deploy from the `backend/` folder?
 
 ## Log
 

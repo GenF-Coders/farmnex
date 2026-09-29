@@ -34,6 +34,6 @@ Name: `<number>_<prefix>_<what>.sql`, e.g. `010_cr_crop_rescue.sql`.
 1. Supabase dashboard → your FarmNex project → **SQL Editor** → **New query**.
 2. Open the file on GitHub, copy everything, paste, click **Run**.
 3. Check in **Table Editor** that the new tables appear. Nothing else should change.
-4. Add a line to `docs/STATUS.md`: date, file name, "run on main DB".
+4. Tell the coordinator session (or note in the PR) that it's done; it records it in `docs/STATUS.md`.
 
 Claude Code never runs these against the main database itself.

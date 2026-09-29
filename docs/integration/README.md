@@ -31,7 +31,8 @@ keys live only on the server.
 1. **Where the code goes:** copied router packages live in `backend/app/modules/<name>/` (create
    `backend/app/modules/__init__.py`), **except** `farmnex_routes`, which must keep that exact import
    name (see its guide). Keep component files unchanged so updates can be re-copied; put all
-   FarmNex glue in `backend/app/modules/wiring.py` (and `logistics_host.py` for routes).
+   FarmNex glue in that component's own `backend/app/modules/<name>_host.py` (routes also has
+   `logistics_host.py`). Never edit `wiring.py` or `main.py` for a component.
 2. **One place mounts everything:** `wiring.py` (created once, by session S01 — see
    `docs/PARALLEL_SESSIONS.md` §7) lists all components with their on/off env flag
    (`ENABLE_CROP_RESCUE`, `ENABLE_FORECAST`, `ENABLE_ROUTE_OPTIMIZER`, `ENABLE_VOICE_TOOLS`, **default
@@ -66,7 +67,7 @@ keys live only on the server.
    - From a component's sync callback back into our async code: `anyio.from_thread.run(async_fn, …)`
      (works inside FastAPI worker threads; not from scheduler threads).
 9. **Reading core data:** components never query core tables. The host passes data in (adapter
-   function in `wiring.py` using our repositories) or through an added SQL **view**.
+   function in the component's `<name>_host.py` using our repositories) or through an added SQL **view**.
 10. **Dependencies:** add runtime requirements with version ranges to **`backend/pyproject.toml`**
     (what FastAPI Cloud installs) **and** the same lines to `backend/requirements.txt` (local installs) —
     only-in-`requirements.txt` works locally and crashes in production; components installed from git
@@ -90,7 +91,7 @@ keys live only on the server.
 
 15. **Crops:** each part supports different crops — **Tomato is the only crop all four understand**,
     so the demo story uses Tomato. Map crop names in host code (FarmNex `crop_types.name` ↔ Crop Rescue
-    `crop_code` ↔ forecaster crop ↔ voice crop id) in one place (`wiring.py`), and answer "not available
+    `crop_code` ↔ forecaster crop ↔ voice crop id) in one place (`app/modules/crops.py`), and answer "not available
     for this crop yet" instead of failing. See FIX_PLAN F18.
 
 ## Common failures (all components)
@@ -111,7 +112,7 @@ keys live only on the server.
 
 - [ ] Read the component's README / INTEGRATION / CLAUDE.md at the commit in the table above (or
       newer — then update the table and its guide).
-- [ ] Install (copy or pinned pip); record the commit in `docs/STATUS.md`.
+- [ ] Install (copy or pinned pip); put the source commit in the PR description (the coordinator records it).
 - [ ] SQL file(s) in `backend/migrations/`; show Atharv the exact file to run. Don't run it yourself.
 - [ ] Wiring: flag, import inside mount, `/api/v2` prefix, login, identity/ownership rules, own DB
       URL checked, scheduler start/stop.
@@ -120,4 +121,4 @@ keys live only on the server.
       starts when config is missing; no token → 401; another user → 404.
 - [ ] Start the backend with the flag off and on; `/docs` loads both times.
 - [ ] Flutter client on `ApiClient().dio`; provider off demo data.
-- [ ] `security-reviewer` review; update `docs/STATUS.md`.
+- [ ] `security-reviewer` review; "Ticks:" / "Component:" / "Manual steps:" in the PR description.

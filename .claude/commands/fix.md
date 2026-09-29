@@ -17,7 +17,7 @@ Fix item **$ARGUMENTS** from `docs/FIX_PLAN.md`.
    and fix what it finds.
 6. Don't edit `docs/FIX_PLAN.md` or `docs/STATUS.md` (several sessions run in parallel; the
    coordinator session updates them — see `docs/PARALLEL_SESSIONS.md`). Instead, put
-   "Ticks: <items done>" and "Manual steps: <SQL / env vars / none>" in the PR description.
+   "Ticks: <items done>" and "Doc conflicts:" (docs that disagreed, see `docs/PARALLEL_SESSIONS.md` §4b), "Manual steps: <SQL / env vars / none>" in the PR description.
 7. Commit with a clear message (`fix(F1): ownership checks for payments`). Push the branch and
    open a pull request unless Atharv said not to.
 8. Finish with a short plain-language summary: what changed, how you checked it, and anything Atharv

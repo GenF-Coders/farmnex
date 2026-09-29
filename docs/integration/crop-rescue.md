@@ -42,7 +42,7 @@ write the Dart client here following its `docs/SPEC.md` API contract.
    *session pooler* URL in psycopg form:
    `postgresql+psycopg://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require`.
    If `CR_DATABASE_URL` is missing, Crop Rescue falls back to `DATABASE_URL`, which is an asyncpg URL
-   and will fail — so `wiring.py` must refuse to mount it (log a clear error) when `CR_DATABASE_URL`
+   and will fail — so `crop_rescue_host.py` must refuse to mount it (log a clear error) when `CR_DATABASE_URL`
    is unset.
 3. **Scheduler:** call `crop_rescue.start_scheduler()` / `stop_scheduler()` from our `lifespan` via
    `start_components()` / `stop_components()`. FastAPI Cloud may run more than one instance or sleep;
@@ -56,7 +56,7 @@ write the Dart client here following its `docs/SPEC.md` API contract.
    it as `backend/migrations/0xx_cr_buyer_pool_real.sql` using `CREATE OR REPLACE VIEW` (keep the
    exact column names/types the component expects — read them from its `001_crop_rescue.sql`).
 6. **Crops:** Crop Rescue has its own list (`crop_rescue/data/crops.json`, max 8 crops). Our
-   `crop_types` table has 12. Keep a simple name mapping in `wiring.py` or in the Dart client so the
+   `crop_types` table has 12. Use the crop map in `app/modules/crops.py` (F18) so the
    farmer can only pick supported crops for rescue.
 
 7. **`POST /rescue/check` runs the spoilage check for every farmer** and has no farmer check of its
@@ -75,7 +75,8 @@ write the Dart client here following its `docs/SPEC.md` API contract.
 3. Copy its `migrations/001_crop_rescue.sql` → `backend/migrations/010_cr_crop_rescue.sql` and
    `002_demo_seed.sql` → `backend/migrations/011_cr_demo_seed.sql` (unchanged). Atharv runs them in
    the Supabase SQL editor.
-4. Wiring (`backend/app/modules/wiring.py`): flag `ENABLE_CROP_RESCUE`, check `CR_DATABASE_URL`,
+4. Host file `backend/app/modules/crop_rescue_host.py` (loaded by `wiring.py` when `ENABLE_CROP_RESCUE=true`;
+   don't edit `wiring.py`): check `CR_DATABASE_URL`,
    identity override (above), `app.include_router(crop_rescue.router, prefix="/api/v2",
    dependencies=[Depends(get_current_user)])`, scheduler start/stop.
 5. `.env.example`: `ENABLE_CROP_RESCUE=false`, `CR_DATABASE_URL=`, `CR_ENABLE_SIMULATE=true`,
