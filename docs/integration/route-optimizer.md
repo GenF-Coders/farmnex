@@ -39,11 +39,13 @@ Follow the shared rules in `README.md` in this folder.
    ```
    Pin a **commit hash**, never `@main` — otherwise a push to the component repo can break the main
    app on its next deploy without anyone changing this repo.
+   Put this line in the `dependencies` of **`backend/pyproject.toml`** (that's what FastAPI Cloud
+   installs) and the same line in `requirements.txt` (local installs).
 2. **If FastAPI Cloud's build can't install from git** (build log shows a git/clone error): copy the
    `farmnex_routes/` folder to **`backend/farmnex_routes/`** (top level, next to `app/`, **not** in
    `app/modules/`). Its tracking page loads `static/track.html` with
    `importlib.resources.files("farmnex_routes")`, so the folder must stay importable as exactly
-   `farmnex_routes`. Add `psycopg[binary]>=3.1` to requirements.
+   `farmnex_routes`. Add `psycopg[binary]>=3.1` to `pyproject.toml` and `requirements.txt`.
 
 Check: `python -c "import farmnex_routes, importlib.resources as r; print(r.files('farmnex_routes').joinpath('static/track.html').is_file())"` prints `True`.
 

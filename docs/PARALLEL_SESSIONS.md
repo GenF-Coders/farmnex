@@ -85,7 +85,7 @@ S02) prepare "slots" in these files so later sessions only add to their own slot
 | `backend/app/main.py` | S01 (then S06) | Don't touch. Components plug in via their own `app/modules/<name>_host.py` |
 | `backend/app/modules/wiring.py` | S01 creates it with all 4 components listed | Don't touch — it already imports your `<name>_host.py` when your flag is on |
 | `backend/app/api/v2/router.py` | S08 (unmount) | Don't touch (components mount through `wiring.py`, not here) |
-| `backend/requirements.txt`, `backend/.env.example` | S01 creates a marked section per component | Add lines **only inside your own section** |
+| `backend/pyproject.toml`, `backend/requirements.txt`, `backend/.env.example` | S01 creates a marked section per component | Add lines **only inside your own section** — dependencies go in **both** `pyproject.toml` (production uses it) and `requirements.txt` |
 | `backend/tests/conftest.py` | S05 | Don't touch. Put helpers in your own test file; if you truly need a shared fixture, stop and ask |
 | `backend/app/api/dependencies/roles.py` | S08 | Use it, don't change it |
 | `backend/app/core/*`, `backend/app/models/user.py` | nobody after S06 | Stop and ask |
@@ -139,7 +139,7 @@ other*. Times are Claude + review time.
 
 | Id | What | Prompt (after the header) | Files it owns | Needs merged | Time |
 |---|---|---|---|---|---|
-| **S01** | Backend foundation: F4, F5, F17, F18 + component slots | "Do FIX_PLAN F4, F5, F17 and F18. Also create `backend/app/modules/__init__.py` and `wiring.py` exactly as §7 of PARALLEL_SESSIONS.md describes, and add a marked section per component (Crop Rescue, forecaster, route optimizer, voice) to `requirements.txt` and `.env.example`. One commit per item." | `backend/app.zip`, `backend/0.141`, `requirements.txt`, `pyproject.toml`, `.env.example`, `app/main.py`, `app/modules/*`, `.gitignore` | — | 2 h |
+| **S01** | Backend foundation: F4, F5, F17, F18 + component slots | "Do FIX_PLAN F4, F5, F17 and F18. Also create `backend/app/modules/__init__.py` and `wiring.py` exactly as §7 of PARALLEL_SESSIONS.md describes, and add a marked section per component (Crop Rescue, forecaster, route optimizer, voice) to `pyproject.toml`, `requirements.txt` and `.env.example`; `pyproject.toml` is what FastAPI Cloud installs. One commit per item." | `backend/app.zip`, `backend/0.141`, `requirements.txt`, `pyproject.toml`, `.env.example`, `app/main.py`, `app/modules/*`, `.gitignore` | — | 2 h |
 | **S02** | Frontend foundation: F15, F16, F14 + slots | "Run `flutter analyze` and list existing errors (fix only ones that stop the build). Then do FIX_PLAN F15, F16, F14. Add these packages to `pubspec.yaml` in one go: `flutter_secure_storage`, `geolocator`, `webview_flutter` (check current versions on pub.dev). In `api_config.dart` add empty marked sections: listing, market, cart, payment, bidding, rescue, forecast, logistics, waste, voice." | `frontend/**` (except feature files later sessions create) | — | 2.5 h |
 | **S03** | Crop Rescue Phase 5 — **in the `farmnex_crop_rescue` repo** | PROMPTS.md **B1** | that repo only | — | 1 h |
 | **S04** | Voice login adapter — **in the voice repo** (stretch) | PROMPTS.md **V1** (first prompt) | that repo only | — | 1–2 h |
@@ -254,7 +254,10 @@ COMPONENTS = [
 ```
 Each `<name>_host.py` exposes `mount(app)` and optionally `start()` / `stop()`. `app/main.py` calls
 `mount_components(app)` once and `start_components()` / `stop_components()` in its lifespan.
-S01 also adds `app/modules/crops.py` with the crop-name map (F18).
+S01 also adds `app/modules/crops.py` with the crop-name map (F18): `crop_types.name` (capitalised,
+e.g. `Tomato`) → Crop Rescue `crop_code` (lowercase: tomato, spinach, okra, brinjal, cauliflower,
+grapes, capsicum, cucumber), forecaster crop (`Onion`, `Tomato`, `Potato`), voice crop id (lowercase);
+`None` where a component doesn't support the crop.
 
 ---
 
@@ -289,9 +292,12 @@ S01 also adds `app/modules/crops.py` with the crop-name map (F18).
 
 1. **Sessions only know what's in the repo.** A decision you gave in one chat is invisible to every
    other session unless it's written in `docs/STATUS.md` or a guide.
-2. **"Merged" doesn't mean "live".** Check whether FastAPI Cloud deploys automatically from `main`. If
-   it does, every merge changes the live app, so merge only green PRs, and deploy-breaking changes (new
-   env vars) need their env vars set *before* the merge. If it doesn't, plan a deploy after each wave.
+2. **"Merged" doesn't mean "live" — unless GitHub is connected.** With FastAPI Cloud's GitHub
+   integration, **every push to the default branch (`main`) deploys automatically**, and there are no
+   preview deployments for PRs. So: merge only green PRs, and set any new env vars on FastAPI Cloud
+   **before** merging the PR that needs them. Check in the FastAPI Cloud dashboard whether GitHub is
+   connected; if not, deploy by hand (`fastapi deploy`) after each wave.
+   Production installs dependencies from `backend/pyproject.toml` (not `requirements.txt`).
 3. **Cloud sessions can't reach your Supabase or `.env`** (and must not). They test on a temporary
    database. The first real test of SQL, env vars and components is after you deploy.
 4. **SQL files don't run themselves.** A component merged without its SQL run fails with

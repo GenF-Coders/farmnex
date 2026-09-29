@@ -35,7 +35,7 @@ keys live only on the server.
 2. **One place mounts everything:** `wiring.py` (created once, by session S01 — see
    `docs/PARALLEL_SESSIONS.md` §7) lists all components with their on/off env flag
    (`ENABLE_CROP_RESCUE`, `ENABLE_FORECAST`, `ENABLE_ROUTE_OPTIMIZER`, `ENABLE_VOICE_TOOLS`, **default
-   off**) and imports `app/modules/<name>_host.py` when the flag is on. Each integration only creates
+   off**; the crop-name map lives in `app/modules/crops.py`) and imports `app/modules/<name>_host.py` when the flag is on. Each integration only creates
    its own host file (`crop_rescue_host.py`, `forecast_host.py`, `routes_host.py`,
    `voice_tools_host.py`) exposing `mount(app)` and optional `start()`/`stop()`; it never edits
    `wiring.py` or `main.py`.
@@ -67,7 +67,9 @@ keys live only on the server.
      (works inside FastAPI worker threads; not from scheduler threads).
 9. **Reading core data:** components never query core tables. The host passes data in (adapter
    function in `wiring.py` using our repositories) or through an added SQL **view**.
-10. **Dependencies:** add runtime requirements with version ranges; components installed from git
+10. **Dependencies:** add runtime requirements with version ranges to **`backend/pyproject.toml`**
+    (what FastAPI Cloud installs) **and** the same lines to `backend/requirements.txt` (local installs) —
+    only-in-`requirements.txt` works locally and crashes in production; components installed from git
     are **pinned to a commit hash**, never `@main`. No big ML libraries in the main backend.
 11. **Env vars:** each component has its own prefix. Add them with safe placeholders to
     `backend/.env.example` and list which ones Atharv must set on FastAPI Cloud.

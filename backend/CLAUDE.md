@@ -72,6 +72,11 @@ def require_roles(*roles: str):
 - Component tables (crop rescue, forecaster, routes, voice) are created by hand-run SQL files in
   `backend/migrations/` — see `backend/migrations/README.md`.
 
+## Dependencies
+
+Production (FastAPI Cloud) installs from `pyproject.toml`; `requirements.txt` is for local
+`pip install -r`. Add every new dependency to **both**, with a version range.
+
 ## Tests
 
 - `python -m pytest -q` from `backend/`. DB tests must use `TEST_DATABASE_URL` (a throwaway

@@ -132,9 +132,11 @@ Add `*.zip` to `.gitignore`.
 `requirements.txt` has `psycopg2` (fails to build without Postgres dev tools — likely to break
 deploys) and `PyMySQL` (unused, the DB is Postgres). It pins `uvicorn==0.52.4` but `pyproject.toml`
 requires `uvicorn>=0.53` — they conflict. Remove `psycopg2` and `PyMySQL`, align uvicorn, and move
-`pytest` to a dev section. Confirm which file FastAPI Cloud installs from and make that the source of
-truth; keep the other consistent.
-**Check:** fresh venv: `pip install -r requirements.txt` succeeds; `python -c "import app.main"` works.
+`pytest` to a dev section. **FastAPI Cloud installs from `pyproject.toml` when it exists** (it only
+uses `requirements.txt` when there's no `pyproject.toml` — see its "Install Dependencies" docs), so
+`backend/pyproject.toml` is the source of truth for production; keep `requirements.txt` matching it
+for local `pip install -r`. Manual step: confirm FastAPI Cloud deploys from the `backend/` folder.
+**Check:** fresh venv: `pip install .` (pyproject) **and** `pip install -r requirements.txt` both succeed; `python -c "import app.main"` works.
 
 ### - [ ] F6. `/db` leaks error details
 `GET /db` returns `str(exc)`, which can include the database host/user. Return only
@@ -230,7 +232,7 @@ onion, tomato, soybean, pomegranate. **Only tomato is in all four.** A demo with
 breaks halfway (e.g. an onion lot can't go into Crop Rescue).
 **What to do (1 h):** add the missing Crop Rescue crops to `DEFAULT_CROP_TYPES` in `app/main.py`
 (it only inserts missing rows — nothing is renamed or deleted); add one mapping dict in
-`app/modules/wiring.py` (`crop_types.name` → Crop Rescue `crop_code` / forecaster crop / voice id);
+`app/modules/crops.py` (`crop_types.name` → Crop Rescue `crop_code` / forecaster crop / voice id);
 component calls use it and answer "not available for this crop yet" instead of erroring. Demo story
 uses **Tomato**.
 **Check:** a tomato listing works end to end (rescue lot, forecast, voice); a spinach lot works in
