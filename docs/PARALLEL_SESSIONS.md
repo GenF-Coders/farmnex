@@ -102,6 +102,28 @@ ask the person driving you.** Don't "just fix it quickly".
 
 ---
 
+## 4b. When two docs disagree (source of truth)
+
+Two kinds of "conflict" exist. **Git conflicts** (two sessions change the same lines) are prevented by
+§4. **Instruction conflicts** (two docs say different things, or a fact nobody verified) can't be
+caught by git — they surface as a session stopping to ask. Rules that keep them rare:
+
+1. **Each fact lives in exactly one place.** Verified facts (dependency file, deploy behaviour, crop
+   codes, ids, decisions) live in `docs/STATUS.md` → "Verified facts" and "Decisions log". Other docs
+   may *link* to them, not restate them.
+2. **If two docs still disagree, this order wins** (highest first):
+   1. `docs/STATUS.md` (Verified facts + Decisions log)
+   2. `docs/PARALLEL_SESSIONS.md` (who owns which file, which session does what)
+   3. `docs/integration/<component>.md` and `docs/integration/README.md`
+   4. `docs/FIX_PLAN.md`, then `docs/PROMPTS.md`, then `docs/FINALE_PLAN.md`
+3. **Follow the winner and keep going** — then list the disagreement under **"Doc conflicts:"** in
+   the PR description so the coordinator fixes the losing doc. **Stop and ask only** if following
+   the winner would touch a file your row doesn't own, change the database, spend money, or
+   change security rules.
+4. **Unknown fact** (nothing in the repo answers it, e.g. a setting only visible in a dashboard):
+   ask once, then the answer goes into `STATUS.md` → "Verified facts" via the coordinator, so no
+   later session asks again.
+
 ## 5. Rules for every session
 
 1. **One session = one row of the session table** (§6). Nothing else.
@@ -109,6 +131,8 @@ ask the person driving you.** Don't "just fix it quickly".
    The session's first step is to confirm it's on the newest `main` and create branch `sNN-short-name`.
 3. **Check the prerequisites** in your row are merged into `main`. If not, stop and say so.
 4. **Only touch the files your row allows** (§4). Need another file → stop and ask.
+4b. **Docs disagree?** Follow §4b: the higher-ranked doc wins, keep going, list it under
+   "Doc conflicts:" in the PR. Stop only for files/DB/money/security.
 5. Show a short plan first; wait for OK (as `CLAUDE.md` says).
 6. Tests + `/check` must pass before the PR. Security-sensitive rows run the `security-reviewer`.
 7. **Before opening the PR, merge the latest `main` into your branch again** and re-run the tests —
@@ -124,7 +148,7 @@ ask the person driving you.** Don't "just fix it quickly".
 Paste this, fill in the session id, then paste the task prompt from the table:
 
 ```
-You are session SNN of the FarmNex parallel build. First read docs/PARALLEL_SESSIONS.md sections 4 and 5 and your row SNN in section 6. Make sure you are on the latest main, then create branch sNN-<short-name>. Check that the prerequisites in your row are merged; if not, stop and tell me. Only change the files your row allows — if you need any other file, stop and ask me. Don't edit docs/STATUS.md or docs/FIX_PLAN.md; put "Ticks:" and "Manual steps:" in the PR description. Before opening the PR, merge the latest main into your branch again and re-run the tests.
+You are session SNN of the FarmNex parallel build. First read docs/PARALLEL_SESSIONS.md sections 4 and 5 and your row SNN in section 6. Make sure you are on the latest main, then create branch sNN-<short-name>. Check that the prerequisites in your row are merged; if not, stop and tell me. Only change the files your row allows — if you need any other file, stop and ask me. Don't edit docs/STATUS.md or docs/FIX_PLAN.md; put "Ticks:", "Manual steps:" and "Doc conflicts:" in the PR description. If two docs disagree, follow section 4b (higher-ranked doc wins) instead of stopping, unless it affects files outside your row, the database, money or security. Before opening the PR, merge the latest main into your branch again and re-run the tests.
 ```
 
 ---
@@ -228,7 +252,13 @@ S18 → S19 → S20 one after another; S21–S25 in parallel with them (max 3–
 ### The coordinator session (C) — run after every 2–4 merges
 
 ```
-You are the coordinator session. Read docs/PARALLEL_SESSIONS.md. Look at the PRs merged since the last update (git log on main). Update docs/STATUS.md (counts, component table, log) and tick docs/FIX_PLAN.md using each PR's "Ticks:" line; collect every "Manual steps:" line that isn't done yet into a "Waiting for Atharv" list at the top of STATUS.md. Run the backend tests and /check on main. Then tell me which session ids from section 6 are now ready to start (all their "Needs merged" are on main). Open a PR titled "C: status update".
+You are the coordinator session. Read docs/PARALLEL_SESSIONS.md. Look at the PRs merged since the last update (git log on main). Update docs/STATUS.md (counts, component table, log) and tick docs/FIX_PLAN.md using each PR's "Ticks:" line; collect every "Manual steps:" line that isn't done yet into a "Waiting for Atharv" list at the top of STATUS.md. Run the backend tests and /check on main. Then tell me which session ids from section 6 are now ready to start (all their "Needs merged" are on main). Also fix the docs listed under any PR's "Doc conflicts:" (the higher-ranked doc in §4b wins) and move any newly confirmed fact into STATUS.md → "Verified facts". Open a PR titled "C: status update".
+```
+
+### Docs pre-flight (C) — run before starting each wave
+
+```
+You are the coordinator session doing a docs pre-flight for wave N of docs/PARALLEL_SESSIONS.md. For every session in that wave: read its row, the prompt it points to, and every doc that prompt and the /fix, /integrate or /connect-screen commands point to. List (a) any two places that say different things, (b) any fact the session will need that no doc answers, (c) any file it would need that its row doesn't allow. Fix (a) and (c) in the docs following §4b (one fact, one place). For (b), ask me the question, then record the answer in STATUS.md → "Verified facts". Open a PR titled "C: pre-flight wave N". Change only docs.
 ```
 
 ---
@@ -263,6 +293,8 @@ grapes, capsicum, cucumber), forecaster crop (`Onion`, `Tomato`, `Potato`), voic
 
 ## 8. Keeping the pieces working together
 
+- **Before every wave** run the **docs pre-flight** (§6) — it catches the questions a session would
+  otherwise stop and ask, before any session starts.
 - **After every wave** (and at FINALE_PLAN checkpoints H12/H24/H38) run the coordinator session:
   full tests on `main` + `/check`. A wave isn't "done" until `main` is green.
 - **Tag a known-good version** after each green wave, so you can roll back on stage:
@@ -326,6 +358,7 @@ grapes, capsicum, cucumber), forecaster crop (`Onion`, `Tomato`, `Potato`), voic
 ## 11. One-page cheat sheet
 
 ```
+Before each wave:        C pre-flight (docs only) → merge it → start the wave
 Wave 0 (now, parallel):  S01 backend foundation | S02 frontend foundation | S03 Crop Rescue Ph5 | S04 voice auth | M1 deploy forecaster
 Wave 1 (after S01):      S05 tests  ‖  S06 small fixes  ‖  S07 voice pack
 Wave 2 (after S05):      S08 roles+unmount → then ‖ S09 pay ‖ S10 bids ‖ S11 orders ‖ S12 listings ‖ S13 waste ‖ S14 misc

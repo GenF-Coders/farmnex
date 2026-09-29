@@ -21,7 +21,7 @@ Follow the shared rules in `README.md` in this folder.
 | Component guide assumes | Reality in farmnex_main | What we do |
 |---|---|---|
 | The main app has a vehicles table and a "register vehicle" endpoint | **No vehicles table in the backend.** Vehicles exist only as demo data in Flutter `logistics_provider.dart` | `rt_vehicles` becomes the source of truth. We add 3 small host endpoints (below) that call `upsert_vehicle`. No new core table. |
-| `DATABASE_URL` works for both | Ours is `postgresql+asyncpg://…` (async). The component is **sync** (`psycopg`). Its URL fixer only rewrites `postgres://`/`postgresql://`, so our URL breaks it. If no URL is found it **silently uses a local SQLite file** — on FastAPI Cloud that file is wiped on every redeploy. | Always set **`ROUTES_DATABASE_URL`** (Supabase **session pooler**, port 5432, `postgresql://…?sslmode=require`). `wiring.py` refuses to mount if it's missing, empty, `sqlite…` or `+asyncpg`. |
+| `DATABASE_URL` works for both | Ours is `postgresql+asyncpg://…` (async). The component is **sync** (`psycopg`). Its URL fixer only rewrites `postgres://`/`postgresql://`, so our URL breaks it. If no URL is found it **silently uses a local SQLite file** — on FastAPI Cloud that file is wiped on every redeploy. | Always set **`ROUTES_DATABASE_URL`** (Supabase **session pooler**, port 5432, `postgresql://…?sslmode=require`). `routes_host.py` refuses to mount if it's missing, empty, `sqlite…` or `+asyncpg`. |
 | Mount at `/routes`, "protect with your auth" | Login alone isn't enough: any logged-in user could mark someone's load **delivered** (which will release payment) or read driver phones and live locations. | Mount at `/api/v2/routes` with an **allow-list + ownership guard** (below). Endpoints only our server should call are not exposed at all. |
 | ids like `order.id`, `driver.id` | Our internal ids are ints; the app only knows `public_id` UUIDs | Always pass `str(x.public_id)` for `order_id`, `farmer_id`, `buyer_id`, `driver_user_id`. Vehicle id = new `uuid4()` string. |
 | Listener `@on_delivery_update` calls "your existing wallet release" | There is no wallet yet (FIX_PLAN F12), and our DB code is **async** while the listener is **sync** | Listener hands off to async code with `anyio.from_thread.run(...)` (explained below). Wallet release comes with F12. |
@@ -60,14 +60,14 @@ Check: `python -c "import farmnex_routes, importlib.resources as r; print(r.file
   (the component converts it to `psycopg` itself and disables prepared statements, so pooler ports
   work).
 - **Settings are read when `farmnex_routes` is first imported.** So `load_dotenv()` must run at the
-  very top of `app/main.py` (see `README.md` rule 12), and `wiring.py` must import `farmnex_routes`
+  very top of `app/main.py` (see `README.md` rule 12), and `routes_host.py` must import `farmnex_routes`
   **inside** the mount function, after the flag check — never at the top of a file.
 
 ---
 
 ## Security: allow-list + ownership guard
 
-Build two sub-routers in `backend/app/modules/wiring.py` by picking routes out of
+Build two sub-routers in `backend/app/modules/routes_host.py` (inside its `mount(app)`) by picking routes out of
 `farmnex_routes.router.routes` (match on the route's `path` and `methods`):
 
 **A. Not exposed at all** (our server calls the Python helpers instead):

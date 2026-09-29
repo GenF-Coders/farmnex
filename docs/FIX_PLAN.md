@@ -1,8 +1,8 @@
 # FarmNex fix plan
 
 From the code review on 2026-09-29. Work top to bottom: **P0 before any demo**, then P1, then the
-rest. Use `/fix <ID>` in Claude Code to work one item. When an item is done, tick its box, and add a
-line to `docs/STATUS.md`.
+rest. Use `/fix <ID>` in Claude Code to work one item. Only the coordinator session ticks boxes here
+and updates `docs/STATUS.md`; other sessions write "Ticks:" in their PR description.
 
 Each item says **why** (in plain words), **what to do**, and **how to check** it's really fixed.
 
@@ -202,7 +202,9 @@ Today these services are plain save/edit/delete. Needed:
    On CONFIRMED → create the delivery load (route optimizer Slip 2).
 2. Pre-bidding: bid rules above; **the farmer accepts a bid** (decided 2026-09-29) — accepting
    closes the event and sets `winner_bid_id`. No timer needed.
-3. Escrow: one new table `wallet_ledger` (add-only: user_public_id, order/bid public id, amount,
+3. Escrow: one new **core** table `wallet_ledger` — a new model in `app/models/` registered in
+   `domain_model_registry.py`, so the backend's startup `create_all` creates it (no SQL file; nothing
+   existing changes) ( user_public_id, order/bid public id, amount,
    type HOLD/RELEASE/REFUND, idempotency key, created_at). Balance = sum of entries. HOLD 20% on
    bid win, RELEASE on DELIVERED (route optimizer Slip 3), each exactly once.
 4. Payments: a clearly labelled demo provider ("Pay (demo)") that writes the ledger — no real

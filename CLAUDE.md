@@ -40,7 +40,7 @@ frontend/                Flutter app (Dart), state via `provider`, HTTP via `dio
   lib/screens/, lib/widgets/, lib/models/
 docs/
   FIX_PLAN.md            every known issue, in priority order, with how to verify
-  STATUS.md              progress tracker + decisions log — update it when you finish work
+  STATUS.md              progress, decisions, verified facts — only the coordinator session edits it
   integration/           how each component plugs into this repo
   HOW_TO_USE_CLAUDE_CODE.md   plain-language guide for the team
   FINALE_PLAN.md         the 40–50 h build plan: streams, order, budgets, cut lines
@@ -113,6 +113,9 @@ or abstractions beyond what the current step needs, and say so when a step will 
   `main`, only touch the files your session row allows, and don't edit `docs/STATUS.md` /
   `docs/FIX_PLAN.md` (the coordinator session does) — put "Ticks:" and "Manual steps:" in the PR
   description.
+- **Docs disagree?** Verified facts and decisions live in `docs/STATUS.md`; if two docs conflict,
+  follow the order in `docs/PARALLEL_SESSIONS.md` §4b, keep going, and list it under "Doc conflicts:" in
+  the PR (stop only if it affects files outside your session row, the database, money or security).
 - After finishing: run `/check`, merge the latest `main` into your branch, re-run tests, open the PR.
 - For security-sensitive changes (auth, ownership, payments, bids), ask the `security-reviewer`
   agent to review before calling it done.

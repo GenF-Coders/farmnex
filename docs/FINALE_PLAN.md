@@ -110,4 +110,4 @@ behaviour. Judges who test security will try it.
 - Claude Code: one fresh session per step, using `docs/PROMPTS.md`. If a step runs over its budget
   by 50%, stop and decide with the team lead: simplify, or cut.
 - Nobody runs SQL on the main Supabase except the person assigned (Atharv), from
-  `backend/migrations/`, and logs it in `docs/STATUS.md`.
+  `backend/migrations/`; the coordinator session records it in `docs/STATUS.md`.

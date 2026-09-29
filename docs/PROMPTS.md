@@ -88,9 +88,9 @@ Continue F12: orders only (server totals, stock, statuses), with tests.
 Continue F12: bids and pre-bid winner (we decided: <farmer accepts a bid | server closes at the end>; no double winners — test two accepts/bids at the same time; accept honours Idempotency-Key), with tests.
 ```
 ```
-Continue F12: wallet_ledger + demo payment (hold 20% on win, release once on delivered), with tests. Give me the SQL file for wallet_ledger to run in Supabase.
+Continue F12: wallet_ledger + demo payment (hold 20% on win, release once on delivered), with tests. wallet_ledger is a new core model created by create_all at startup (FIX_PLAN F12) — no SQL file.
 ```
-🧑 Run the wallet_ledger SQL in Supabase (or confirm it's created by create_all — Claude will say which).
+🧑 Nothing to run: after deploy, check in Supabase Table Editor that `wallet_ledger` exists.
 
 **A10. Security review of everything** (2 h)
 ```

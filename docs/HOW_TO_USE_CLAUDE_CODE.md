@@ -10,7 +10,7 @@ and how the four components plug in. You just give short commands.
 | `CLAUDE.md` | Project rules Claude reads every time (DB safety, security, how to explain things) |
 | `backend/CLAUDE.md`, `frontend/CLAUDE.md` | Extra rules when working in each folder |
 | `docs/FIX_PLAN.md` | Every known problem, in order, with how to check it's fixed |
-| `docs/STATUS.md` | Progress + decisions — Claude updates it after each task |
+| `docs/STATUS.md` | Progress, decisions and verified facts — only the coordinator session updates it |
 | `docs/integration/*.md` | How Crop Rescue, AI forecaster, route optimizer and voice assistant plug in, and what can go wrong |
 | `docs/FINALE_PLAN.md` | The 40–50 h plan: streams, hours, checkpoints, cut lines |
 | `docs/PROMPTS.md` | Copy-paste prompts for every step |

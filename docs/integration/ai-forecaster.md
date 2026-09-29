@@ -66,7 +66,8 @@ COMMIT;
    three changes in the table. Read config through our settings/env: `FORECASTER_URL`,
    `FORECASTER_API_KEY`. Keep one shared `httpx.AsyncClient` with the kit's timeouts (the free host
    sleeps; first call can take ~1 minute).
-4. Wire in `backend/app/modules/wiring.py`: flag `ENABLE_FORECAST`, mount under `/api/v2` with
+4. Host file `backend/app/modules/forecast_host.py` (loaded by `wiring.py` when `ENABLE_FORECAST=true`;
+   don't edit `wiring.py`): mount under `/api/v2` with
    `dependencies=[Depends(get_current_user)]` (this also makes `/meta` and `/health` need login —
    fine, the app is logged in). Refuse to mount if `FORECASTER_URL`/`FORECASTER_API_KEY` are unset.
 5. `.env.example`: `ENABLE_FORECAST=false`, `FORECASTER_URL=`, `FORECASTER_API_KEY=`.

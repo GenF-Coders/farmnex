@@ -12,7 +12,8 @@ Read the root `CLAUDE.md` first. This file adds Flutter-specific detail.
 - All URLs live in `lib/core/config/api_config.dart`. Backend base: `https://farmnex.fastapicloud.dev`.
   Our API is under `/api/v2/...`.
 - `lib/core/network/backend_service.dart` has typed calls for auth, users, addresses, farms.
-  Add new calls there (or in a per-feature service file) — not inside widgets.
+  Don't add to it: new calls go in your own `lib/core/network/<feature>_api.dart` (parallel sessions
+  would otherwise collide in this one file) — never inside widgets.
 - Tokens are stored by `lib/core/storage/storage_service.dart` (currently `shared_preferences`;
   FIX_PLAN F14 moves them to `flutter_secure_storage`).
 - Languages: `lib/localization/` (`app_translations.dart`, `l10n_extension.dart`). Farmers use
@@ -32,8 +33,8 @@ The plan to connect them is FIX_PLAN F13 — use `/connect-screen <provider>`.
 ## When connecting a screen to the backend
 
 1. Check the endpoint really exists: open the backend's `/docs` or read the controller. Never invent
-   a URL. Add it to `api_config.dart`.
-2. Add a typed method (in `backend_service.dart` or a feature service file) using `ApiClient().dio`.
+   a URL. Add it to **your feature's section** of `api_config.dart`.
+2. Add typed methods in your own `lib/core/network/<feature>_api.dart` using `ApiClient().dio`.
 3. Model classes: plain Dart with `fromJson`, JSON keys exactly as the backend (snake_case). Use
    `public_id` strings as ids.
 4. Provider: keep the same public getters so screens don't break; replace demo data with loading /
