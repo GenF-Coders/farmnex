@@ -7,7 +7,10 @@
 > confirmed → a pooled truck route is planned → the buyer tracks the truck → on delivery the farmer
 > is paid.
 
-Voice assistant = **stretch**. Everything else serves the story above.
+**Use Tomato for the whole story** — it's the only crop every component supports (FIX_PLAN F18).
+
+Voice assistant = **stretch** (read-only 10–12 h, write tools +3–4 h — see its guide). Everything
+else serves the story above.
 
 Total work is roughly **75–90 person-hours** (including buffer). That fits 40–50 hours only by
 working in **three parallel streams** with 5–6 people. Anything you can finish **before** the finale
@@ -31,7 +34,7 @@ These are small, independent, and remove the biggest risks:
 | **A — Backend core & security** | 2 | F4 F5 F11 F3 F1 F2 F9 F6 F7 F10 F17, F12 minimum, final security review | ~24 h |
 | **B — Components** | 2 | Crop Rescue, forecaster, route optimizer (backend + their Flutter screens) | ~26 h |
 | **C — Flutter core** | 1–2 | listing/market, cart/checkout, bidding, waste, F14 F15 F16, demo accounts + seed data | ~17 h |
-| Voice (stretch) | 0–1 | read-only voice demo | 8–12 h |
+| Voice (stretch) | 0–1 | voice repo changes (login adapter, pack, deploy) + read-only voice tools + Flutter mic | 10–12 h (read-only) |
 
 Dependencies between streams (the arrows are the only times you wait for each other):
 - C's **listing/market** needs A's F1 for `product_listing` (+ `product_image`).
@@ -45,7 +48,7 @@ Dependencies between streams (the arrows are the only times you wait for each ot
 
 | Hours | Stream A | Stream B | Stream C |
 |---|---|---|---|
-| 0–4 | F4, F5, F17, start F11 | Crop Rescue Phase 5 (its repo); deploy forecaster | F15, F16, F14; plan screens |
+| 0–4 | F4, F5, F17, F18, start F11 | Crop Rescue Phase 5 (its repo); deploy forecaster | F15, F16, F14; plan screens |
 | 4–12 | F11 done, F3, F1+F2: payment, bid, bid_event, order, order_item, product_listing, product_image | `/integrate crop-rescue`, `/integrate ai-forecaster` (backend) | demo accounts; start listing/market as soon as product_listing is fixed |
 | **12** | **Checkpoint 1** | | |
 | 12–20 | F1+F2 remaining modules, F9, F6, F7, F10 | route optimizer backend: install, SQL, vehicles host endpoints, guard, tracking | rescue screen + forecast screen (pair with B) |
@@ -68,7 +71,8 @@ At each checkpoint the team lead asks every stream: *on budget, or behind by how
 
 | If behind at… | Cut (in this order) | What the demo shows instead |
 |---|---|---|
-| Checkpoint 1 (H12) | Voice assistant | Mention it as "next" in the pitch |
+| Checkpoint 1 (H12) | Voice write tools (keep read-only voice if its person is on budget) | Read-only voice, or mention it as "next" |
+| Checkpoint 2 (H24) | Voice entirely, if its login adapter + one tool aren't working yet | Demo the voice service alone from a laptop, or mention as "next" |
 | Checkpoint 2 (H24) | Waste-to-wealth screen; admin screens; F8 | Keep demo data for those screens, labelled "demo" |
 | Checkpoint 3 (H38) | Backhaul UI, real-phone GPS | `demo/simulate_driver.py` moves the truck on the map |
 | Checkpoint 3 (H38) | Pre-bid auto-close | Manager "close bidding now" button |
@@ -86,7 +90,9 @@ behaviour. Judges who test security will try it.
 - **Demo accounts:** farmer ×2 (near Pune), buyer ×2, driver ×1, manager ×1 — written on one card.
 - **Seed data:** listings with photos, one bid event open, Crop Rescue demo buyers
   (`011_cr_demo_seed.sql`), route loads near the driver's base.
-- **Warm-up 5 minutes before:** open forecaster `/health`, backend `/docs`, one tracking page.
+- **Warm-up 5 minutes before:** open forecaster `/health`, backend `/docs`, one tracking page, voice
+  `/healthz` (and ask it one question).
+- **Unused endpoints unmounted** (F1 fast path) so `/docs` shows only what works.
 - **Bad venue internet:** `ROUTING_PROVIDER=haversine` (estimated distances), phone hotspot as backup.
 - **Crop Rescue:** `CR_ENABLE_SIMULATE=true` for the demo (fast-forward spoilage), `false` after.
 - **Backup video** of the full story, recorded at H46.

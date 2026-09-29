@@ -28,9 +28,12 @@ Read CLAUDE.md, docs/FINALE_PLAN.md, docs/FIX_PLAN.md and docs/STATUS.md. In sim
 /fix F5
 ```
 
-**A3. Load .env first + component settings list** (15 min)
+**A3. Load .env first + component settings list + one crop list** (1 h)
 ```
 /fix F17
+```
+```
+/fix F18
 ```
 
 **A4. Test setup** (2 h)
@@ -43,7 +46,7 @@ Read CLAUDE.md, docs/FINALE_PLAN.md, docs/FIX_PLAN.md and docs/STATUS.md. In sim
 /fix F3
 ```
 
-**A6. Unmount unused modules** (30 min)
+**A6. Unmount unused modules** (30 min) — why unmount instead of delete or "fix last": FIX_PLAN F1 "Why unmount now".
 ```
 /fix F1 fast path — show me the list of modules you'd unmount and why each isn't needed for the demo. Wait for my OK, then remove only those from the modules list in api/v2/router.py. Don't delete any files or tables.
 ```
@@ -79,7 +82,7 @@ Then, one per session:
 Continue F12: orders only (server totals, stock, statuses), with tests.
 ```
 ```
-Continue F12: bids and pre-bid close (no double winners — test two bids at the same time), with tests.
+Continue F12: bids and pre-bid winner (we decided: <farmer accepts a bid | server closes at the end>; no double winners — test two accepts/bids at the same time; accept honours Idempotency-Key), with tests.
 ```
 ```
 Continue F12: wallet_ledger + demo payment (hold 20% on win, release once on delivered), with tests. Give me the SQL file for wallet_ledger to run in Supabase.
@@ -95,7 +98,7 @@ Act as a hackathon judge who tests security. Ask the security-reviewer agent to 
 
 ## Stream B — Components
 
-**B1. Crop Rescue: finish its Phase 5 — in the `farmnex_crop_rescue` repo** (1 h)
+**B1. Crop Rescue: finish its Phase 5 — in the `farmnex_crop_rescue` repo** (1 h). Still needed: as of 2026-09-29 that repo has no `integration/` folder or `INTEGRATION.md` yet.
 ```
 /build-phase 5 — first read docs/FARMNEX_HOST.md in this repo and follow it where it differs from SPEC.md (farmer id = users.public_id, own CR_DATABASE_URL, never pass the host's async engine).
 ```
@@ -183,16 +186,37 @@ List the demo accounts we need (FINALE_PLAN "Demo safety kit") and how to create
 
 ---
 
-## Voice (stretch — only after Checkpoint 2 if on budget)
+## Voice (stretch — read-only first; see docs/integration/voice-assistant.md)
 
-In the voice assistant repo:
+**V1. In the `Farmnex-Voice-Assistant` repo** (2–3 h, one session each):
 ```
-Read docs/integration/voice-assistant.md from the farmnex_main repo. Build the FarmNex domain pack with read-only tools only (price forecast, demand, rescue alerts): check FarmNex tokens with the public key only, and call the main API with the user's own token. Show me the plan first. Budget 8 hours.
+Read docs/FARMNEX_HOST.md and do change 1 only: a generic RS256 JWT AuthVerifier adapter (FarmNex public key, issuer farmnex-api, audience farmnex-mobile, and it must reject tokens whose "type" claim isn't "access"). Tests with a locally generated key pair. Show me the plan first.
 ```
-Then in farmnex_main:
 ```
-/integrate voice-assistant
+Read docs/FARMNEX_HOST.md and do changes 2 and 4: rename the pack to FarmNex, update the crop list and knowledge docs to the real FarmNex rules, add Marathi crop-rescue and pre-bidding docs, and replace request_crop_rescue with get_rescue_alerts and get_rescue_matches (still mock handlers with new fixtures). Run the golden evals and report the numbers.
 ```
+🧑 Create a **second, free Supabase project** for the voice assistant and run `supabase/migrations/0001_voice_core.sql` there. Deploy the voice backend (FARMNEX_HOST.md change 6) and put the FarmNex **public** key in its settings.
+
+**V2. In `farmnex_main`** (after Crop Rescue + forecaster are integrated; 2–3 h):
+```
+/integrate voice-assistant — part 1: the read-only voice tool endpoints (demand, rescue-alerts, rescue-matches, pickup) in backend/app/modules/voice_tools.py, returning exactly the voice pack's fixture shapes, reusing our services so ownership applies. Tests: another farmer's data is never returned.
+```
+
+**V3. Back in the voice repo** (1 h):
+```
+Switch get_demand_forecast, get_rescue_alerts, get_rescue_matches and get_pickup_status to http handlers pointing at https://farmnex.fastapicloud.dev/api/v2/voice-tools/... with forward_user_jwt (forecast timeout_s 12). Keep contracts unchanged. Run the evals in live mode against a test farmer account.
+```
+
+**V4. Flutter mic** (5–6 h). First in the voice repo:
+```
+Implement M5 with the flutter-voice-client skill, but without the Supabase-login demo app: FarmNex is the host app (docs/FARMNEX_HOST.md). The voice_assistant package takes a tokenProvider callback, handles auth.refresh and close codes 4400/4401/4403, and has no FarmNex words inside. Check package choices on pub.dev first.
+```
+Then in `farmnex_main`:
+```
+/integrate voice-assistant — part 2: add the voice_assistant Flutter package as a git dependency pinned to a commit, tokenProvider from our StorageService, mic button in ai_assistant_dialog, client actions, mic permission and consent notice. Keep the old on-device voice as offline fallback.
+```
+
+**V5. Only if F12 is done and it's before H36:** write tools (`create_prebid_listing`, `accept_bid`) with `Idempotency-Key` handling on our side.
 
 ---
 

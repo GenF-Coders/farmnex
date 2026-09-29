@@ -93,10 +93,12 @@ Production backend: `https://farmnex.fastapicloud.dev` (FastAPI Cloud). Frontend
 | Crop Rescue (spoilage alerts + rescue buyers) | `farmnex_crop_rescue` | router copied into `backend/app/modules/crop_rescue/` | `docs/integration/crop-rescue.md` |
 | AI forecaster (price, demand, sell options, crop choice) | `farmnex_ai_forecaster` | separate service + connector router | `docs/integration/ai-forecaster.md` |
 | Route optimization (pooled loads, return trips, fares, live tracking) | `farmnex_route_optimization` | package `farmnex_routes` (pip, pinned commit) + ownership guard | `docs/integration/route-optimizer.md` |
-| AI voice assistant | voice assistant repo (not reviewed yet) | separate service, calls this API as the user | `docs/integration/voice-assistant.md` |
+| AI voice assistant (stretch) | `Farmnex-Voice-Assistant` | separate service (own Supabase project) calling `/api/v2/voice-tools/...` with the user's token | `docs/integration/voice-assistant.md` |
 
 Shared rules for all of them: `docs/integration/README.md` (read its "Sync vs async" rule and
 "Common failures" table before touching any component). Use `/integrate <name>`.
+
+**Demo crop:** Tomato — the only crop every component supports (FIX_PLAN F18).
 
 **Time limit:** the prototype must be finished within a 40–50 hour build window. Follow
 `docs/FINALE_PLAN.md` for scope: prefer the simplest thing that works safely, don't add features
