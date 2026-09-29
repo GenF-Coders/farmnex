@@ -1,6 +1,6 @@
 # AI forecaster → main app
 
-**Source repo:** `atharvpatil1733-art/farmnex_ai_forecaster` (checked at commit `2f6f170`, 2026-09-29).
+**Source repo:** `atharvpatil1733-art/farmnex_ai_forecaster` (commit: see `docs/STATUS.md` → Components).
 **What it does:** 1–3 day mandi price forecasts (low / expected / high), HIGH/NORMAL/LOW demand per
 crop and district, best market + day to sell after transport cost, and which crop to sow. Scope:
 Pune-district mandis; Onion, Tomato, Potato (more via its `config.yaml`). Real data from CEDA

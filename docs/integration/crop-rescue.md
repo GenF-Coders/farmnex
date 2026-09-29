@@ -1,6 +1,6 @@
 # Crop Rescue → main app
 
-**Source repo:** `atharvpatil1733-art/farmnex_crop_rescue` (checked at commit `93eec60`, 2026-09-29).
+**Source repo:** `atharvpatil1733-art/farmnex_crop_rescue` (commit: see `docs/STATUS.md` → Components).
 **What it does:** tracks harvested lots, estimates remaining shelf life (Q10 temperature rule), runs a
 check every 12 hours, alerts the farmer 48 hours before spoilage, and suggests the best nearby
 rescue buyers.

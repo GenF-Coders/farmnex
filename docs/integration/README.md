@@ -3,12 +3,12 @@
 Four components are built in their own repos and then plugged into this app. This file is the set of
 rules they all follow here; each also has its own guide in this folder.
 
-| Component | Repo (checked 2026-09-29) | Shape | Tables | URL here | Budget |
+| Component | Repo (commit: see `docs/STATUS.md` → Components) | Shape | Tables | URL here | Budget |
 |---|---|---|---|---|---|
-| Crop Rescue | `farmnex_crop_rescue` @ `93eec60` | router package copied into `backend/app/modules/crop_rescue/` | `cr_` | `/api/v2/rescue/…` | 6–8 h |
-| AI forecaster | `farmnex_ai_forecaster` @ `2f6f170` | **separate service** + small connector router here | `fc_` | `/api/v2/forecast/…` | 5–6 h |
-| Route optimizer | `farmnex_route_optimization` @ `22d4859` | package `farmnex_routes` (pip from git, pinned) | `rt_` | `/api/v2/routes/…` + `/api/v2/logistics/…` | 10–14 h |
-| Voice assistant | `Farmnex-Voice-Assistant` @ `483599b` | **separate service** (own Supabase project) calling `/api/v2/voice-tools/…` as the user | own `voice` schema, separate project | `/api/v2/voice-tools/…` | stretch: 10–12 h read-only, +3–4 h writes |
+| Crop Rescue | `farmnex_crop_rescue` | router package copied into `backend/app/modules/crop_rescue/` | `cr_` | `/api/v2/rescue/…` | 6–8 h |
+| AI forecaster | `farmnex_ai_forecaster` | **separate service** + small connector router here | `fc_` | `/api/v2/forecast/…` | 5–6 h |
+| Route optimizer | `farmnex_route_optimization` | package `farmnex_routes` (pip from git, pinned) | `rt_` | `/api/v2/routes/…` + `/api/v2/logistics/…` | 10–14 h |
+| Voice assistant | `Farmnex-Voice-Assistant` | **separate service** (own Supabase project) calling `/api/v2/voice-tools/…` as the user | own `voice` schema, separate project | `/api/v2/voice-tools/…` | stretch: 10–12 h read-only, +3–4 h writes |
 
 ## The picture
 
