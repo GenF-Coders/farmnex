@@ -10,6 +10,11 @@ spoken confirmation.
 
 Follow the shared rules in `README.md` in this folder. This file lists what's specific.
 
+**Status: stretch goal for the 40–50 h build.** Start it only when Crop Rescue, the forecaster and
+the P0 security fixes are done. Budget ~8–12 h. **Fallback if time runs out:** demo the voice
+service on its own with read-only tools (forecast + rescue alerts) — no write tools, no changes to
+the main app beyond F1–F3. Don't start write tools in the last 12 hours before judging.
+
 ## Shape
 
 The voice assistant is a **separate service** (streaming audio, speech-to-text, LLM, text-to-speech

@@ -17,6 +17,7 @@ Fix item **$ARGUMENTS** from `docs/FIX_PLAN.md`.
    and fix what it finds.
 6. Tick the item (or the sub-step) in `docs/FIX_PLAN.md`, update the counts in `docs/STATUS.md`, and
    add one log line there.
-7. Commit with a clear message (`fix(F1): ownership checks for payments`). Don't push unless asked.
+7. Commit with a clear message (`fix(F1): ownership checks for payments`). Push the branch and
+   open a pull request unless Atharv said not to.
 8. Finish with a short plain-language summary: what changed, how you checked it, and anything Atharv
    must do by hand.

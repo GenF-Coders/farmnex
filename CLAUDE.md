@@ -43,6 +43,8 @@ docs/
   STATUS.md              progress tracker + decisions log — update it when you finish work
   integration/           how each component plugs into this repo
   HOW_TO_USE_CLAUDE_CODE.md   plain-language guide for the team
+  FINALE_PLAN.md         the 40–50 h build plan: streams, order, budgets, cut lines
+  PROMPTS.md             copy-paste prompts for every step
 ```
 
 ## Commands
@@ -69,7 +71,7 @@ Production backend: `https://farmnex.fastapicloud.dev` (FastAPI Cloud). Frontend
 
 1. **Database safety — the main Supabase DB is shared and live.**
    - Never `DROP`, `TRUNCATE`, `ALTER`, rename or delete existing tables, columns, rows or setup.
-   - New features only **add** new tables (with a component prefix: `cr_`, `fc_`, `ro_`, `va_`).
+   - New features only **add** new tables (with a component prefix: `cr_`, `fc_`, `rt_`, `va_`).
    - Tests and experiments use a separate test database (`TEST_DATABASE_URL`), never the main one.
    - If a fix truly needs an existing table changed, **stop and ask Atharv**, explaining why.
 2. **Every endpoint checks ownership.** Being logged in is not enough. A user may only read or change
@@ -90,10 +92,15 @@ Production backend: `https://farmnex.fastapicloud.dev` (FastAPI Cloud). Frontend
 |---|---|---|---|
 | Crop Rescue (spoilage alerts + rescue buyers) | `farmnex_crop_rescue` | router copied into `backend/app/modules/crop_rescue/` | `docs/integration/crop-rescue.md` |
 | AI forecaster (price, demand, sell options, crop choice) | `farmnex_ai_forecaster` | separate service + connector router | `docs/integration/ai-forecaster.md` |
-| Route optimization (pooled loads, return trips, fares) | `farmnex_route_optimizer` | router in `backend/app/modules/route_optimizer/` | `docs/integration/route-optimizer.md` |
-| AI voice assistant | voice assistant repo (`voice_core`) | separate service, calls this API as the user | `docs/integration/voice-assistant.md` |
+| Route optimization (pooled loads, return trips, fares, live tracking) | `farmnex_route_optimization` | package `farmnex_routes` (pip, pinned commit) + ownership guard | `docs/integration/route-optimizer.md` |
+| AI voice assistant | voice assistant repo (not reviewed yet) | separate service, calls this API as the user | `docs/integration/voice-assistant.md` |
 
-Shared rules for all of them: `docs/integration/README.md`. Use `/integrate <name>`.
+Shared rules for all of them: `docs/integration/README.md` (read its "Sync vs async" rule and
+"Common failures" table before touching any component). Use `/integrate <name>`.
+
+**Time limit:** the prototype must be finished within a 40–50 hour build window. Follow
+`docs/FINALE_PLAN.md` for scope: prefer the simplest thing that works safely, don't add features
+or abstractions beyond what the current step needs, and say so when a step will overrun its budget.
 
 ## How to work here
 

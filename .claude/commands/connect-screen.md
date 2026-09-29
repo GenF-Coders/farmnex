@@ -17,4 +17,5 @@ screens to the real backend. Follow `frontend/CLAUDE.md` → "When connecting a 
 5. Remove now-dead URLs from `api_config.dart`. Translate new strings.
 6. Run `flutter analyze` and `flutter test`. If you can't run the app, write the exact taps Atharv
    should do to test it.
-7. Tick progress under F13 in `docs/FIX_PLAN.md`, log it in `docs/STATUS.md`, commit.
+7. Tick progress under F13 in `docs/FIX_PLAN.md`, log it in `docs/STATUS.md`, commit, push the
+   branch and open a pull request unless Atharv said not to.

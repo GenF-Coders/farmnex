@@ -11,7 +11,7 @@ hand in the Supabase SQL editor.
    `ALTER TABLE <own prefixed table> ENABLE ROW LEVEL SECURITY`. Never `DROP`, `TRUNCATE`, `DELETE`,
    `ALTER` a core table, `GRANT`/`REVOKE`, or `CREATE EXTENSION`.
 2. **Prefix everything** with the component's prefix: `cr_` Crop Rescue, `fc_` forecaster,
-   `ro_` route optimizer, `va_` voice assistant.
+   `rt_` route optimizer, `va_` voice assistant.
 3. **No foreign keys to core tables.** Store users as `user_public_id` (UUID), deliveries as
    `delivery_public_id`, etc.
 4. **Safe to run twice**, and wrapped in `BEGIN; ... COMMIT;`.
@@ -24,7 +24,7 @@ hand in the Supabase SQL editor.
 |---|---|
 | `010–019` | Crop Rescue (`cr_`) |
 | `020–029` | AI forecaster (`fc_`) |
-| `030–039` | Route optimizer (`ro_`) |
+| `030–039` | Route optimizer (`rt_`) |
 | `040–049` | Voice assistant (`va_`) |
 
 Name: `<number>_<prefix>_<what>.sql`, e.g. `010_cr_crop_rescue.sql`.
