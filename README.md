@@ -6,6 +6,10 @@
 > Problem Statement ID: 26033  
 > Theme: Agriculture, FoodTech & Rural Development
 
+> **Working on this repo with Claude Code?** Start with [`docs/HOW_TO_USE_CLAUDE_CODE.md`](docs/HOW_TO_USE_CLAUDE_CODE.md).
+> Known issues and their order: [`docs/FIX_PLAN.md`](docs/FIX_PLAN.md) · Progress: [`docs/STATUS.md`](docs/STATUS.md) ·
+> Plugging in components: [`docs/integration/`](docs/integration/README.md)
+
 ---
 
 ## 🚜 About FarmNex

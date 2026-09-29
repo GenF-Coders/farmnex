@@ -1,0 +1,86 @@
+# AI forecaster → main app
+
+**Source repo:** `atharvpatil1733-art/farmnex_ai_forecaster` (checked at commit `2f6f170`, 2026-09-29).
+**What it does:** 1–3 day mandi price forecasts (low / expected / high), HIGH/NORMAL/LOW demand per
+crop and district, best market + day to sell after transport cost, and which crop to sow. Scope:
+Pune-district mandis; Onion, Tomato, Potato (more via its `config.yaml`). Real data from CEDA
+Agmarknet (non-commercial licence — the CEDA credit must be shown).
+
+Follow the shared rules in `README.md` in this folder. This file lists what's specific.
+
+## Shape
+
+The forecaster is a **separate service** (LightGBM + pandas — too heavy for the main backend). It runs
+on its own host (its guide uses Render) and is protected by `X-API-Key`. The main backend gets a small
+**connector router** that forwards calls with the key, checks the login, and logs answers.
+
+```
+Flutter ──FarmNex JWT──► /api/v2/forecast/* (connector, main backend) ──X-API-Key──► forecaster
+                                   └── writes fc_forecast_logs (Supabase)
+```
+
+## Important: the kit was written for Supabase Auth — FarmNex doesn't use it
+
+The forecaster's `integration/` kit assumes the app logs in with **Supabase Auth**. FarmNex has its
+**own** JWT login and its own `users` table. Using the kit as-is would break in three ways:
+
+| Kit file | Problem here | What to do |
+|---|---|---|
+| `integration/backend/farmnex_forecast.py` → `current_user_id` | Checks the token with Supabase Auth. Our `.env` already has `SUPABASE_URL` (for storage), so it **would be active** and reject every FarmNex token with 401. | Replace with our dependency: `str(user.public_id)` from `get_current_user`. Delete the Supabase Auth check. |
+| `integration/supabase/001_forecast_logs.sql` | `user_id uuid references auth.users` — our users aren't in `auth.users`; RLS policy uses `auth.uid()`. | Use our own `backend/migrations/020_fc_forecast_logs.sql` (below). Don't run the kit's SQL. |
+| `_save_log` (posts to Supabase REST with `SUPABASE_SERVICE_ROLE_KEY`) | Different key name from ours (`SUPABASE_SECRET_KEY`), and a different table. | Insert into `fc_forecast_logs` through our async DB session (a tiny repository), never failing the user's request. |
+| `integration/flutter/lib/services/forecast_api.dart` | Uses `supabase_flutter` for the token and raw `http`. We don't have `supabase_flutter`. | Rewrite to take `ApiClient().dio` (token + refresh handled), paths `/api/v2/forecast/...`. |
+
+Because of this, the connector is **adapted** (not copied unchanged) into
+`backend/app/modules/forecast/router.py`. Keep its routes, request/response shapes, timeouts and
+meta cache the same so the forecaster's docs still match.
+
+## Table
+
+`backend/migrations/020_fc_forecast_logs.sql`:
+```sql
+BEGIN;
+CREATE TABLE IF NOT EXISTS public.fc_forecast_logs (
+    id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    user_public_id   UUID,                 -- FarmNex users.public_id, no FK on purpose
+    kind             TEXT NOT NULL CHECK (kind IN ('price','demand','sell_options','crops')),
+    request          JSONB NOT NULL,
+    response         JSONB NOT NULL,
+    data_as_of       DATE
+);
+CREATE INDEX IF NOT EXISTS fc_forecast_logs_user_idx ON public.fc_forecast_logs (user_public_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS fc_forecast_logs_kind_idx ON public.fc_forecast_logs (kind, created_at DESC);
+ALTER TABLE public.fc_forecast_logs ENABLE ROW LEVEL SECURITY;  -- no policies: only the backend reads/writes
+COMMIT;
+```
+
+## Steps
+
+1. Deploy the forecaster (its `integration/INTEGRATION.md` Step 1). Check `https://<host>/health`.
+2. Add `backend/migrations/020_fc_forecast_logs.sql` (above); Atharv runs it in Supabase.
+3. Create `backend/app/modules/forecast/router.py` from the kit's `farmnex_forecast.py` with the
+   three changes in the table. Read config through our settings/env: `FORECASTER_URL`,
+   `FORECASTER_API_KEY`. Keep one shared `httpx.AsyncClient` with the kit's timeouts (the free host
+   sleeps; first call can take ~1 minute).
+4. Wire in `backend/app/modules/wiring.py`: flag `ENABLE_FORECAST`, mount under `/api/v2` with
+   `dependencies=[Depends(get_current_user)]` (this also makes `/meta` and `/health` need login —
+   fine, the app is logged in). Refuse to mount if `FORECASTER_URL`/`FORECASTER_API_KEY` are unset.
+5. `.env.example`: `ENABLE_FORECAST=false`, `FORECASTER_URL=`, `FORECASTER_API_KEY=`.
+6. Tests `backend/tests/modules/test_forecast.py` using `httpx.MockTransport` for the forecaster (no
+   network): no token → 401; forecaster down → friendly 503; a log row is written with the caller's
+   `public_id`; the API key never appears in responses or logs.
+7. Flutter: new `lib/core/network/forecast_api.dart` built on `ApiClient().dio`; wire
+   `lib/widgets/dialogs/ai_forecast_dialog.dart` and the market screen/ticker
+   (`lib/widgets/apmc_ticker.dart`) to it; fill dropdowns only from `/forecast/meta`; show `reason`
+   bullets and "based on mandi data up to <as_of>"; show the CEDA credit (kit's `ceda_credit.dart`,
+   logo in `assets/`) on every screen with these prices. Remove the old `aiPricePredictionEndpoint`.
+8. Existing `ai_predictions` / `ai_recommendations` tables: leave them alone for now; don't write
+   forecaster output into them unless Atharv decides to (they're core tables).
+
+## Done when
+
+- `/docs` shows **forecast** under `/api/v2/forecast`.
+- In the app: Pune + Onion shows 3 days of prices with reasons and the CEDA credit.
+- A row appears in `fc_forecast_logs` with the user's `public_id`.
+- With `ENABLE_FORECAST=false` the backend starts and the forecast routes are gone.
