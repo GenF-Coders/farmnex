@@ -30,17 +30,17 @@ tick items in the tables and add one line to the log (newest first).
 - 2026-09-29 — Rule: never alter/delete existing tables in the main Supabase DB; only add tables.
 - 2026-09-29 — Demo story uses Tomato (only crop supported everywhere).
 - 2026-09-29 — Build window is 40–50 h; scope and order follow `docs/FINALE_PLAN.md`. Voice = stretch.
-- 2026-09-29 — Proposed (confirm): for the prototype, the route optimizer's `rt_loads` is the delivery
-  system and `rt_vehicles` is the vehicle source of truth; core `deliveries` / tracking / proof
-  endpoints get unmounted (F1 fast path).
+- 2026-09-29 — **Confirmed by Atharv:** (1) unmount the 9 unused modules (F1 fast path);
+  (2) the route optimizer's `rt_loads` replaces core `deliveries` and `rt_vehicles` is the vehicle
+  source of truth; (3) the live-tracking link works without login (private-link style) for the
+  prototype; (4) pre-bid winner: the **farmer accepts** a bid; (5) the voice assistant uses a
+  separate free Supabase project.
+- 2026-09-29 — Work runs as parallel Claude Code sessions per `docs/PARALLEL_SESSIONS.md`; only the
+  coordinator session edits this file and `FIX_PLAN.md`.
 
-## Open decisions (Atharv)
+## Waiting for Atharv (manual steps from merged PRs)
 
-1. Unmount the unused modules (F1 fast path)? — yes.
-2. Route optimizer's `rt_loads` replaces core `deliveries` for the prototype? — yes.
-3. Live-tracking link works without login (private-link style)? — yes for the prototype.
-4. Pre-bid winner: farmer accepts a bid, or server closes at the end? — farmer accepts.
-5. Voice assistant database: separate free Supabase project? — yes.
+- (none yet — the coordinator session fills this in)
 
 ## Log
 

@@ -101,6 +101,9 @@ behaviour. Judges who test security will try it.
 
 ## Rules during the build
 
+- Running several Claude Code sessions at once: follow **`docs/PARALLEL_SESSIONS.md`** (session
+  order S01–S35, which run together, who owns which file, the coordinator session).
+
 - One step = one branch = one PR. Merge only after `/check` passes.
 - Deploy to FastAPI Cloud at least every ~4 hours, not only at the end — deploy problems found at H45
   are the worst kind.

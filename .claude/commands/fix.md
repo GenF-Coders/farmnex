@@ -15,8 +15,9 @@ Fix item **$ARGUMENTS** from `docs/FIX_PLAN.md`.
 4. Add or update tests exactly as the item's **How to check** says. Run `/check`.
 5. For auth / ownership / payment / bid changes: ask the `security-reviewer` agent to review the diff
    and fix what it finds.
-6. Tick the item (or the sub-step) in `docs/FIX_PLAN.md`, update the counts in `docs/STATUS.md`, and
-   add one log line there.
+6. Don't edit `docs/FIX_PLAN.md` or `docs/STATUS.md` (several sessions run in parallel; the
+   coordinator session updates them — see `docs/PARALLEL_SESSIONS.md`). Instead, put
+   "Ticks: <items done>" and "Manual steps: <SQL / env vars / none>" in the PR description.
 7. Commit with a clear message (`fix(F1): ownership checks for payments`). Push the branch and
    open a pull request unless Atharv said not to.
 8. Finish with a short plain-language summary: what changed, how you checked it, and anything Atharv

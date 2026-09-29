@@ -14,6 +14,7 @@ and how the four components plug in. You just give short commands.
 | `docs/integration/*.md` | How Crop Rescue, AI forecaster, route optimizer and voice assistant plug in, and what can go wrong |
 | `docs/FINALE_PLAN.md` | The 40–50 h plan: streams, hours, checkpoints, cut lines |
 | `docs/PROMPTS.md` | Copy-paste prompts for every step |
+| `docs/PARALLEL_SESSIONS.md` | Running many sessions at once: session order, which can run together, file ownership, merging |
 | `backend/migrations/` | SQL for new component tables — **you** run these in Supabase |
 | `.claude/commands/` | The shortcuts below |
 | `.claude/agents/security-reviewer.md` | A second Claude that checks security changes |

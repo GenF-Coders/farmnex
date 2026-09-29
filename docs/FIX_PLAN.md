@@ -198,17 +198,15 @@ Today these services are plain save/edit/delete. Needed:
 1. Orders: server-computed totals from listings, stock decrease, statuses
    PLACED → CONFIRMED → DELIVERED / CANCELLED (skip SHIPPED — the route optimizer tracks movement).
    On CONFIRMED → create the delivery load (route optimizer Slip 2).
-2. Pre-bidding: bid rules above + server closes the event and picks the winner (a manager/demo
-   "close now" endpoint is fine instead of a timer).
+2. Pre-bidding: bid rules above; **the farmer accepts a bid** (decided 2026-09-29) — accepting
+   closes the event and sets `winner_bid_id`. No timer needed.
 3. Escrow: one new table `wallet_ledger` (add-only: user_public_id, order/bid public id, amount,
    type HOLD/RELEASE/REFUND, idempotency key, created_at). Balance = sum of entries. HOLD 20% on
    bid win, RELEASE on DELIVERED (route optimizer Slip 3), each exactly once.
 4. Payments: a clearly labelled demo provider ("Pay (demo)") that writes the ledger — no real
    gateway in the prototype.
-5. **Decision needed (Atharv):** who picks the pre-bid winner? The voice assistant's `accept_bid`
-   tool assumes the **farmer accepts a bid**; this plan said the server closes the event. Recommended
-   for the prototype: **farmer accepts** (any time during the 7 days, or at the end) — simpler (no
-   timer) and matches the voice demo. Accepting = close the event + set `winner_bid_id` + HOLD 20%.
+5. **Decided:** the farmer accepts a bid (any time during the 7 days). Accepting = close the event +
+   set `winner_bid_id` + HOLD 20%.
 6. Write endpoints the voice assistant calls (create pre-bid listing, accept bid) accept an
    `Idempotency-Key` header and return the same result for the same key.
 Skip for the prototype: refunds UI, partial deliveries, disputes, multiple currencies.

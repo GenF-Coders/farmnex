@@ -32,10 +32,13 @@ keys live only on the server.
    `backend/app/modules/__init__.py`), **except** `farmnex_routes`, which must keep that exact import
    name (see its guide). Keep component files unchanged so updates can be re-copied; put all
    FarmNex glue in `backend/app/modules/wiring.py` (and `logistics_host.py` for routes).
-2. **One place mounts everything:** `wiring.py` exposes `mount_components(app)`,
-   `start_components()`, `stop_components()`, called from `app/main.py` and its `lifespan`. Each
-   component has an on/off env flag (`ENABLE_CROP_RESCUE`, `ENABLE_FORECAST`,
-   `ENABLE_ROUTE_OPTIMIZER`), **default off**.
+2. **One place mounts everything:** `wiring.py` (created once, by session S01 — see
+   `docs/PARALLEL_SESSIONS.md` §7) lists all components with their on/off env flag
+   (`ENABLE_CROP_RESCUE`, `ENABLE_FORECAST`, `ENABLE_ROUTE_OPTIMIZER`, `ENABLE_VOICE_TOOLS`, **default
+   off**) and imports `app/modules/<name>_host.py` when the flag is on. Each integration only creates
+   its own host file (`crop_rescue_host.py`, `forecast_host.py`, `routes_host.py`,
+   `voice_tools_host.py`) exposing `mount(app)` and optional `start()`/`stop()`; it never edits
+   `wiring.py` or `main.py`.
 3. **Import inside the mount function**, after the flag check — never at the top of a file. Some
    components read their settings the moment they're imported; a bad value must not stop the main
    backend from starting.

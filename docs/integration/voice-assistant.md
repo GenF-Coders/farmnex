@@ -76,7 +76,7 @@ These are listed for the voice repo in its `docs/FARMNEX_HOST.md` too.
 
 The voice tools expect specific response shapes (see the pack's `fixtures/*.json`). The HTTP
 handler can only pick a sub-object (`pick:`), not reshape data. So add a small router in
-`backend/app/modules/voice_tools.py`, mounted at `/api/v2/voice-tools` with
+`backend/app/modules/voice_tools_host.py` (flag `ENABLE_VOICE_TOOLS`), mounted at `/api/v2/voice-tools` with
 `Depends(get_current_user)`, whose endpoints **reuse our services** (so F1 ownership applies) and
 return exactly the fixture shape. One endpoint per tool:
 

@@ -1,0 +1,332 @@
+# Running FarmNex with many Claude Code sessions at once
+
+This is the step-by-step guide for building FarmNex with **several Claude Code sessions working in
+parallel on the same repo**. Every session reads this file. Read it fully once before starting.
+
+---
+
+## 1. Is this okay? Will quality drop?
+
+**Yes, it's okay — and quality per session stays the same — if you follow the rules in this file.**
+Each session reads the same `CLAUDE.md`, guides and tests, so a session fixing payments works just as
+carefully as if it were the only one.
+
+What *can* go wrong with parallel sessions (and how this plan prevents it):
+
+| Risk | What it looks like | Prevented by |
+|---|---|---|
+| Two sessions edit the same file | Merge conflicts, one session's work overwritten | §4 file ownership + foundation sessions create the shared "slots" first |
+| A session builds on old code | It re-fixes something already fixed, or uses code that has changed | Every session starts from the **latest `main`** (§5 rule 2) |
+| A session needs something not finished yet | It invents its own version (e.g. its own role check) | Session table (§6) lists what must be merged first — don't start early |
+| Pieces don't fit together | Each part passes its own tests, the whole app fails | Integration check after every wave (§8) + fixed contracts in `docs/integration/` |
+| Sessions don't know each other's decisions | Contradicting choices | Decisions live **in the repo** (`docs/STATUS.md`), never only in chat |
+| **You** become the bottleneck | 5 sessions all waiting for your "OK" or review | Max 3–4 active sessions per person (§3), batch the manual steps |
+| Usage limits | Sessions stop halfway | §3 — plan usage; small sessions |
+
+**The honest limit:** Claude Code sessions can write code in parallel, but every *human* step still
+needs a person: answering "OK?", reviewing and merging pull requests (PRs), running SQL in Supabase,
+setting environment variables, deploying, and testing on a phone. Around 35 PRs × 10–15 minutes of
+review is **6–9 hours of review work** alone. So use your teammates as **session drivers and
+testers**, not only as coders — see §3.
+
+---
+
+## 2. How parallel sessions work (the mental model)
+
+- Each Claude Code session gets its **own copy** of the repo and works on its **own branch**. Sessions
+  never see each other's work while they run.
+- Work becomes shared **only** when its PR is **merged into `main`**. A session that started earlier
+  still has the old `main` until it pulls the new one.
+- Sessions have **no shared memory**. What one session decided is invisible to the others unless it's
+  written in the repo (code, `docs/STATUS.md`, `docs/FIX_PLAN.md`, the guides). Anything you tell a
+  session in chat that others need → ask it to write it into `docs/STATUS.md`.
+- Merged ≠ live. The live app changes only when the backend is **deployed** (and SQL run / env vars set
+  where needed). Find out how FastAPI Cloud deploys (§10).
+
+```
+main ──●────────●──────────●──────────●──────►   (merge = everyone can build on it)
+        \      /  \       /  \       /
+         S01──PR   S05──PR    S09──PR             (one branch per session)
+                     S06──PR    S10──PR  ...      (parallel sessions, different files)
+```
+
+---
+
+## 3. Before you start (once)
+
+- [ ] **Decisions are final** — all five in `docs/STATUS.md` are answered (done ✅).
+- [ ] **Who drives what.** Suggested with 6 people:
+  - Atharv — *coordinator*: merges PRs, runs SQL, sets env vars, answers decisions. Drives at most 1–2 sessions.
+  - Teammate 1 — drives the backend security sessions (S05, S08–S14).
+  - Teammate 2 — drives the component sessions (S03, S15–S17, S26).
+  - Teammate 3 — drives the Flutter sessions (S02, S21–S25, S27–S28).
+  - Teammate 4 — voice sessions (stretch) or second reviewer.
+  - Teammate 5 — **phone tester + demo/pitch owner**: tests every merged feature on a real phone,
+    prepares seed data, the pitch deck and the backup video.
+  If you're doing it alone: run **at most 3 sessions at the same time**.
+- [ ] **Usage.** Parallel sessions use your Claude plan's usage limit faster. Several sessions per hour
+  can hit the limit and pause work. Spread sessions across teammates' own accounts, or choose a plan with
+  more usage for the build days.
+- [ ] **Deploy:** find out whether FastAPI Cloud deploys automatically when `main` changes (§10).
+- [ ] **SIH rules:** check the SIH 2026 finale rules on (a) using AI coding tools and (b) code written
+  before the finale, and whether the venue has reliable internet (Claude Code needs it). See §10.
+- [ ] **GitHub:** everyone who drives a session has write access to the repos (or works through PRs
+  you merge).
+
+---
+
+## 4. Shared files — who may change them
+
+Most conflicts come from a few files that many tasks want to touch. The **foundation sessions** (S01,
+S02) prepare "slots" in these files so later sessions only add to their own slot or their own file.
+
+| Shared file | Owner | Everyone else |
+|---|---|---|
+| `backend/app/main.py` | S01 (then S06) | Don't touch. Components plug in via their own `app/modules/<name>_host.py` |
+| `backend/app/modules/wiring.py` | S01 creates it with all 4 components listed | Don't touch — it already imports your `<name>_host.py` when your flag is on |
+| `backend/app/api/v2/router.py` | S08 (unmount) | Don't touch (components mount through `wiring.py`, not here) |
+| `backend/requirements.txt`, `backend/.env.example` | S01 creates a marked section per component | Add lines **only inside your own section** |
+| `backend/tests/conftest.py` | S05 | Don't touch. Put helpers in your own test file; if you truly need a shared fixture, stop and ask |
+| `backend/app/api/dependencies/roles.py` | S08 | Use it, don't change it |
+| `backend/app/core/*`, `backend/app/models/user.py` | nobody after S06 | Stop and ask |
+| `backend/migrations/` | per component number range (`010–019` Crop Rescue, `020–029` forecaster, `030–039` routes) | Only your range |
+| `frontend/pubspec.yaml` | S02 adds every planned package up front | Don't touch; ask the coordinator if you need a new package |
+| `frontend/lib/core/config/api_config.dart` | S02 creates a marked section per feature | Add URLs only in your section |
+| `frontend/lib/core/network/api_client.dart`, `storage_service.dart`, `main.dart` | S02 | Don't touch |
+| `frontend/lib/core/network/backend_service.dart` | nobody | New calls go in your own `lib/core/network/<feature>_api.dart` |
+| `docs/STATUS.md`, `docs/FIX_PLAN.md` | **coordinator only** (C) | Don't edit. Write "Ticks: F1 payment" etc. in your PR description instead |
+| `docs/integration/*.md`, `CLAUDE.md` files | coordinator | If a guide is wrong, say so in your PR description |
+
+Rule of thumb for every session: **if you need a file outside your row in the session table, stop and
+ask the person driving you.** Don't "just fix it quickly".
+
+---
+
+## 5. Rules for every session
+
+1. **One session = one row of the session table** (§6). Nothing else.
+2. **Start from the latest `main`.** Start a *new* session for each task (don't reuse an old one).
+   The session's first step is to confirm it's on the newest `main` and create branch `sNN-short-name`.
+3. **Check the prerequisites** in your row are merged into `main`. If not, stop and say so.
+4. **Only touch the files your row allows** (§4). Need another file → stop and ask.
+5. Show a short plan first; wait for OK (as `CLAUDE.md` says).
+6. Tests + `/check` must pass before the PR. Security-sensitive rows run the `security-reviewer`.
+7. **Before opening the PR, merge the latest `main` into your branch again** and re-run the tests —
+   other sessions may have merged meanwhile.
+8. PR title starts with the session id: `S09: ownership checks for payments (F1+F2)`. The PR
+   description lists: what changed, how it was tested, **"Ticks:"** (FIX_PLAN items done), and **"Manual
+   steps:"** (SQL to run, env vars to set) — the coordinator copies these into STATUS.md.
+9. Don't edit `docs/STATUS.md` or `docs/FIX_PLAN.md` (coordinator does).
+10. Keep a session under ~2 hours of work. Bigger rows are split into parts (a, b, …).
+
+### The header to paste at the start of every session
+
+Paste this, fill in the session id, then paste the task prompt from the table:
+
+```
+You are session SNN of the FarmNex parallel build. First read docs/PARALLEL_SESSIONS.md sections 4 and 5 and your row SNN in section 6. Make sure you are on the latest main, then create branch sNN-<short-name>. Check that the prerequisites in your row are merged; if not, stop and tell me. Only change the files your row allows — if you need any other file, stop and ask me. Don't edit docs/STATUS.md or docs/FIX_PLAN.md; put "Ticks:" and "Manual steps:" in the PR description. Before opening the PR, merge the latest main into your branch again and re-run the tests.
+```
+
+---
+
+## 6. The session table (in order)
+
+**How to read it:** a wave can start when everything in "Needs merged" is on `main`. Sessions in the
+same wave with different files **can run at the same time**. "→" inside a row means *one after the
+other*. Times are Claude + review time.
+
+### Wave 0 — foundations (start immediately; S01–S04 all in parallel)
+
+| Id | What | Prompt (after the header) | Files it owns | Needs merged | Time |
+|---|---|---|---|---|---|
+| **S01** | Backend foundation: F4, F5, F17, F18 + component slots | "Do FIX_PLAN F4, F5, F17 and F18. Also create `backend/app/modules/__init__.py` and `wiring.py` exactly as §7 of PARALLEL_SESSIONS.md describes, and add a marked section per component (Crop Rescue, forecaster, route optimizer, voice) to `requirements.txt` and `.env.example`. One commit per item." | `backend/app.zip`, `backend/0.141`, `requirements.txt`, `pyproject.toml`, `.env.example`, `app/main.py`, `app/modules/*`, `.gitignore` | — | 2 h |
+| **S02** | Frontend foundation: F15, F16, F14 + slots | "Run `flutter analyze` and list existing errors (fix only ones that stop the build). Then do FIX_PLAN F15, F16, F14. Add these packages to `pubspec.yaml` in one go: `flutter_secure_storage`, `geolocator`, `webview_flutter` (check current versions on pub.dev). In `api_config.dart` add empty marked sections: listing, market, cart, payment, bidding, rescue, forecast, logistics, waste, voice." | `frontend/**` (except feature files later sessions create) | — | 2.5 h |
+| **S03** | Crop Rescue Phase 5 — **in the `farmnex_crop_rescue` repo** | PROMPTS.md **B1** | that repo only | — | 1 h |
+| **S04** | Voice login adapter — **in the voice repo** (stretch) | PROMPTS.md **V1** (first prompt) | that repo only | — | 1–2 h |
+| M1 | 🧑 Deploy the forecaster to Render | PROMPTS.md **B2** | — | — | 1 h |
+
+### Wave 1 — tests + small fixes (after S01 is merged)
+
+| Id | What | Prompt | Files | Needs merged | Time |
+|---|---|---|---|---|---|
+| **S05** | Test setup F11 | PROMPTS.md **A4** | `backend/tests/conftest.py`, `backend/tests/*` (setup only), `.github/workflows/*` | S01 | 2 h |
+| **S06** | F9 → F6 → F7 → F10 | "Do FIX_PLAN F9, F6, F7, F10 in that order, one commit each. Ask me the F9 and F10 questions first." | `app/main.py`, `app/core/database.py`, `app/main_complete.py`, `app/api/v2/domain_router.py` | S01 | 1.5 h |
+| **S07** | Voice pack changes (voice repo, stretch) | PROMPTS.md **V1** (second prompt) | voice repo `domain_packs/` | S04 | 1–2 h |
+
+S05 and S06 run **at the same time** (different files).
+
+### Wave 2 — security + component backends (after S05 is merged)
+
+First, one short session:
+
+| Id | What | Prompt | Files | Needs merged | Time |
+|---|---|---|---|---|---|
+| **S08** | F3 roles + F1 fast path (unmount the 9 modules — already approved) | "Do FIX_PLAN F3, then the F1 fast path. The unmount list is approved in docs/STATUS.md; don't ask again." | `app/api/dependencies/roles.py`, `app/api/v2/router.py`, tests | S05 | 1 h |
+
+Then **up to 4 at a time** (all need S08 merged):
+
+| Id | What (F1 + F2 together) | Prompt | Files | Time |
+|---|---|---|---|---|
+| **S09** | Payments | "/fix F1 payment — do F2 for it too." | payment controller/service/repository/schema + its tests | 45 min |
+| **S10** | Bids: `bid`, `bid_event` | "/fix F1 bid and bid_event — do F2 for both." | bid + bid_event files | 1 h |
+| **S11** | Orders: `order`, `order_item` | "/fix F1 order and order_item — do F2 for both." | order + order_item files | 1 h |
+| **S12** | Listings: `product_listing`, `product_image`, `crop_batch` | "/fix F1 product_listing, product_image and crop_batch — do F2 for all three." | those files | 1.5 h |
+| **S13** | Waste: `waste_record`, `waste_utilization_listing` | "/fix F1 waste_record and waste_utilization_listing — do F2 for both." | those files | 1 h |
+| **S14** | Misc: `buyer_demand_request`, `notification`, `crop_type` | "/fix F1 buyer_demand_request, notification and crop_type — do F2 for all three." | those files | 1 h |
+
+At the same time as S09–S14 (they touch different files):
+
+| Id | What | Prompt | Files | Needs merged | Time |
+|---|---|---|---|---|---|
+| **S15** | Crop Rescue into the backend | PROMPTS.md **B3** | `app/modules/crop_rescue/`, `app/modules/crop_rescue_host.py`, `migrations/010–011`, its requirements/.env sections, `tests/modules/test_crop_rescue.py` | S01, S05, S03 | 2–3 h |
+| **S16** | Forecaster connector | PROMPTS.md **B4** | `app/modules/forecast/`, `app/modules/forecast_host.py`, `migrations/020`, its sections, its tests | S01, S05, M1 | 2 h |
+| **S17** | Route optimizer part 1 (+ driver sign-up, see §10 item 11) | PROMPTS.md **B5** (part 1) | `app/modules/routes_host.py`, `app/modules/logistics_host.py`, `scripts/create_staff_user.py`, `migrations/030`, its sections, its tests | S01, S05 | 3 h |
+
+🧑 After S15–S17 merge: run their SQL files and set their env vars (the PR "Manual steps" list them).
+Do them **in one batch** if you can.
+
+⚠️ Pairs that are safe in parallel but **merge carefully**: S09 (payments) and S11 (orders) both read
+orders — merge S11 first, then have S09 merge `main` and re-run tests (§5 rule 7).
+
+### Wave 3 — marketplace logic + first screens
+
+F12 is a **chain** (same files, one after another). Screens run next to it.
+
+| Id | What | Prompt | Needs merged | Time |
+|---|---|---|---|---|
+| **S18** | F12a orders logic | PROMPTS.md **A9** (plan prompt) → then "Continue F12: orders only…" | S11, S12 | 2–3 h |
+| **S19** | F12b bids + **farmer accepts** a bid (+ Idempotency-Key) | "Continue F12: bids and pre-bid winner — farmer accepts a bid (decided). No double winners; test two accepts at the same time; accept honours Idempotency-Key." | S10, S18 | 2–3 h |
+| **S20** | F12c wallet ledger + demo payment | PROMPTS.md A9 third prompt | S09, S19 | 2–3 h |
+| **S21** | Screens: listing + market | "/connect-screen listing — then market. New calls go in lib/core/network/listing_api.dart." | S02, S12 | 3–4 h |
+| **S22** | Screen: Crop Rescue | PROMPTS.md B6 (first) | S02, S15 | 2–3 h |
+| **S23** | Screens: forecast | PROMPTS.md B6 (second) | S02, S16 | 2 h |
+| **S24** | Screens: driver / logistics | PROMPTS.md B6 (third) | S02, S17 | 4–5 h |
+| **S25** | Screen: waste | "/connect-screen waste" | S02, S13 | 2 h |
+
+S18 → S19 → S20 one after another; S21–S25 in parallel with them (max 3–4 total at once).
+
+### Wave 4 — connect the story
+
+| Id | What | Prompt | Needs merged | Time |
+|---|---|---|---|---|
+| **S26** | Route optimizer part 2 (order → load → delivered → pay) | PROMPTS.md B5 (part 2) | S17, S18, S20 | 2 h |
+| **S27** | Screen: bidding | "/connect-screen bidding" | S19, S21 | 2–3 h |
+| **S28** | Screens: cart → checkout → payment | "/connect-screen cart — then payment (label it Pay (demo))." | S18, S20, S21 | 3–4 h |
+| **S29** | Voice tool endpoints, read-only (stretch) | PROMPTS.md **V2** | S15, S16, S17, S08 | 2–3 h |
+| **S30** | Voice http handlers (voice repo, stretch) | PROMPTS.md **V3** | S29 deployed, S07 | 1 h |
+| **S31** | Voice Flutter package (voice repo, stretch) | PROMPTS.md **V4** first prompt | S04 | 3–4 h |
+| **S32** | Voice mic in the app (stretch) | PROMPTS.md **V4** second prompt | S31, S02 | 1–2 h |
+
+### Wave 5 — finish (one at a time)
+
+| Id | What | Prompt | Needs merged |
+|---|---|---|---|
+| **S33** | Whole-app security review + fixes | PROMPTS.md **A10** | everything you're keeping |
+| **S34** | Demo data + `docs/DEMO.md` | PROMPTS.md **B7** + the DEMO.md prompt in "Final hours" | S33 |
+| **S35** | Final dry run | "Final hours" second prompt in PROMPTS.md | S34 |
+
+### The coordinator session (C) — run after every 2–4 merges
+
+```
+You are the coordinator session. Read docs/PARALLEL_SESSIONS.md. Look at the PRs merged since the last update (git log on main). Update docs/STATUS.md (counts, component table, log) and tick docs/FIX_PLAN.md using each PR's "Ticks:" line; collect every "Manual steps:" line that isn't done yet into a "Waiting for Atharv" list at the top of STATUS.md. Run the backend tests and /check on main. Then tell me which session ids from section 6 are now ready to start (all their "Needs merged" are on main). Open a PR titled "C: status update".
+```
+
+---
+
+## 7. What S01 builds so component sessions never collide
+
+`backend/app/modules/wiring.py` knows all four components up front; each component session only
+creates **its own** `<name>_host.py`.
+
+```python
+# backend/app/modules/wiring.py  (created by S01 — later sessions don't edit it)
+COMPONENTS = [
+    # (flag env var,            host module under app.modules)
+    ("ENABLE_CROP_RESCUE",      "crop_rescue_host"),
+    ("ENABLE_FORECAST",         "forecast_host"),
+    ("ENABLE_ROUTE_OPTIMIZER",  "routes_host"),
+    ("ENABLE_VOICE_TOOLS",      "voice_tools_host"),
+]
+# mount_components(app): for each flag that is "true", import app.modules.<host> *inside the
+# function* and call its mount(app). If the import or mount fails (missing module, bad config),
+# log ONE clear error and continue — the backend must still start.
+# start_components() / stop_components(): call start()/stop() on mounted hosts that have them.
+```
+Each `<name>_host.py` exposes `mount(app)` and optionally `start()` / `stop()`. `app/main.py` calls
+`mount_components(app)` once and `start_components()` / `stop_components()` in its lifespan.
+S01 also adds `app/modules/crops.py` with the crop-name map (F18).
+
+---
+
+## 8. Keeping the pieces working together
+
+- **After every wave** (and at FINALE_PLAN checkpoints H12/H24/H38) run the coordinator session:
+  full tests on `main` + `/check`. A wave isn't "done" until `main` is green.
+- **Tag a known-good version** after each green wave, so you can roll back on stage:
+  ask the coordinator "create git tag `good-wave-N` on main and push it".
+- **Phone test after each wave** (tester): install the app built from `main` against the deployed
+  backend, run the part of the demo story that exists so far, note problems as new sessions.
+- **Deploy after each wave**, not only at the end (and run pending SQL / env vars first).
+
+---
+
+## 9. When things go wrong
+
+| Situation | What to do |
+|---|---|
+| PR shows a merge conflict | In that session: "Merge the latest main into this branch, resolve the conflicts keeping both sides' intent, re-run tests, push." If both sides changed the same logic, it will ask you which to keep. |
+| A session wants to edit a file it doesn't own | Say no, or pause it and check who owns the file. Usually the right fix is a small separate session. |
+| A prerequisite isn't merged yet | Don't start the session. Start a different ready one instead (ask the coordinator). |
+| Two sessions made the same helper | Keep the one merged first; the later session removes its copy after merging `main`. |
+| Tests pass in the session but `main` breaks after merge | Coordinator: "Find which merge broke main and open a fix PR." Fix before merging anything else. |
+| A session is going in circles / over its time budget by 50% | Stop it. Start a fresh session with a smaller task and the error text. |
+| Usage limit reached | Switch to a teammate's account for the next session; don't restart the same long session. |
+| Live app broken after a deploy | Re-deploy the last `good-wave-N` tag; turn off the broken component's flag on FastAPI Cloud. |
+
+---
+
+## 10. Things you may not know yet
+
+1. **Sessions only know what's in the repo.** A decision you gave in one chat is invisible to every
+   other session unless it's written in `docs/STATUS.md` or a guide.
+2. **"Merged" doesn't mean "live".** Check whether FastAPI Cloud deploys automatically from `main`. If
+   it does, every merge changes the live app, so merge only green PRs, and deploy-breaking changes (new
+   env vars) need their env vars set *before* the merge. If it doesn't, plan a deploy after each wave.
+3. **Cloud sessions can't reach your Supabase or `.env`** (and must not). They test on a temporary
+   database. The first real test of SQL, env vars and components is after you deploy.
+4. **SQL files don't run themselves.** A component merged without its SQL run fails with
+   `relation … does not exist`. Keep the coordinator's "Waiting for Atharv" list short.
+5. **Order matters more than speed.** Starting a session before its prerequisites are merged is the
+   #1 way to create rework.
+6. **SIH finale rules.** Check the official SIH 2026 finale rules for AI tools and pre-built code, and
+   confirm venue internet. If AI tools or internet are limited there, finish as much as possible
+   *before* the finale and keep a fully offline demo backup (recorded video + local run).
+7. **Review is real work.** Plan 10–15 minutes per PR. Let a second person review too, and always read
+   the `security-reviewer` output on auth / money / bid PRs.
+8. **Keep secrets out of chats.** Never paste database passwords or API keys into a session; set them
+   on FastAPI Cloud / Render yourself.
+9. **Don't edit files on GitHub's website while sessions are running** on those files — it causes
+   conflicts the sessions don't expect.
+10. **Squash and merge.** Use GitHub's "Squash and merge" button so each session is one clean commit on
+    `main` (easy to find and undo).
+11. **Drivers and managers can't sign up today.** Public registration allows only FARMER, BUYER and
+    VENDOR (`public_registration_roles` in `app/core/config.py`). The logistics demo needs a
+    DELIVERY_AGENT (driver) and a LOGISTICS_MANAGER. S17 handles it: allow DELIVERY_AGENT in public
+    sign-up through the env setting (fine for the prototype), and create the manager/admin accounts
+    with a small one-off script that Atharv runs — never make ADMIN or MANAGER self-sign-up roles.
+
+---
+
+## 11. One-page cheat sheet
+
+```
+Wave 0 (now, parallel):  S01 backend foundation | S02 frontend foundation | S03 Crop Rescue Ph5 | S04 voice auth | M1 deploy forecaster
+Wave 1 (after S01):      S05 tests  ‖  S06 small fixes  ‖  S07 voice pack
+Wave 2 (after S05):      S08 roles+unmount → then ‖ S09 pay ‖ S10 bids ‖ S11 orders ‖ S12 listings ‖ S13 waste ‖ S14 misc
+                         and ‖ S15 Crop Rescue ‖ S16 forecaster ‖ S17 routes pt1     (max 3–4 per person at once)
+                         🧑 run SQL + env vars for S15–S17
+Wave 3:                  S18 → S19 → S20 (F12 chain)  ‖  S21 listing/market ‖ S22 rescue ‖ S23 forecast ‖ S24 logistics ‖ S25 waste
+Wave 4:                  S26 routes pt2 ‖ S27 bidding ‖ S28 checkout   (+ voice S29–S32 if on budget)
+Wave 5 (one at a time):  S33 security review → S34 demo data → S35 dry run → FREEZE
+Coordinator C:           after every 2–4 merges
+```

@@ -45,6 +45,7 @@ docs/
   HOW_TO_USE_CLAUDE_CODE.md   plain-language guide for the team
   FINALE_PLAN.md         the 40–50 h build plan: streams, order, budgets, cut lines
   PROMPTS.md             copy-paste prompts for every step
+  PARALLEL_SESSIONS.md   how many Claude Code sessions work at once: order, file ownership, merging
 ```
 
 ## Commands
@@ -108,8 +109,11 @@ or abstractions beyond what the current step needs, and say so when a step will 
 
 - Known problems and their order: `docs/FIX_PLAN.md`. Use `/fix F1` (etc.) to work one item.
 - One fix item or one component per branch/PR. Small commits with clear messages.
-- After finishing: run `/check`, update the checkbox in `docs/FIX_PLAN.md` and add a line to
-  `docs/STATUS.md`.
+- **Several sessions work in parallel.** Follow `docs/PARALLEL_SESSIONS.md`: start from the latest
+  `main`, only touch the files your session row allows, and don't edit `docs/STATUS.md` /
+  `docs/FIX_PLAN.md` (the coordinator session does) — put "Ticks:" and "Manual steps:" in the PR
+  description.
+- After finishing: run `/check`, merge the latest `main` into your branch, re-run tests, open the PR.
 - For security-sensitive changes (auth, ownership, payments, bids), ask the `security-reviewer`
   agent to review before calling it done.
 - More detail: `backend/CLAUDE.md` and `frontend/CLAUDE.md` (loaded automatically when you work
