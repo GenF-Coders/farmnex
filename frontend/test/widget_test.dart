@@ -8,6 +8,7 @@ import 'package:farmnex_flutter/providers/market_provider.dart';
 import 'package:farmnex_flutter/providers/rescue_provider.dart';
 import 'package:farmnex_flutter/providers/verification_provider.dart';
 import 'package:farmnex_flutter/providers/waste_provider.dart';
+import 'package:farmnex_flutter/screens/startup/language_selection_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -15,7 +16,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('FarmNexApp smoke test - renders title and bottom navigation',
+  testWidgets('FarmNexApp smoke test - opens on the language selection screen',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(
@@ -34,9 +35,9 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('STARK / FARMNEX'), findsOneWidget);
-
-    expect(find.text('AI Voice Assistant'), findsOneWidget);
+    // A fresh install opens on the language picker. Text is matched by screen type, not wording,
+    // because the words are translated into the selected language.
+    expect(find.byType(LanguageSelectionScreen), findsOneWidget);
   });
 
   test('MarketProvider unit test - default crops and categories', () {
