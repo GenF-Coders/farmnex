@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()  # before any other app / component import: components read os.environ directly
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -14,6 +18,7 @@ from app.core.database import (
 )
 from app.core.exceptions import AppException
 from app.models.crop_type import CropType
+from app.modules.wiring import mount_components, start_components, stop_components
 from app.repositories.role_repository import RoleRepository
 
 
@@ -128,6 +133,63 @@ DEFAULT_CROP_TYPES = [
         "default_unit": "kg",
         "is_active": True,
     },
+    # Added so every Crop Rescue crop exists in crop_types (see app/modules/crops.py).
+    {
+        "name": "Spinach",
+        "scientific_name": "Spinacia oleracea",
+        "description": "A leafy green vegetable crop grown for fresh consumption.",
+        "category": "Vegetable",
+        "default_unit": "kg",
+        "is_active": True,
+    },
+    {
+        "name": "Okra",
+        "scientific_name": "Abelmoschus esculentus",
+        "description": "A warm-season vegetable crop grown for its edible green pods.",
+        "category": "Vegetable",
+        "default_unit": "kg",
+        "is_active": True,
+    },
+    {
+        "name": "Brinjal",
+        "scientific_name": "Solanum melongena",
+        "description": "A vegetable crop, also called eggplant, grown for its fruit.",
+        "category": "Vegetable",
+        "default_unit": "kg",
+        "is_active": True,
+    },
+    {
+        "name": "Cauliflower",
+        "scientific_name": "Brassica oleracea var. botrytis",
+        "description": "A vegetable crop grown for its edible flower head.",
+        "category": "Vegetable",
+        "default_unit": "kg",
+        "is_active": True,
+    },
+    {
+        "name": "Grapes",
+        "scientific_name": "Vitis vinifera",
+        "description": "A fruit crop grown for fresh consumption, raisins and juice.",
+        "category": "Fruit",
+        "default_unit": "kg",
+        "is_active": True,
+    },
+    {
+        "name": "Capsicum",
+        "scientific_name": "Capsicum annuum",
+        "description": "A vegetable crop, also called bell pepper, grown for its fruit.",
+        "category": "Vegetable",
+        "default_unit": "kg",
+        "is_active": True,
+    },
+    {
+        "name": "Cucumber",
+        "scientific_name": "Cucumis sativus",
+        "description": "A vine vegetable crop grown for fresh consumption.",
+        "category": "Vegetable",
+        "default_unit": "kg",
+        "is_active": True,
+    },
 ]
 
 
@@ -191,9 +253,11 @@ async def lifespan(app: FastAPI):
     await create_tables()
     await seed_default_roles()
     await seed_default_crop_types()
+    start_components()
 
     yield
 
+    stop_components()
     await close_database()
 
 
@@ -264,3 +328,7 @@ async def readiness():
 
 
 app.include_router(api_router, prefix="/api")
+
+# Optional components (Crop Rescue, forecaster, routes, voice tools): each is mounted only if its
+# ENABLE_* flag is "true", and a failure never stops the backend. See app/modules/wiring.py.
+mount_components(app)
