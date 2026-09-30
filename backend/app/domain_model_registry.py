@@ -22,3 +22,4 @@ from app.models.product_listing import *  # noqa: F401,F403
 from app.models.review import *  # noqa: F401,F403
 from app.models.waste_record import *  # noqa: F401,F403
 from app.models.waste_utilization_listing import *  # noqa: F401,F403
+from app.models.wallet_ledger import *  # noqa: F401,F403
