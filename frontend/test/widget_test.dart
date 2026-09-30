@@ -40,13 +40,13 @@ void main() {
     expect(find.byType(LanguageSelectionScreen), findsOneWidget);
   });
 
-  test('MarketProvider unit test - default crops and categories', () {
+  test('MarketProvider unit test - starts without demo crops, keeps categories', () {
     final provider = MarketProvider();
-    expect(provider.crops.isNotEmpty, true);
     expect(provider.categories.contains('All'), true);
     expect(provider.filteredCrops.length, provider.crops.length);
 
     provider.setCategory('Grains');
+    expect(provider.selectedCategory, 'Grains');
     expect(provider.filteredCrops.every((c) => c.category == 'Grains'), true);
   });
 

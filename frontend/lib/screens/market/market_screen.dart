@@ -5,23 +5,37 @@ import '../../core/guards/auth_guard.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/market_provider.dart';
-import '../../models/user_model.dart';
 import '../../widgets/apmc_ticker.dart';
 import '../../widgets/crop_picture.dart';
-import '../../widgets/crop_media_uploader.dart';
 import '../../widgets/dialogs/ai_forecast_dialog.dart';
 import '../../widgets/dialogs/crop_pre_bidding_dialog.dart';
 import '../payment/checkout_screen.dart';
 
-class MarketScreen extends StatelessWidget {
+class MarketScreen extends StatefulWidget {
   const MarketScreen({super.key});
+
+  @override
+  State<MarketScreen> createState() => _MarketScreenState();
+}
+
+class _MarketScreenState extends State<MarketScreen> {
+  bool? _loadedForLogin;
 
   @override
   Widget build(BuildContext context) {
     final market = context.watch<MarketProvider>();
+    final loggedIn = context.watch<AuthProvider>().isLoggedIn;
+    if (_loadedForLogin != loggedIn) {
+      // First open, or someone logged in / out: fetch the lots again.
+      _loadedForLogin = loggedIn;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<MarketProvider>().load();
+      });
+    }
     final crops = market.filteredCrops;
     return RefreshIndicator(
-      onRefresh: () async => Future<void>.delayed(const Duration(milliseconds: 500)),
+      onRefresh: () => context.read<MarketProvider>().load(),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
@@ -33,7 +47,11 @@ class MarketScreen extends StatelessWidget {
           const SizedBox(height: 16),
           Row(children: [const Expanded(child: AutoTranslatedText('Fresh farmer listings', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900))), AutoTranslatedText('${crops.length} items', style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted))]),
           const SizedBox(height: 10),
-          if (crops.isEmpty)
+          if (market.isLoading && crops.isEmpty)
+            const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator()))
+          else if (market.error != null && crops.isEmpty)
+            _error(market.error!, () => context.read<MarketProvider>().load())
+          else if (crops.isEmpty)
             _empty()
           else
             LayoutBuilder(builder: (context, constraints) {
@@ -80,6 +98,18 @@ class MarketScreen extends StatelessWidget {
         ),
       );
 
+  Widget _error(String message, VoidCallback onRetry) => Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.borderLight)),
+        child: Column(children: [
+          const Icon(Icons.cloud_off_rounded, color: AppTheme.textMuted, size: 32),
+          const SizedBox(height: 8),
+          AutoTranslatedText(message, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          OutlinedButton(onPressed: onRetry, child: const AutoTranslatedText('Try again')),
+        ]),
+      );
+
   Widget _empty() => Container(padding: const EdgeInsets.all(28), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.borderLight)), child: const Column(children: [Icon(Icons.search_off_rounded, color: AppTheme.textMuted, size: 32), SizedBox(height: 8), AutoTranslatedText('No produce found', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), AutoTranslatedText('Try another search or category.', style: TextStyle(fontSize: 11, color: AppTheme.textMuted))]));
 }
 
@@ -117,14 +147,11 @@ class _MarketProductCard extends StatelessWidget {
           const SizedBox(height: 6),
           AutoTranslatedText('₹${crop.currentPrice.toInt()} / ${crop.unit}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen)),
           const SizedBox(height: 3),
-          AutoTranslatedText('${crop.location} • ${crop.quantityAvailable} ${crop.unit}s', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: AppTheme.textMuted)),
+          AutoTranslatedText('${crop.location.isEmpty ? '' : '${crop.location} • '}${crop.quantityAvailable} ${crop.unit} available', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: AppTheme.textMuted)),
           const SizedBox(height: 8),
           Row(children: [Expanded(child: OutlinedButton(onPressed: () => showDialog(context: context, builder: (_) => CropPreBiddingDialog(crop: crop)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), child: AutoTranslatedText(crop.biddingActive ? 'Pre-bid' : 'Inspect', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)))), const SizedBox(width: 6), Expanded(child: ElevatedButton(onPressed: () => _buy(context), style: ElevatedButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), child: AutoTranslatedText('Buy', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900))))]),
           const SizedBox(height: 6),
           Row(children: [Expanded(child: TextButton(onPressed: () => showDialog(context: context, builder: (_) => AIForecastDialog(crop: crop)), child: AutoTranslatedText('Price insight', style: TextStyle(fontSize: 9.5, color: AppTheme.primaryGreen, fontWeight: FontWeight.w800)))), const Icon(Icons.location_on_outlined, size: 13, color: AppTheme.textMuted)]),
-          const SizedBox(height: 4),
-          ClipRRect(borderRadius: BorderRadius.circular(8), child: Container(height: 64, color: const Color(0xFFF8FAF7), child: CropMediaGallery(cropId: crop.id))),
-          Consumer<AuthProvider>(builder: (context, auth, _) => auth.isLoggedIn && auth.user?.role == UserRole.farmer ? Padding(padding: const EdgeInsets.only(top: 6), child: CropMediaUploader(cropId: crop.id, cropName: crop.name, farmerName: crop.farmerName)) : const SizedBox.shrink()),
         ])),
       ]),
     );

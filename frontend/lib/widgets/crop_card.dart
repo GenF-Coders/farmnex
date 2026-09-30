@@ -169,7 +169,7 @@ class CropCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 AutoTranslatedText(
-                  '${crop.quantityAvailable} ${crop.unit}s • ${crop.location}',
+                  '${crop.quantityAvailable} ${crop.unit}${crop.location.isEmpty ? '' : ' • ${crop.location}'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 9.5, color: AppTheme.textMuted),
