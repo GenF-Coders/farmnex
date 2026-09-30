@@ -280,15 +280,23 @@ S18 → S19 → S20 one after another; S21–S25 in parallel with them (max 3–
 
 ### Wave 4 — connect the story
 
-| Id | What | Prompt | Needs merged | Time |
-|---|---|---|---|---|
-| **S26** | Route optimizer part 2 (order → load → delivered → pay) | PROMPTS.md B5 (part 2) | S17, S18, S20 | 2 h |
-| **S27** | Screen: bidding | "/connect-screen bidding" | S19, S21 | 2–3 h |
-| **S28** | Screens: cart → checkout → payment (+ the order card: status, **Track** button from S24) | "/connect-screen cart — then payment (label it Pay (demo)). Orders come from PaymentProvider today; connect the buyer orders screen too and place `track_delivery_button.dart` on the order card." | S18, S20, S21, S24 | 3–4 h |
-| **S29** | Voice tool endpoints, read-only (stretch) | PROMPTS.md **V2** | S15, S16, S17, S08 | 2–3 h |
-| **S30** | Voice http handlers (voice repo, stretch) | PROMPTS.md **V3** | S29 deployed, S07 | 1 h |
-| **S31** | Voice Flutter package (voice repo, stretch) | PROMPTS.md **V4** first prompt | S04 | 3–4 h |
-| **S32** | Voice mic in the app (stretch) | PROMPTS.md **V4** second prompt | S31, S02 | 1–2 h |
+Facts these rows rely on (book truck, checkout paying, wallet buttons, what the bidding API shows):
+STATUS → Verified facts → "Wave 4 decisions". Same file rules as wave 3 (new calls in your own
+`lib/core/network/<feature>_api.dart`; `main.dart`, `app_translations.dart`, `backend_service.dart` as in
+wave 3; Flutter is checked by CI).
+
+| Id | What | Prompt | Files it owns | Needs merged | Time |
+|---|---|---|---|---|---|
+| **S26** | Route optimizer part 2 (order → load → delivered → pay) | PROMPTS.md B5 (part 2) | `app/modules/logistics_host.py` (adds `request-transport` + staff `resync`), `app/modules/routes_host.py` (listener), new `tests/modules/test_route_orders.py`. **Host files only** (Atharv): no edit of order files, so the load is booked by `request-transport`, not on confirm | S17, S18, S20 | 2 h |
+| **S27** | Screen: bidding | "/connect-screen bidding" | `providers/bidding_provider.dart`, `models/bid_model.dart` (+ new model files), `screens/bidding/`, `screens/buyer/buyer_bids_screen.dart`, `widgets/dialogs/crop_pre_bidding_dialog.dart`, new `core/network/bidding_api.dart`, `api_config.dart` section **bidding** (remove the dead `cropBidsWsUrl`; stop using `websocket_service.dart`, don't delete it). Keep `CropPreBiddingDialog(crop: …)`'s constructor — S21's `market_screen.dart` and `home_screen.dart` call it. The farmer opens an event on their own listing and accepts a bid here; the won order and its payment are S28's orders screen | S19, S21 | 2–3 h |
+| **S28** | Screens: cart → checkout → payment (+ the order card: status, **Track** button from S24) | "/connect-screen cart — then payment (label it Pay (demo)). Orders come from PaymentProvider today; connect the buyer orders screen too and place `track_delivery_button.dart` on the order card." | `providers/cart_provider.dart`, `providers/payment_provider.dart`, `models/payment_model.dart` (+ new order model files), `screens/buyer/cart_screen.dart`, `screens/buyer/buyer_orders_screen.dart`, `screens/payment/` (checkout + wallet), `core/payments/payment_gateway.dart` (must stop being the default), new `core/network/order_api.dart` + `payment_api.dart`, `api_config.dart` sections **cart** and **payment**. Keep `CheckoutScreen` / `CheckoutItem`'s constructors (S21's `market_screen.dart` and `crop_card.dart` call them) and `PaymentProvider`'s public members used by `profile_screen.dart` and S24's `logistics_screens.dart` (`releaseEscrow` becomes a no-op — money is released by the server). Wallet: hide Top up / Withdraw | S18, S20, S21, S24 | 3–4 h |
+| **S29** | Voice tool endpoints, read-only (stretch) | PROMPTS.md **V2** | voice pre-flight sets this (voice runs last, §6b) | S15, S16, S17, S08 | 2–3 h |
+| **S30** | Voice http handlers (voice repo, stretch) | PROMPTS.md **V3** | voice repo only | S29 deployed, S07 | 1 h |
+| **S31** | Voice Flutter package (voice repo, stretch) | PROMPTS.md **V4** first prompt | voice repo only | S04 | 3–4 h |
+| **S32** | Voice mic in the app (stretch) | PROMPTS.md **V4** second prompt | voice pre-flight sets this | S31, S02 | 1–2 h |
+
+No farmer-orders screen is built (Atharv: only what's necessary) — in the demo the farmer confirms
+and books the truck through `/docs`. S27 and S28 run in parallel (different files).
 
 ### Wave 5 — finish (one at a time)
 
