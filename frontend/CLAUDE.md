@@ -14,8 +14,7 @@ Read the root `CLAUDE.md` first. This file adds Flutter-specific detail.
 - `lib/core/network/backend_service.dart` has typed calls for auth, users, addresses, farms.
   Don't add to it: new calls go in your own `lib/core/network/<feature>_api.dart` (parallel sessions
   would otherwise collide in this one file) — never inside widgets.
-- Tokens are stored by `lib/core/storage/storage_service.dart` (currently `shared_preferences`;
-  FIX_PLAN F14 moves them to `flutter_secure_storage`).
+- Tokens are stored by `lib/core/storage/storage_service.dart` (`flutter_secure_storage`, kept in memory; F14 done — language, onboarding and user details stay in `shared_preferences`).
 - Languages: `lib/localization/` (`app_translations.dart`, `l10n_extension.dart`). Farmers use
   Marathi/Hindi — every new user-facing string goes through the translation system.
 
