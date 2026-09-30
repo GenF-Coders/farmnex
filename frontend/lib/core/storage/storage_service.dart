@@ -38,6 +38,8 @@ class StorageService {
     }
 
     // One-time migration: move tokens from the old shared_preferences keys, then delete them.
+    // The old keys are always deleted, even if the move fails: the user just has to log in again,
+    // and no plain-text token is left behind.
     final oldAccess = _prefs?.getString(_accessTokenKey);
     final oldRefresh = _prefs?.getString(_refreshTokenKey);
     if (oldAccess != null || oldRefresh != null) {
@@ -52,8 +54,13 @@ class StorageService {
   Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
     _accessToken = accessToken;
     _refreshToken = refreshToken;
-    await _secure.write(key: _accessTokenKey, value: accessToken);
-    await _secure.write(key: _refreshTokenKey, value: refreshToken);
+    try {
+      await _secure.write(key: _accessTokenKey, value: accessToken);
+      await _secure.write(key: _refreshTokenKey, value: refreshToken);
+    } catch (_) {
+      // Secure storage failed: the user stays logged in until the app closes (tokens are in
+      // memory) and must log in again next time. Never fall back to plain-text storage.
+    }
   }
 
   String? getAccessToken() => _accessToken;
