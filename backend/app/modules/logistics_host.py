@@ -1,32 +1,46 @@
-"""Vehicle endpoints for drivers (docs/integration/route-optimizer.md, "Host endpoints we add").
+"""Vehicle and order-delivery endpoints (docs/integration/route-optimizer.md, "Host endpoints we add",
+"Slip 2" and "Slip 3").
 
 Mounted at /api/v2/logistics by `routes_host.mount()` (with login), so this file is only imported
 once the route optimizer is switched on and its database URL is valid. `rt_vehicles` is the
 source of truth for vehicles; there is no core vehicles table.
 
 Identity comes only from the login token: the driver is always the logged-in user, and clients
-can't send driver ids, owner role or status.
+can't send driver ids, owner role or status. Loads are made only here, from the order's own rows.
 """
 
 from __future__ import annotations
 
-from typing import Literal
-from uuid import uuid4
+import logging
+from decimal import Decimal
+from typing import Any, Literal
+from uuid import UUID, uuid4
 
+import anyio
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from farmnex_routes import upsert_vehicle
+from farmnex_routes import create_delivery_for_order, find_load_for_order, upsert_vehicle
 from farmnex_routes.db import session_scope
-from farmnex_routes.models import RtVehicle
-from farmnex_routes.schemas import VehicleOut
+from farmnex_routes.models import RtLoad, RtVehicle
+from farmnex_routes.schemas import LoadCreated, VehicleOut
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.current_user import get_current_user
 from app.api.dependencies.roles import require_roles
+from app.core.database import AsyncSessionLocal, get_db
+from app.models.farm import Farm
+from app.models.order import Order
+from app.models.order_item import OrderItem
 from app.models.user import User
+from app.services import wallet_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Logistics"])
+
+STAFF_ROLES = ("LOGISTICS_MANAGER", "ADMIN", "SUPER_ADMIN")
 
 MAX_VEHICLES_PER_USER = 5
 
@@ -127,3 +141,175 @@ async def update_vehicle(
 @router.get("/my-vehicles", response_model=list[VehicleOut])
 async def my_vehicles(user: User = Depends(get_current_user)):
     return await run_in_threadpool(_list_vehicles, str(user.public_id))
+
+
+# --------------------------------------------------------------------- Slip 2: order -> load (S26)
+# A CONFIRMED order becomes one load (a job for a truck). Everything comes from the order's own rows;
+# the client sends only the order id.
+
+KG_PER_UNIT = {"kg": 1, "kgs": 1, "quintal": 100, "quintals": 100,
+               "ton": 1000, "tons": 1000, "tonne": 1000, "tonnes": 1000}
+# Items that haven't left the farm yet (the pickup moves them to SHIPPED).
+BEFORE_PICKUP = ("ACTIVE", "PLACED", "CONFIRMED", "PACKED")
+
+
+def weight_kg(quantity: Decimal, unit: str | None) -> float:
+    factor = KG_PER_UNIT.get((unit or "").strip().lower())
+    if factor is None:
+        raise HTTPException(422, f"Transport needs the weight in kg, quintal or ton, not '{unit}'.")
+    return float(quantity * factor)
+
+
+def _point(lat: Any, lng: Any) -> tuple[float, float] | None:
+    """A usable map point, or None (missing, out of range, or 0,0 - a trip to the ocean)."""
+    if lat is None or lng is None:
+        return None
+    lat, lng = float(lat), float(lng)
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180) or (lat == 0 and lng == 0):
+        return None
+    return lat, lng
+
+
+def _text(*parts: Any, limit: int = 255) -> str:
+    return ", ".join(str(p) for p in parts if p)[:limit] or "-"
+
+
+def _create_load(fields: dict) -> tuple[RtLoad, bool]:
+    with session_scope() as session:
+        return create_delivery_for_order(session, **fields)
+
+
+@router.post("/orders/{order_public_id}/request-transport", response_model=LoadCreated)
+async def request_transport(
+    order_public_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Book a truck for a CONFIRMED order: the order's farmer (or logistics staff). Anyone else gets
+    404. Safe to call twice - the same load comes back (`already_existed`)."""
+    order = await db.scalar(select(Order).where(Order.public_id == order_public_id))
+    items = [] if order is None else list(
+        await db.scalars(select(OrderItem).where(OrderItem.order_id == order.id).order_by(OrderItem.id))
+    )
+    is_staff = user.role is not None and user.role.name.upper() in STAFF_ROLES
+    if order is None or not (is_staff or any(item.seller_id == user.id for item in items)):
+        raise HTTPException(404, "Order not found.")
+    if order.status != "CONFIRMED":
+        raise HTTPException(409, "Only a confirmed order can get transport.")
+    live = [item for item in items if item.status != "CANCELLED"]
+    if not live:
+        raise HTTPException(409, "Every item in this order was cancelled.")
+    if len({item.farm_id for item in live}) != 1 or len({item.seller_id for item in live}) != 1:
+        raise HTTPException(409, "This order's crops come from more than one farm; book them one by one.")
+
+    farm = await db.get(Farm, live[0].farm_id)
+    pickup = _point(farm.latitude, farm.longitude) if farm else None
+    if pickup is None:
+        raise HTTPException(422, "Add your farm location first: the truck needs a pickup point.")
+    address = order.delivery_address_snapshot or {}
+    drop = _point(address.get("latitude"), address.get("longitude"))
+    if drop is None:
+        raise HTTPException(422, "The buyer's delivery address has no map location.")
+    weight = sum(weight_kg(item.quantity, item.unit) for item in live)
+
+    farmer = await db.get(User, live[0].seller_id)
+    buyer = await db.get(User, order.buyer_id)
+    fields = {
+        "order_id": str(order.public_id),
+        "farmer_id": str(farmer.public_id),
+        "farmer_name": _driver_name(farmer) or "Farmer",
+        "farmer_phone": (farmer.phone_number or "")[:20] or None,
+        "buyer_id": str(buyer.public_id),
+        "buyer_name": _driver_name(buyer) or "Buyer",
+        "buyer_phone": (buyer.phone_number or "")[:20] or None,
+        "crop": _text(*dict.fromkeys(item.title_snapshot for item in live), limit=60),
+        "weight_kg": round(weight, 3),
+        "pickup_lat": pickup[0],
+        "pickup_lng": pickup[1],
+        "pickup_address": _text(farm.farm_name, farm.address_line_1, farm.village, farm.city, farm.district,
+                                farm.state, farm.postal_code),
+        "drop_lat": drop[0],
+        "drop_lng": drop[1],
+        "drop_address": _text(*(address.get(key) for key in (
+            "address_line_1", "address_line_2", "landmark", "village", "city", "district", "state",
+            "postal_code"))),
+        "priority": 0,  # Crop Rescue sales are not core orders, so every order load is "normal"
+    }
+    load, created = await run_in_threadpool(_create_load, fields)
+    return LoadCreated.model_validate(load).model_copy(update={"already_existed": not created})
+
+
+# --------------------------------------------------------------------- Slip 3: load -> order (S26)
+# The driver's pickup moves the order's items to SHIPPED; the drop marks the order DELIVERED and
+# gives the held money to the farmer (S20's release, which pays out only once).
+
+
+def on_delivery(load: RtLoad, status: str) -> None:
+    """Listener registered by `routes_host.mount()`. The component calls it (sync) inside the driver's
+    request, which runs in one of FastAPI's worker threads, so we can hop back to async code."""
+    if not load.order_id or status not in ("picked_up", "delivered"):
+        return
+    try:
+        order_public_id = UUID(load.order_id)
+    except ValueError:
+        return  # not one of our orders (e.g. a hand-made demo load)
+    try:
+        anyio.from_thread.run(apply_delivery_status, order_public_id, status)
+    except Exception:
+        # The delivery itself is already saved; fix the order by hand with POST .../resync.
+        logger.exception("Order %s was NOT updated to '%s'; use POST /api/v2/logistics/orders/%s/resync",
+                         order_public_id, status, order_public_id)
+
+
+async def apply_delivery_status(order_public_id: UUID, status: str) -> tuple[str | None, Decimal | None]:
+    """Copy a load's status onto its order. Safe to run twice. Returns (order status, money released)."""
+    async with AsyncSessionLocal() as session:
+        order = await session.scalar(
+            select(Order).where(Order.public_id == order_public_id).with_for_update()
+        )
+        if order is None or order.status in ("PLACED", "CANCELLED"):
+            logger.warning("Load for order %s is %s, but the order is %s: not changed.",
+                           order_public_id, status, order.status if order else "missing")
+            return (order.status if order else None), None
+        items = update(OrderItem).where(OrderItem.order_id == order.id)
+        if status == "picked_up":
+            await session.execute(items.where(OrderItem.status.in_(BEFORE_PICKUP)).values(status="SHIPPED"))
+        elif status == "delivered":
+            await session.execute(
+                items.where(OrderItem.status.not_in(("CANCELLED", "DELIVERED"))).values(status="DELIVERED")
+            )
+            order.status = "DELIVERED"
+        await session.commit()
+        order_status = order.status
+
+    released = None
+    if status == "delivered":  # after the commit: release checks the order is DELIVERED
+        released = await wallet_service.release_for_order(order_public_id)
+    return order_status, released
+
+
+class ResyncOut(BaseModel):
+    load_status: str
+    order_status: str | None
+    released: Decimal | None
+
+
+def _find_load(order_id: str) -> RtLoad | None:
+    with session_scope() as session:
+        return find_load_for_order(session, order_id)
+
+
+@router.post("/orders/{order_public_id}/resync", response_model=ResyncOut)
+async def resync_order(
+    order_public_id: UUID,
+    user: User = Depends(require_roles(*STAFF_ROLES)),
+):
+    """Staff fix for the demo: copy the delivery's status onto the order again (if the automatic
+    update failed - see the logs). Releasing money still happens only once."""
+    load = await run_in_threadpool(_find_load, str(order_public_id))
+    if load is None:
+        raise HTTPException(404, "This order has no delivery.")
+    order_status, released = None, None
+    if load.status in ("picked_up", "delivered"):
+        order_status, released = await apply_delivery_status(order_public_id, load.status)
+    return ResyncOut(load_status=load.status, order_status=order_status, released=released)
