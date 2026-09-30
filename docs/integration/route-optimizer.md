@@ -41,11 +41,14 @@ Follow the shared rules in `README.md` in this folder.
    app on its next deploy without anyone changing this repo.
    Put this line in the `dependencies` of **`backend/pyproject.toml`** (that's what FastAPI Cloud
    installs) and the same line in `requirements.txt` (local installs).
-2. **If FastAPI Cloud's build can't install from git** (build log shows a git/clone error): copy the
+2. **If FastAPI Cloud's build can't install from git** (build log shows a git/clone error — whether
+   it can is unconfirmed, see STATUS → Verified facts): copy the
    `farmnex_routes/` folder to **`backend/farmnex_routes/`** (top level, next to `app/`, **not** in
    `app/modules/`). Its tracking page loads `static/track.html` with
    `importlib.resources.files("farmnex_routes")`, so the folder must stay importable as exactly
-   `farmnex_routes`. Add `psycopg[binary]>=3.1` to `pyproject.toml` and `requirements.txt`.
+   `farmnex_routes`. Add `psycopg[binary]>=3.1` to `pyproject.toml` and `requirements.txt`, remove the
+   git line, and add `"farmnex_routes*"` to `include` under `[tool.setuptools.packages.find]` in
+   `pyproject.toml` (today it lists only `app*`, so `pip install .` would leave the folder out).
 
 Check: `python -c "import farmnex_routes, importlib.resources as r; print(r.files('farmnex_routes').joinpath('static/track.html').is_file())"` prints `True`.
 
@@ -129,7 +132,7 @@ Check order matters: `/vehicles/{vehicle_id}/accept-load/{load_id}` must be chec
 
 Public sign-up allows only FARMER, BUYER, VENDOR (`public_registration_roles` in
 `app/core/config.py`, overridable by env). For the prototype: add `DELIVERY_AGENT` to that list via
-the env var on FastAPI Cloud (drivers sign up in the app), and create LOGISTICS_MANAGER / ADMIN
+the env var on FastAPI Cloud (a JSON list: `PUBLIC_REGISTRATION_ROLES=["FARMER","BUYER","VENDOR","DELIVERY_AGENT"]`) (drivers sign up in the app), and create LOGISTICS_MANAGER / ADMIN
 accounts with a small one-off script (`backend/scripts/create_staff_user.py`, run by Atharv against
 production with the phone number as input). Never make ADMIN or MANAGER a public sign-up role.
 
@@ -142,7 +145,7 @@ In `backend/app/modules/logistics_host.py`, mounted at `/api/v2/logistics` with 
 | `POST /vehicles` | DELIVERY_AGENT, or FARMER (self-delivery → `owner_role="farmer"`) | new `str(uuid4())` id → `upsert_vehicle(..., driver_user_id=str(user.public_id), driver_name, driver_phone from the user)` |
 | `PATCH /vehicles/{vehicle_id}` | that vehicle's driver | re-calls `upsert_vehicle` (rate/capacity/base change) |
 | `GET /my-vehicles` | any | vehicles where `driver_user_id == me` |
-| `POST /orders/{order_public_id}/request-transport` | LOGISTICS_MANAGER / ADMIN (demo, until F12) | builds and calls `create_delivery_for_order` |
+| `POST /orders/{order_public_id}/request-transport` | LOGISTICS_MANAGER / ADMIN (demo, until F12) | builds and calls `create_delivery_for_order`. **Part 2 (S26), not S17:** it reads core orders, which S11 only secures after S17 may already be running |
 
 Validate inputs here: `vehicle_type` ∈ `pickup | tempo | mini_truck | truck`; `capacity_kg > 0`;
 `rate_per_ton_km > 0`; base lat/lng present. These are async endpoints, so call the sync helpers with
@@ -222,7 +225,9 @@ ROUTING_PROVIDER=osrm        # switch to haversine if venue internet is bad
 | Order never shows Delivered | Listener error (logged) | Check logs; manager "re-sync" endpoint |
 | Main app breaks after a component push | Unpinned `@main` install | Pin the commit hash |
 
-## Tests (`backend/tests/modules/test_route_optimizer.py`, `ROUTES_DATABASE_URL` = test DB)
+## Tests (`backend/tests/modules/test_route_optimizer.py`)
+
+Set-up (flags, test database, running `030_rt_route_tables.sql`): `README.md` → "Testing a component".
 
 - Flag off → no `/api/v2/routes` routes; flag on without `ROUTES_DATABASE_URL` → still unmounted,
   error logged, app starts.

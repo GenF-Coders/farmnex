@@ -7,8 +7,10 @@ Integrate the **$ARGUMENTS** component into this repo.
 
 1. Read `docs/integration/README.md` (shared rules) and `docs/integration/$ARGUMENTS.md`.
 2. Check prerequisites and stop to tell Atharv if they're missing:
+   - The "Needs merged" list in your row of `docs/PARALLEL_SESSIONS.md` §6 is on `main`.
    - FIX_PLAN **F1–F3** done for any core resource this component reads or writes (always for the
-     voice assistant).
+     voice assistant). Parts that only need the login (Crop Rescue, forecaster, route optimizer part 1)
+     read no core resource; anything that does (e.g. request-transport) waits for its part 2.
    - FIX_PLAN **F17** (`load_dotenv()` first in `main.py`) is done.
    - The component repo is available. If it isn't in this session, ask Atharv to add it (or give the
      path). Read its README / CLAUDE.md / INTEGRATION.md / SPEC at a specific commit, and compare with

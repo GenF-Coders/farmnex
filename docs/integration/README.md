@@ -108,6 +108,24 @@ keys live only on the server.
 | Route shows twice / missing in `/docs` | Mounted twice, or flag off | One `mount_components` call; check flags |
 | `relation "cr_…" does not exist` | SQL file not run on this database | Run the file in Supabase; auto-create off is expected |
 
+## Testing a component
+
+`backend/tests/conftest.py` (S05, don't edit) switches **every** `ENABLE_*` flag off and points the
+app at `TEST_DATABASE_URL`, so tests behave the same on every machine. For a component test file
+(`backend/tests/modules/test_<name>.py`, no `__init__.py`, unique file name):
+
+1. **Flag on/off:** don't use the shared `app` (it mounted at import time). Build a fresh `FastAPI()`,
+   set the flag and the component's variables with `monkeypatch.setenv`, call
+   `app.modules.wiring.mount_components(fresh_app)`, and send requests with
+   `httpx.ASGITransport(app=fresh_app)`. The `make_user` / `make_token` fixtures still work.
+2. **Component database:** the only test-database variable is `TEST_DATABASE_URL`. For a sync
+   component, turn it into the plain form (`postgresql://…`, drop `+asyncpg`) and set the component's
+   own URL (`CR_DATABASE_URL`, `ROUTES_DATABASE_URL`) to it. Create its tables by running your SQL
+   file from `backend/migrations/` once in a module-scoped fixture (the files are safe to run twice).
+   If the SQL uses something a plain Postgres doesn't have, stop and say so in the PR.
+3. **Skip, don't fail,** when `TEST_DATABASE_URL` is unset (the same rule as every DB test).
+4. No network: fake the forecaster with `httpx.MockTransport`.
+
 ## Integration checklist (`/integrate <name>` walks through it)
 
 - [ ] Read the component's README / INTEGRATION / CLAUDE.md at the commit in the table above (or

@@ -31,7 +31,7 @@ The forecaster's `integration/` kit assumes the app logs in with **Supabase Auth
 |---|---|---|
 | `integration/backend/farmnex_forecast.py` → `current_user_id` | Checks the token with Supabase Auth. Our `.env` already has `SUPABASE_URL` (for storage), so it **would be active** and reject every FarmNex token with 401. | Replace with our dependency: `str(user.public_id)` from `get_current_user`. Delete the Supabase Auth check. |
 | `integration/supabase/001_forecast_logs.sql` | `user_id uuid references auth.users` — our users aren't in `auth.users`; RLS policy uses `auth.uid()`. | Use our own `backend/migrations/020_fc_forecast_logs.sql` (below). Don't run the kit's SQL. |
-| `_save_log` (posts to Supabase REST with `SUPABASE_SERVICE_ROLE_KEY`) | Different key name from ours (`SUPABASE_SECRET_KEY`), and a different table. | Insert into `fc_forecast_logs` through our async DB session (a tiny repository), never failing the user's request. |
+| `_save_log` (posts to Supabase REST with `SUPABASE_SERVICE_ROLE_KEY`) | Different key name from ours (`SUPABASE_SECRET_KEY`), and a different table. | Insert into `fc_forecast_logs` through our async DB session (a tiny repository kept **inside** `app/modules/forecast/`, e.g. `log_repository.py`, not in `app/repositories/`), never failing the user's request. |
 | `integration/flutter/lib/services/forecast_api.dart` | Uses `supabase_flutter` for the token and raw `http`. We don't have `supabase_flutter`. | Rewrite to take `ApiClient().dio` (token + refresh handled), paths `/api/v2/forecast/...`. |
 
 Because of this, the connector is **adapted** (not copied unchanged) into
@@ -94,7 +94,7 @@ Pick one:
    `dependencies=[Depends(get_current_user)]` (this also makes `/meta` and `/health` need login —
    fine, the app is logged in). Refuse to mount if `FORECASTER_URL`/`FORECASTER_API_KEY` are unset.
 5. `.env.example`: `ENABLE_FORECAST=false`, `FORECASTER_URL=`, `FORECASTER_API_KEY=`.
-6. Tests `backend/tests/modules/test_forecast.py` using `httpx.MockTransport` for the forecaster (no
+6. Tests `backend/tests/modules/test_forecast.py` (set-up: `README.md` → "Testing a component") using `httpx.MockTransport` for the forecaster (no
    network): no token → 401; forecaster down → friendly 503; a log row is written with the caller's
    `public_id`; the API key never appears in responses or logs.
 7. Flutter: new `lib/core/network/forecast_api.dart` built on `ApiClient().dio`; wire
