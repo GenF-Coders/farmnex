@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload
 from app.models.bid import Bid
 from app.models.bid_event import BidEvent
 from app.models.order import Order
+from app.models.product_listing import ProductListing
 
 
 def _visible_to(user_id: int):
@@ -62,6 +63,22 @@ class BidRepository:
             .execution_options(populate_existing=True)
         )
         return result.unique().scalar_one_or_none()
+
+    async def lock_listing(self, listing_id: int) -> ProductListing:
+        """Lock the listing row and re-read it, so its stock is the current number, not the copy
+        loaded with the event before the lock."""
+        result = await self.db.execute(
+            select(ProductListing)
+            .where(ProductListing.id == listing_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one()
+
+    async def reload(self, bid: Bid) -> Bid:
+        await self.db.refresh(bid)
+        await self.db.refresh(bid, ["bid_event", "bidder"])
+        return bid
 
     async def get_order_by_number(self, order_number: str, buyer_id: int) -> Order | None:
         result = await self.db.execute(

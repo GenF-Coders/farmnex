@@ -45,10 +45,11 @@ class BidEventRepository:
         return events
 
     async def get_listing_owned_by_user(self, listing_public_id: UUID, user_id: int) -> ProductListing | None:
+        # Locked, so two event creates on one listing run one after the other (one open event each).
         result = await self.db.execute(
-            select(ProductListing).where(
-                ProductListing.public_id == listing_public_id, ProductListing.seller_id == user_id
-            )
+            select(ProductListing)
+            .where(ProductListing.public_id == listing_public_id, ProductListing.seller_id == user_id)
+            .with_for_update()
         )
         return result.scalar_one_or_none()
 
@@ -69,6 +70,12 @@ class BidEventRepository:
             .with_for_update(of=BidEvent)
         )
         return result.unique().scalar_one_or_none()
+
+    async def has_open_event(self, listing_id: int) -> bool:
+        result = await self.db.execute(
+            select(exists().where(BidEvent.listing_id == listing_id, BidEvent.status == OPEN_STATUS))
+        )
+        return bool(result.scalar_one())
 
     async def has_bids(self, event_id: int) -> bool:
         result = await self.db.execute(select(exists().where(Bid.bid_event_id == event_id)))

@@ -15,7 +15,8 @@ class BidCreate(BaseModel):
 
     bid_event_id: UUID
     amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)  # price per unit (e.g. per kg)
-    quantity: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=3)
+    # Required (decided by Atharv, S19): the amount the buyer commits to buy if the farmer accepts.
+    quantity: Decimal = Field(gt=0, max_digits=14, decimal_places=3)
 
 
 class BidResponse(BaseModel):

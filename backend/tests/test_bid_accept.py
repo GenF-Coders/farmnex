@@ -6,7 +6,7 @@ Rules (FIX_PLAN F12 prototype minimum + STATUS "Wave 3 decisions" / "Pre-flight 
 - `POST /bids/{id}/accept`: only the farmer who opened the event (anyone else gets 404). The event
   closes (`CLOSED`, `winner_bid_id` = the bid's public UUID), the bid is `WON`, the other open bids
   `LOST`, and the buyer gets one `PLACED` order at the bid price (amount = price per unit) for the
-  bid's quantity, or all available stock when the bid names none.
+  bid's quantity (required on every bid - decided by Atharv). One open event per listing.
 - No double winners: two accepts at the same time → one winner, one order. Accepting the same bid
   again (e.g. the same `Idempotency-Key`) returns the same result; another bid afterwards → 409.
 The first tests need no database; the rest need TEST_DATABASE_URL.
@@ -157,9 +157,8 @@ async def _bid_statuses(event_id: str) -> dict[str, str]:
 
 
 async def _bid(client, make_token, user, event_id: str, amount: str, **extra):
-    return await client.post(
-        BIDS, json={"bid_event_id": event_id, "amount": amount, **extra}, headers=_auth(user, make_token)
-    )
+    body = {"bid_event_id": event_id, "amount": amount, "quantity": "10", **extra}
+    return await client.post(BIDS, json=body, headers=_auth(user, make_token))
 
 
 async def _accept(client, make_token, user, bid_id: str, key: str | None = None):
@@ -248,13 +247,31 @@ async def test_farmer_accepts_bid_closes_event_and_creates_order(client, make_to
     assert event["winner_bid_id"] == bid["public_id"]
 
 
-async def test_bid_without_quantity_buys_everything_available(client, make_token, auction):
+async def test_bid_needs_a_quantity(client, make_token, auction):
     a = auction
-    bid = (await _bid(client, make_token, a["buyer"], a["event"], "18.00")).json()
+    no_quantity = await client.post(
+        BIDS, json={"bid_event_id": a["event"], "amount": "19.00"}, headers=_auth(a["buyer"], make_token)
+    )
+    assert no_quantity.status_code == 422
+
+
+async def test_whole_stock_can_be_won(client, make_token, auction):
+    a = auction
+    bid = (await _bid(client, make_token, a["buyer"], a["event"], "18.00", quantity="100")).json()
     response = await _accept(client, make_token, a["farmer"], bid["public_id"])
     assert response.status_code == 200, response.text
     assert Decimal(response.json()["order"]["total_amount"]) == Decimal("1800.00")  # 100 kg x 18.00
     assert await _available(a["listing"]) == Decimal("0")
+
+
+async def test_only_one_open_event_per_listing(client, make_token, auction):
+    """Two open events on one listing could each accept a bid and sell the same stock twice."""
+    a = auction
+    now = datetime.now(timezone.utc)
+    body = {"listing_id": str(a["listing"]), "starts_at": now.isoformat(),
+            "ends_at": (now + timedelta(days=7)).isoformat(), "starting_price": "18.00", "minimum_increment": "0.50"}
+    response = await client.post(EVENTS, json=body, headers=_auth(a["farmer"], make_token))
+    assert response.status_code == 409
 
 
 async def test_only_the_event_farmer_can_accept(client, make_user, make_token, auction):

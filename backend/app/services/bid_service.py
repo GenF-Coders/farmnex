@@ -100,7 +100,8 @@ class BidService:
     ) -> tuple[BidEvent, Bid, Order]:
         """The farmer who created the event accepts one bid (any time while it is open). In one
         transaction: the event closes with this bid as winner, the other open bids are LOST, and the
-        winning buyer gets one PLACED order at the bid price (amount = price per unit).
+        winning buyer gets one PLACED order for the bid's quantity at the bid price (amount = price
+        per unit).
 
         Repeating it for the same bid returns the same event, bid and order (so a repeated
         `Idempotency-Key` gets the same result); another bid after a winner is chosen gets 409.
@@ -118,23 +119,24 @@ class BidService:
             order = await self.repository.get_order_by_number(bid_order_number(bid), bid.bidder_id)
             if order is None:  # only possible for rows made before S19
                 raise ConflictError("This bid was accepted, but its order was not found.")
-            return await self._with_winner(event), bid, order
+            # Re-read the bid: if this request waited for the first accept, the copy is from before it.
+            return await self._with_winner(event), await self.repository.reload(bid), order
 
         if event.status != OPEN_STATUS:
             raise ConflictError("This event is closed.")
         if bid.status != "ACTIVE":
             raise ConflictError("This bid can no longer be accepted.")
+        if bid.quantity is None:  # only bids made before S19 (quantity is required now)
+            raise ConflictError("This bid has no quantity, so it can't be accepted.")
         if await order_repository.get_buyer_address(bid.bidder_id, None) is None:
             raise ConflictError("The buyer of this bid has not added a delivery address yet.")
 
-        # Lock the listing before reading its stock (create_orders locks it again - same transaction).
-        [listing] = await order_repository.lock_listings([event.listing.public_id])
-        # The farmer's quantity (an estimate before harvest) is compulsory on the listing; the winner
-        # gets the quantity they bid for, or everything still available if they didn't name one.
-        quantity = bid.quantity if bid.quantity is not None else listing.available_quantity
+        # Lock the listing and re-read its stock now, so create_orders (same transaction, same row)
+        # checks and lowers the current number - two accepts or a cancel can't overwrite each other.
+        listing = await self.repository.lock_listing(event.listing_id)
         _, [order] = await OrderService(order_repository).create_orders(
             bid.bidder,
-            [OrderLine(listing.public_id, quantity, unit_price=bid.amount)],
+            [OrderLine(listing.public_id, bid.quantity, unit_price=bid.amount)],
             from_accepted_bid=True,
         )
         order = await order_repository.update(order, order_number=bid_order_number(bid))
