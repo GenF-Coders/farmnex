@@ -1,14 +1,17 @@
 import '../auto_translated_text.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/guards/auth_guard.dart';
 import '../../core/theme/app_theme.dart';
+import '../../models/bid_model.dart';
 import '../../models/crop_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/bidding_provider.dart';
 import '../../localization/l10n_extension.dart';
+import '../symbol_widgets.dart';
 
+/// Pre-bidding room for one lot (`crop.id` is the listing's public id).
+/// Buyer: place a bid. The lot's farmer: open the event, then accept a bid.
 class CropPreBiddingDialog extends StatefulWidget {
   final CropItem crop;
 
@@ -19,70 +22,182 @@ class CropPreBiddingDialog extends StatefulWidget {
 }
 
 class _CropPreBiddingDialogState extends State<CropPreBiddingDialog> {
-  late TextEditingController _bidController;
-  bool _showSuccess = false;
+  final _bidController = TextEditingController();
+  final _quantityController = TextEditingController();
+  final _startController = TextEditingController();
+  final _incrementController = TextEditingController(text: '10');
+  final _hoursController = TextEditingController(text: '48');
+  String? _message;
+  bool _messageIsError = false;
 
   @override
   void initState() {
     super.initState();
-    final bidding = context.read<BiddingProvider>();
-    bidding.startListeningToBids(widget.crop.id);
+    _startController.text = widget.crop.currentPrice.toStringAsFixed(0);
+    _quantityController.text = widget.crop.quantityAvailable > 0 ? widget.crop.quantityAvailable.toString() : '1';
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final bidding = context.read<BiddingProvider>();
+      await bidding.load();
+      if (!mounted) return;
+      _suggestNextBid(bidding);
+    });
+  }
 
-    final highest = bidding.getHighestBid(widget.crop.id, widget.crop.currentPrice);
-    _bidController = TextEditingController(text: (highest + 50).toStringAsFixed(0));
+  void _suggestNextBid(BiddingProvider bidding) {
+    final event = bidding.openEventForListing(widget.crop.id);
+    if (event == null) return;
+    final next = (bidding.highestBid(event.publicId) ?? 0) + event.minimumIncrement;
+    final first = next > event.startingPrice ? next : event.startingPrice;
+    _bidController.text = first.toStringAsFixed(0);
   }
 
   @override
   void dispose() {
-    context.read<BiddingProvider>().stopListeningToBids();
     _bidController.dispose();
+    _quantityController.dispose();
+    _startController.dispose();
+    _incrementController.dispose();
+    _hoursController.dispose();
     super.dispose();
   }
 
-  void _submitBid() {
-    final auth = context.read<AuthProvider>();
-    final bidding = context.read<BiddingProvider>();
-    if (auth.user?.role == UserRole.farmer) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: AutoTranslatedText('Farmers sell crops; buyers place purchase bids.')),
-      );
+  void _show(String? error, String success) {
+    if (!mounted) return;
+    setState(() {
+      _messageIsError = error != null;
+      _message = error ?? success;
+    });
+  }
+
+  Future<void> _submitBid(BidEventModel event) async {
+    final amount = double.tryParse(_bidController.text.trim());
+    final quantity = double.tryParse(_quantityController.text.trim());
+    if (amount == null || amount <= 0 || quantity == null || quantity <= 0) {
+      _show('Enter a bid price and a quantity.', '');
       return;
     }
+    final bidding = context.read<BiddingProvider>();
+    final error = await bidding.placeBid(eventId: event.publicId, amount: amount, quantity: quantity);
+    if (error == null && mounted) _suggestNextBid(bidding);
+    _show(error, 'Bid placed. The farmer can accept it any time.');
+  }
 
-    AuthGuard.requireAuth(
-      context: context,
-      authProvider: auth,
-      actionType: 'bid',
-      cropId: widget.crop.id,
-      cropName: widget.crop.name,
-      actionReason: 'Please login as a verified buyer to submit contract bids',
-      onAuthenticated: () {
-        final amount = double.tryParse(_bidController.text) ?? widget.crop.currentPrice + 50;
-        bidding.placeBid(
-          cropId: widget.crop.id,
-          buyerName: auth.user?.name ?? 'Verified Buyer',
-          companyName: auth.user?.companyName ?? 'Registered Mandi Firm',
-          amount: amount,
+  Future<void> _openEvent() async {
+    final start = double.tryParse(_startController.text.trim());
+    final increment = double.tryParse(_incrementController.text.trim());
+    final hours = int.tryParse(_hoursController.text.trim());
+    if (start == null || start <= 0 || increment == null || increment <= 0 || hours == null || hours <= 0) {
+      _show('Enter a starting price, a minimum step and the hours bidding stays open.', '');
+      return;
+    }
+    final error = await context.read<BiddingProvider>().openEvent(
+          listingId: widget.crop.id,
+          startingPrice: start,
+          minimumIncrement: increment,
+          duration: Duration(hours: hours),
         );
+    _show(error, 'Bidding is open for buyers.');
+  }
 
-        if (mounted) {
-          setState(() => _showSuccess = true);
-          Future.delayed(const Duration(seconds: 3), () {
-            if (mounted) setState(() => _showSuccess = false);
-          });
-        }
-      },
+  Future<void> _accept(BidModel bid) async {
+    String? orderNumber;
+    final error = await context.read<BiddingProvider>().acceptBid(bid.publicId, onAccepted: (n) => orderNumber = n);
+    _show(error, 'Bid accepted. ${orderNumber != null ? 'Order $orderNumber was' : 'An order was'} created for the buyer.');
+  }
+
+  Widget _banner() {
+    if (_message == null || _message!.isEmpty) return const SizedBox.shrink();
+    final color = _messageIsError ? AppTheme.alertRed : AppTheme.primaryGreen;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(_messageIsError ? Icons.error_outline : Icons.check_circle, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: AutoTranslatedText(
+              _message!,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _field(TextEditingController c, String label, {String? prefix}) => TextField(
+        controller: c,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          prefixText: prefix,
+          labelText: label,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+      );
+
+  Widget _bidRow(BidModel bid, {required bool isHighest, required bool isMine, VoidCallback? onAccept}) {
+    final who = isMine ? 'You' : 'Buyer ${bid.bidderId.substring(0, 6)}';
+    final qty = bid.quantity == null
+        ? ''
+        : '${bid.quantity!.toStringAsFixed(bid.quantity! % 1 == 0 ? 0 : 2)} ${widget.crop.unit} • ';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isHighest ? const Color(0xFFF0FDF4) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isHighest ? AppTheme.primaryGreen.withValues(alpha: 0.4) : AppTheme.borderLight),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: isHighest ? AppTheme.primaryGreen : Colors.grey.shade200,
+            child: Icon(isHighest ? Icons.emoji_events : Icons.person, size: 16, color: isHighest ? Colors.white : Colors.grey.shade700),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AutoTranslatedText(who, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                AutoTranslatedText(
+                  '$qty${bidTimeAgo(bid.placedAt)} • ${bid.status}',
+                  style: const TextStyle(fontSize: 10, color: AppTheme.textMuted),
+                ),
+              ],
+            ),
+          ),
+          AutoTranslatedText(
+            formatRupees(bid.amount),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: isHighest ? AppTheme.primaryGreen : AppTheme.textDark),
+          ),
+          if (onAccept != null) ...[
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: onAccept,
+              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 10)),
+              child: const AutoTranslatedText('Accept', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final role = auth.user?.role ?? UserRole.guest;
-    final isFarmer = role == UserRole.farmer;
+    final user = auth.user;
+    final role = user?.role ?? UserRole.guest;
     final bidding = context.watch<BiddingProvider>();
-    final bids = bidding.getBidsForCrop(widget.crop.id);
-    final highestBid = bidding.getHighestBid(widget.crop.id, widget.crop.currentPrice);
+    final isOwner = role == UserRole.farmer && user?.id == widget.crop.farmerId;
+    final event = bidding.openEventForListing(widget.crop.id);
+    final bids = event == null ? <BidModel>[] : bidding.bidsForEvent(event.publicId);
+    final highest = event == null ? null : bidding.highestBid(event.publicId);
+    final busy = bidding.isBusy;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -92,7 +207,6 @@ class _CropPreBiddingDialogState extends State<CropPreBiddingDialog> {
         constraints: const BoxConstraints(maxWidth: 540, maxHeight: 720),
         child: Column(
           children: [
-
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: const BoxDecoration(
@@ -150,33 +264,18 @@ class _CropPreBiddingDialogState extends State<CropPreBiddingDialog> {
               ),
             ),
 
+
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-
-                  if (_showSuccess)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 14),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryGreen,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.check_circle, color: Colors.white, size: 20),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: AutoTranslatedText(
-                              'Bid broadcasted via WebSocket! You are now highest bidder.',
-                              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
+                  _banner(),
+                  if (bidding.isLoading) const LinearProgressIndicator(),
+                  if (bidding.error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AutoTranslatedText(bidding.error!, style: const TextStyle(fontSize: 12, color: AppTheme.alertRed)),
                     ),
-
                   if (widget.crop.lastTwoDaysAIActive) ...[
                     Container(
                       padding: const EdgeInsets.all(14),
@@ -285,197 +384,128 @@ class _CropPreBiddingDialogState extends State<CropPreBiddingDialog> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppTheme.primaryGreen.withValues(alpha: 0.2)),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.green,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                AutoTranslatedText(
-                                  'LIVE HIGHEST BID',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppTheme.primaryGreen,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            AutoTranslatedText(
-                              '₹${highestBid.toInt()}',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                color: AppTheme.primaryGreen,
-                              ),
-                            ),
-                            AutoTranslatedText(
-                              'per ${widget.crop.unit} • ${widget.crop.quantityAvailable} units total',
-                              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                            ),
-                          ],
+                        AutoTranslatedText(
+                          event == null ? 'NO BIDDING OPEN' : (highest != null ? 'HIGHEST BID' : 'STARTING PRICE'),
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen, letterSpacing: 0.5),
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            AutoTranslatedText('Harvest Date', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-                            AutoTranslatedText(
-                              widget.crop.expectedHarvestDate,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textDark),
-                            ),
-                          ],
+                        const SizedBox(height: 4),
+                        AutoTranslatedText(
+                          formatRupees(event == null ? widget.crop.currentPrice : (highest ?? event.startingPrice)),
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen),
+                        ),
+                        AutoTranslatedText(
+                          event == null
+                              ? 'per ${widget.crop.unit} • ${widget.crop.quantityAvailable} ${widget.crop.unit} available'
+                              : 'per ${widget.crop.unit} • next bid at least +${formatRupees(event.minimumIncrement)} • closes ${event.endsAt.toLocal().toString().substring(0, 16)}',
+                          style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      AutoTranslatedText('Active Bidders (Live WebSocket Feed)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                      AutoTranslatedText('${bids.length} Offers', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-
-                  ...bids.map((bid) => Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: bid.isHighest ? const Color(0xFFF0FDF4) : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: bid.isHighest ? AppTheme.primaryGreen.withValues(alpha: 0.4) : AppTheme.borderLight,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: bid.isHighest ? AppTheme.primaryGreen : Colors.grey.shade200,
-                                  child: Icon(
-                                    bid.isHighest ? Icons.emoji_events : Icons.person,
-                                    size: 16,
-                                    color: bid.isHighest ? Colors.white : Colors.grey.shade700,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        AutoTranslatedText(
-                                          bid.companyName,
-                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                                        ),
-                                        if (bid.verifiedBuyer) ...[
-                                          const SizedBox(width: 4),
-                                          const Icon(Icons.verified, color: Colors.blue, size: 14),
-                                        ],
-                                      ],
-                                    ),
-                                    AutoTranslatedText(
-                                      '${bid.buyerName} • ${bid.timestamp}',
-                                      style: const TextStyle(fontSize: 10, color: AppTheme.textMuted),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            AutoTranslatedText(
-                              '₹${bid.amount.toInt()}',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                                color: bid.isHighest ? AppTheme.primaryGreen : AppTheme.textDark,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )),
+                  if (event == null)
+                    AutoTranslatedText(
+                      isOwner
+                          ? 'Open bidding on this lot. Buyers then bid, and you accept the bid you like.'
+                          : 'The farmer has not opened bidding on this lot yet.',
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                    )
+                  else ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        AutoTranslatedText(isOwner ? 'Bids on your lot' : 'Your bids', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                        AutoTranslatedText('${bids.length} Offers', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (bids.isEmpty)
+                      const AutoTranslatedText('No bids yet.', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                    ...bids.map((bid) => _bidRow(
+                          bid,
+                          isHighest: bid.publicId == bids.first.publicId,
+                          isMine: bid.bidderId == user?.id,
+                          onAccept: isOwner && bid.isActive && !busy ? () => _accept(bid) : null,
+                        )),
+                  ],
                 ],
               ),
             ),
 
-            if (isFarmer)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-                  border: Border(top: BorderSide(color: AppTheme.borderLight)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.sell_outlined, color: AppTheme.primaryGreen),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: AutoTranslatedText(
-                        'Selling price: ₹${widget.crop.currentPrice.toInt()}/${widget.crop.unit}',
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: AutoTranslatedText('Done'),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-                  border: Border(top: BorderSide(color: AppTheme.borderLight)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: _bidController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          prefixText: '₹ ',
-                          labelText: 'Your Bid Offer',
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _submitBid,
-                        style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
-                        child: AutoTranslatedText(context.t('place_bid')),
-                      ),
-                    ),
-                  ],
-                ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+                border: Border(top: BorderSide(color: AppTheme.borderLight)),
               ),
+              child: _footer(role, isOwner, event, busy),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _footer(UserRole role, bool isOwner, BidEventModel? event, bool busy) {
+    if (isOwner && event == null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _field(_startController, 'Starting price', prefix: '₹ ')),
+              const SizedBox(width: 8),
+              Expanded(child: _field(_incrementController, 'Min step', prefix: '₹ ')),
+              const SizedBox(width: 8),
+              Expanded(child: _field(_hoursController, 'Hours open')),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: busy ? null : _openEvent,
+              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
+              child: const AutoTranslatedText('Open bidding'),
+            ),
+          ),
+        ],
+      );
+    }
+    if (role == UserRole.buyer && event != null) {
+      return Row(
+        children: [
+          Expanded(flex: 2, child: _field(_bidController, 'Price per ${widget.crop.unit}', prefix: '₹ ')),
+          const SizedBox(width: 8),
+          Expanded(flex: 2, child: _field(_quantityController, 'Quantity (${widget.crop.unit})')),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton(
+              onPressed: busy ? null : () => _submitBid(event),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
+              child: AutoTranslatedText(context.t('place_bid')),
+            ),
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: AutoTranslatedText(
+            role == UserRole.buyer
+                ? 'You can bid once the farmer opens bidding.'
+                : (role == UserRole.guest ? 'Log in as a buyer to place bids.' : 'Buyers place bids; farmers accept them.'),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const AutoTranslatedText('Done')),
+      ],
     );
   }
 }

@@ -1,193 +1,116 @@
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
+
+import '../core/network/bidding_api.dart';
 import '../models/bid_model.dart';
-import '../core/network/websocket_service.dart';
 
+/// Pre-bidding on the real backend. A crop's id on screen is its listing's public id.
 class BiddingProvider extends ChangeNotifier {
-  final Map<String, List<LiveBid>> _bidsByCrop = {};
-  final WebSocketService _wsService = WebSocketService();
-  Timer? _simulationTimer;
-  String? _activeCropId;
+  final BiddingApi _api = BiddingApi();
 
-  Map<String, List<LiveBid>> get bidsByCrop => _bidsByCrop;
+  List<BidEventModel> _events = [];
+  List<BidModel> _bids = [];
+  bool _isLoading = false;
+  bool _isBusy = false;
+  String? _error;
 
-  BiddingProvider() {
-    _initDefaultBids();
-  }
+  List<BidEventModel> get events => List.unmodifiable(_events);
+  List<BidModel> get bids => List.unmodifiable(_bids);
+  bool get isLoading => _isLoading;
+  bool get isBusy => _isBusy;
+  String? get error => _error;
 
-  void _initDefaultBids() {
-    _bidsByCrop['crop-1'] = [
-      const LiveBid(
-        id: 'bid-1',
-        companyName: 'Kishanlal Agro Export',
-        buyerName: 'Manoj Agarwal',
-        amount: 2510,
-        timestamp: '1 min ago',
-        isHighest: true,
-        verifiedBuyer: true,
-      ),
-      const LiveBid(
-        id: 'bid-2',
-        companyName: 'Harvest Link Logistics',
-        buyerName: 'Sunil Rao',
-        amount: 2490,
-        timestamp: '3 mins ago',
-        isHighest: false,
-        verifiedBuyer: true,
-      ),
-      const LiveBid(
-        id: 'bid-3',
-        companyName: 'South India Millers Co',
-        buyerName: 'K. Venkatesan',
-        amount: 2470,
-        timestamp: '12 mins ago',
-        isHighest: false,
-        verifiedBuyer: true,
-      ),
-    ];
-
-    _bidsByCrop['crop-2'] = [
-      const LiveBid(
-        id: 'bid-201',
-        companyName: 'Sunrise Edible Oils',
-        buyerName: 'Prakash Deshmukh',
-        amount: 4920,
-        timestamp: '2 mins ago',
-        isHighest: true,
-        verifiedBuyer: true,
-      ),
-      const LiveBid(
-        id: 'bid-202',
-        companyName: 'Ruchi Soya Traders',
-        buyerName: 'Nitin Kadam',
-        amount: 4880,
-        timestamp: '8 mins ago',
-        isHighest: false,
-        verifiedBuyer: true,
-      ),
-    ];
-  }
-
-  List<LiveBid> getBidsForCrop(String cropId) {
-    return _bidsByCrop[cropId] ?? [];
-  }
-
-  double getHighestBid(String cropId, double defaultPrice) {
-    final list = _bidsByCrop[cropId];
-    if (list != null && list.isNotEmpty) {
-      return list.first.amount;
+  /// The event that is open for this lot, if any (the server allows only one at a time).
+  BidEventModel? openEventForListing(String listingId) {
+    for (final e in _events) {
+      if (e.listingId == listingId && e.isOpen) return e;
     }
-    return defaultPrice;
+    return null;
   }
 
-  void startListeningToBids(String cropId) {
-    _activeCropId = cropId;
-
-    _wsService.connectToCropBids(cropId).listen((data) {
-      try {
-        final newBid = LiveBid.fromJson(data);
-        _addIncomingBid(cropId, newBid);
-      } catch (_) {}
-    });
-
-    _simulationTimer?.cancel();
-    _simulationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (_activeCropId == cropId) {
-        _simulateIncomingBid(cropId);
-      }
-    });
+  BidEventModel? eventById(String eventId) {
+    for (final e in _events) {
+      if (e.publicId == eventId) return e;
+    }
+    return null;
   }
 
-  void stopListeningToBids() {
-    _simulationTimer?.cancel();
-    _simulationTimer = null;
-    _activeCropId = null;
+  /// Bids on one event, highest first (a buyer sees only their own; the event's farmer sees all).
+  List<BidModel> bidsForEvent(String eventId) {
+    final list = _bids.where((b) => b.bidEventId == eventId).toList();
+    list.sort((a, b) => b.amount.compareTo(a.amount));
+    return list;
   }
 
-  void _simulateIncomingBid(String cropId) {
-    final currentBids = _bidsByCrop[cropId] ?? [];
-    final currentTop = currentBids.isNotEmpty ? currentBids.first.amount : 2450.0;
-    final increment = (Random().nextInt(25) + 15).toDouble();
-    final newTop = currentTop + increment;
-
-    final buyers = [
-      {'name': 'Kishanlal Agro Export', 'buyer': 'Manoj Agarwal'},
-      {'name': 'Harvest Link Logistics', 'buyer': 'Sunil Rao'},
-      {'name': 'Green Valley Trade Hub', 'buyer': 'Anand Mishra'},
-      {'name': 'South India Millers Co', 'buyer': 'K. Venkatesan'},
-    ];
-    final chosen = buyers[Random().nextInt(buyers.length)];
-
-    final newBid = LiveBid(
-      id: 'sim-${DateTime.now().millisecondsSinceEpoch}',
-      companyName: chosen['name']!,
-      buyerName: chosen['buyer']!,
-      amount: newTop,
-      timestamp: 'Just now',
-      isHighest: true,
-      verifiedBuyer: true,
-    );
-
-    _addIncomingBid(cropId, newBid);
+  double? highestBid(String eventId) {
+    final list = bidsForEvent(eventId);
+    return list.isEmpty ? null : list.first.amount;
   }
 
-  void _addIncomingBid(String cropId, LiveBid newBid) {
-    final currentBids = _bidsByCrop[cropId] ?? [];
-    final updated = [
-      newBid,
-      ...currentBids.map((b) => b.copyWith(isHighest: false)).take(5),
-    ];
-    _bidsByCrop[cropId] = updated;
+  Future<void> load() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final results = await Future.wait([_api.listEvents(), _api.listBids()]);
+      _events = results[0] as List<BidEventModel>;
+      _bids = results[1] as List<BidModel>;
+    } catch (e) {
+      _error = biddingErrorMessage(e);
+    }
+    _isLoading = false;
     notifyListeners();
   }
 
-  void placeBid({
-    required String cropId,
-    required String buyerName,
-    required String companyName,
-    required double amount,
+  /// Forget everything (another person logged in).
+  void clear() {
+    _events = [];
+    _bids = [];
+    _error = null;
+    notifyListeners();
+  }
+
+  /// Runs one write, then reloads. Returns null on success, or a short message for the screen.
+  Future<String?> _write(Future<void> Function() action) async {
+    _isBusy = true;
+    notifyListeners();
+    String? message;
+    try {
+      await action();
+    } catch (e) {
+      message = biddingErrorMessage(e);
+    }
+    _isBusy = false;
+    notifyListeners();
+    if (message == null) await load();
+    return message;
+  }
+
+  Future<String?> openEvent({
+    required String listingId,
+    required double startingPrice,
+    required double minimumIncrement,
+    required Duration duration,
   }) {
-    final newBid = LiveBid(
-      id: 'my-bid-${DateTime.now().millisecondsSinceEpoch}',
-      companyName: companyName,
-      buyerName: '$buyerName (You)',
-      amount: amount,
-      timestamp: 'Just now',
-      isHighest: true,
-      verifiedBuyer: true,
-    );
+    final now = DateTime.now();
+    return _write(() => _api.openEvent(
+          listingId: listingId,
+          // A minute in the past so the server's clock never sees the start as "in the future".
+          startsAt: now.subtract(const Duration(minutes: 1)),
+          endsAt: now.add(duration),
+          startingPrice: startingPrice,
+          minimumIncrement: minimumIncrement,
+        ));
+  }
 
-    _addIncomingBid(cropId, newBid);
+  Future<String?> placeBid({required String eventId, required double amount, required double quantity}) =>
+      _write(() => _api.placeBid(eventId: eventId, amount: amount, quantity: quantity));
 
-    _wsService.sendBid({
-      'crop_id': cropId,
-      'buyer_name': buyerName,
-      'company_name': companyName,
-      'amount': amount,
-      'timestamp': DateTime.now().toIso8601String(),
+  /// Farmer accepts a bid. On success [onAccepted] gets the new order's number.
+  Future<String?> acceptBid(String bidId, {void Function(String? orderNumber)? onAccepted}) {
+    // One key per bid: repeating the tap returns the same result instead of a second order.
+    return _write(() async {
+      final result = await _api.accept(bidId, idempotencyKey: 'accept-$bidId');
+      onAccepted?.call(result.orderNumber);
     });
-  }
-
-  Future<Map<String, dynamic>> fetchLastTwoDaysPricePrediction(String cropId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return {
-      'crop_id': cropId,
-      'current_price': 2450.0,
-      'expected_max_price': 2550.0,
-      'confidence': 86,
-      'reasons': [
-        'South India flour mill procurement spike',
-        'Recent mandi arrivals 18% lower than 5-year average',
-        'Export quote surge in port hubs over the past 48 hours',
-      ],
-    };
-  }
-
-  @override
-  void dispose() {
-    _simulationTimer?.cancel();
-    _wsService.disconnect();
-    super.dispose();
   }
 }
