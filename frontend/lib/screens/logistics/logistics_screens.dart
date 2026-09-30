@@ -1,13 +1,55 @@
-import '../../widgets/auto_translated_text.dart';
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/network/route_api.dart';
 import '../../core/theme/app_theme.dart';
-import '../../localization/l10n_extension.dart';
 import '../../providers/logistics_provider.dart';
-import '../../providers/payment_provider.dart';
+import '../../widgets/auto_translated_text.dart';
 import '../../widgets/symbol_widgets.dart';
+import 'driver_location.dart';
+import 'vehicle_dialog.dart';
+
+void _say(BuildContext context, String text, {bool ok = false}) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: AutoTranslatedText(text),
+      backgroundColor: ok ? AppTheme.primaryGreen : null,
+    ),
+  );
+}
+
+/// Loads the driver's data once when a logistics screen first opens.
+void _loadOnce(BuildContext context) {
+  final logistics = context.read<LogisticsProvider>();
+  if (!logistics.hasLoaded && !logistics.isLoading) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => logistics.load());
+  }
+}
+
+/// Spinner / error + retry shown instead of the screen body. Returns null when the body can show.
+Widget? _gate(BuildContext context, LogisticsProvider logistics) {
+  if (!logistics.hasLoaded) {
+    if (logistics.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AutoTranslatedText(logistics.error!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              ElevatedButton(onPressed: logistics.load, child: const AutoTranslatedText('🔄  Try again')),
+            ],
+          ),
+        ),
+      );
+    }
+    return const Center(child: CircularProgressIndicator());
+  }
+  return null;
+}
 
 class LogisticsLoadsScreen extends StatefulWidget {
   const LogisticsLoadsScreen({super.key});
@@ -17,250 +59,137 @@ class LogisticsLoadsScreen extends StatefulWidget {
 }
 
 class _LogisticsLoadsScreenState extends State<LogisticsLoadsScreen> {
-  String _selectedCity = 'All Maharashtra';
-
-  static const List<String> _maharashtraCities = [
-    'All Maharashtra', 'Pune', 'Mumbai', 'Navi Mumbai', 'Thane', 'Nagpur', 'Nashik',
-    'Chhatrapati Sambhajinagar', 'Kolhapur', 'Solapur', 'Sangli', 'Satara', 'Latur',
-    'Nanded', 'Jalgaon', 'Dhule', 'Ahmednagar', 'Amravati', 'Akola', 'Beed',
-    'Buldhana', 'Chandrapur', 'Parbhani', 'Osmanabad', 'Ratnagiri', 'Sindhudurg',
-    'Wardha', 'Yavatmal', 'Washim', 'Gondia', 'Bhandara', 'Palghar', 'Raigad',
-  ];
-
   @override
-  Widget build(BuildContext context) {
-    final logistics = context.watch<LogisticsProvider>();
-    final allLoads = logistics.availableTrips;
-    final loads = _selectedCity == 'All Maharashtra'
-        ? allLoads
-        : allLoads.where((trip) =>
-            trip.pickup.contains(_selectedCity) || trip.drop.contains(_selectedCity)).toList();
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: logistics.isOnline ? const Color(0xFFF0FDF4) : const Color(0xFFF9FAFB),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: logistics.isOnline
-                  ? AppTheme.primaryGreen.withValues(alpha: 0.3)
-                  : AppTheme.borderLight,
-            ),
-          ),
-          child: Row(
-            children: [
-              AutoTranslatedText(logistics.isOnline ? '🟢' : '🔴', style: const TextStyle(fontSize: 26)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AutoTranslatedText(
-                      logistics.isOnline ? 'On duty' : 'Off duty',
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-                    ),
-                    AutoTranslatedText(
-                      logistics.isOnline ? '🚚 Receiving load offers' : '⏸️ Offers paused',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-              Switch(
-                value: logistics.isOnline,
-                onChanged: (_) => logistics.toggleOnline(),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppTheme.borderLight),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              isExpanded: true,
-              value: _selectedCity,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded),
-              items: _maharashtraCities
-                  .map((city) => DropdownMenuItem<String>(value: city, child: AutoTranslatedText(city, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))))
-                  .toList(),
-              onChanged: (city) => setState(() => _selectedCity = city ?? _selectedCity),
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        Row(
-          children: [
-            Expanded(child: SymbolStat(symbol: '🆕', value: '${loads.length}', caption: 'Open loads')),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SymbolStat(
-                symbol: '🚚',
-                value: '${logistics.activeTrips.length}',
-                caption: 'Running',
-                color: AppTheme.accentAmber,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SymbolStat(
-                symbol: '💰',
-                value: formatRupeesShort(logistics.earningsPending),
-                caption: 'Pending pay',
-                color: AppTheme.accentTeal,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        SectionHeader(symbol: '📋', title: _selectedCity == 'All Maharashtra' ? 'Loads in Maharashtra' : 'Loads near $_selectedCity'),
-        if (!logistics.isOnline)
-          const SymbolEmptyState(symbol: '🔴', message: 'You are off duty.\nSwitch 🟢 on to see loads.')
-        else if (loads.isEmpty)
-          const SymbolEmptyState(symbol: '🛣️', message: 'No open loads right now.\nCheck back shortly.')
-        else
-          ...loads.map((trip) => _TripCard(
-                trip: trip,
-                primaryLabel: '🤝  Accept',
-                onPrimary: () {
-                  logistics.accept(trip.id);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: AutoTranslatedText('🤝 Load accepted • ${formatRupees(trip.payout)} on delivery'),
-                      backgroundColor: AppTheme.primaryGreen,
-                    ),
-                  );
-                },
-              )),
-        const SizedBox(height: 20),
-      ],
-    );
+  void initState() {
+    super.initState();
+    _loadOnce(context);
   }
-}
-
-class LogisticsActiveScreen extends StatelessWidget {
-  const LogisticsActiveScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final logistics = context.watch<LogisticsProvider>();
-    final trips = logistics.activeTrips;
+    final gate = _gate(context, logistics);
+    if (gate != null) return gate;
 
-    if (trips.isEmpty) {
-      return const SymbolEmptyState(
-        symbol: '🛻',
-        message: 'No running trips.\nAccept a load from 📋 Loads.',
+    final vehicle = logistics.vehicle;
+    if (vehicle == null) {
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const SymbolEmptyState(symbol: '🚚', message: 'Register your truck to start getting loads.'),
+          ElevatedButton(
+            onPressed: () async {
+              final ok = await showVehicleDialog(context);
+              if (ok && context.mounted) _say(context, '🚚 Truck registered', ok: true);
+            },
+            child: const AutoTranslatedText('➕  Register my truck'),
+          ),
+        ],
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const SectionHeader(symbol: '🚚', title: 'Running trips'),
-        ...trips.map((trip) {
-
-          final String label;
-          final VoidCallback action;
-          if (trip.status == 'accepted') {
-            label = '📦  Mark picked up';
-            action = () => logistics.markPicked(trip.id);
-          } else if (trip.status == 'picked') {
-            label = '🚚  Start transit';
-            action = () => logistics.startTransit(trip.id);
-          } else {
-            label = '✅  Deliver (OTP)';
-            action = () => _askOtp(context, trip);
-          }
-
-          return _TripCard(
-            trip: trip,
-            primaryLabel: label,
-            onPrimary: action,
-            showProgress: true,
-          );
-        }),
-        const SizedBox(height: 20),
-      ],
+    final trip = logistics.trip;
+    return RefreshIndicator(
+      onRefresh: logistics.load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          _statusCard(logistics, vehicle),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: SymbolStat(symbol: '🆕', value: '${logistics.backhaul.length}', caption: 'Return loads'),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SymbolStat(
+                  symbol: '🚚',
+                  value: trip == null ? '0' : '1',
+                  caption: 'Running',
+                  color: AppTheme.accentAmber,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SymbolStat(
+                  symbol: '💰',
+                  value: formatRupeesShort(logistics.earningsPending),
+                  caption: 'Pending pay',
+                  color: AppTheme.accentTeal,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (trip != null)
+            const SymbolEmptyState(symbol: '🚚', message: 'You have a trip.\nOpen 🚚 Trips to run it.')
+          else if (!logistics.isOnline)
+            const SymbolEmptyState(symbol: '🔴', message: 'You are off duty.\nSwitch 🟢 on to find loads.')
+          else ...[
+            SizedBox(
+              height: 46,
+              child: ElevatedButton(
+                onPressed: logistics.isBusy
+                    ? null
+                    : () async {
+                        final error = await logistics.findLoads();
+                        if (!context.mounted) return;
+                        _say(context, error ?? '🤝 Trip planned • open 🚚 Trips', ok: error == null);
+                      },
+                child: const AutoTranslatedText('🔎  Find loads near me'),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const SectionHeader(symbol: '↩️', title: 'Return loads near you'),
+            if (logistics.backhaul.isEmpty)
+              const SymbolEmptyState(symbol: '🛣️', message: 'No return loads right now.\nCheck back shortly.')
+            else
+              ...logistics.backhaul.map((o) => _BackhaulCard(option: o)),
+          ],
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
-  void _askOtp(BuildContext context, DeliveryTrip trip) {
-    final controller = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Row(
-          children: [
-            AutoTranslatedText('🔐', style: TextStyle(fontSize: 22)),
-            SizedBox(width: 10),
-            AutoTranslatedText('Delivery OTP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AutoTranslatedText(
-              context.t('delivery_otp'),
-              style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+  Widget _statusCard(LogisticsProvider logistics, VehicleModel vehicle) {
+    final online = logistics.isOnline;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: online ? const Color(0xFFF0FDF4) : const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: online ? AppTheme.primaryGreen.withValues(alpha: 0.3) : AppTheme.borderLight),
+      ),
+      child: Row(
+        children: [
+          AutoTranslatedText(online ? '🟢' : '🔴', style: const TextStyle(fontSize: 26)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AutoTranslatedText(
+                  online ? 'On duty' : 'Off duty',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                ),
+                AutoTranslatedText(
+                  '${vehicle.vehicleNumber} • ${vehicle.capacityKg.round()} kg',
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                ),
+              ],
             ),
-
-            if (kDebugMode)
-              AutoTranslatedText(
-                'debug: ${trip.otp}',
-                style: const TextStyle(fontSize: 10, color: AppTheme.textMuted),
-              ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              maxLength: 4,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 8),
-              decoration: const InputDecoration(counterText: '', hintText: '••••'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: AutoTranslatedText('❌  Cancel'),
           ),
-          ElevatedButton(
-            onPressed: () {
-              final logistics = dialogContext.read<LogisticsProvider>();
-              final payments = dialogContext.read<PaymentProvider>();
-              final ok = logistics.confirmDelivery(trip.id, controller.text);
-              Navigator.of(dialogContext).pop();
-              if (ok) {
-
-                payments.releaseEscrow(trip.orderId);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: AutoTranslatedText('✅ Delivered • 🔓 escrow released • ${formatRupees(trip.payout)} credited'),
-                    backgroundColor: AppTheme.primaryGreen,
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: AutoTranslatedText('❌ Wrong OTP. Ask the buyer again.')),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(minimumSize: const Size(120, 42)),
-            child: AutoTranslatedText('✅  Verify'),
+          Switch(
+            value: online,
+            onChanged: (logistics.isBusy || vehicle.onTrip)
+                ? null
+                : (_) async {
+                    final error = await logistics.toggleOnline();
+                    if (error != null && mounted) _say(context, error);
+                  },
           ),
         ],
       ),
@@ -268,12 +197,271 @@ class LogisticsActiveScreen extends StatelessWidget {
   }
 }
 
-class LogisticsEarningsScreen extends StatelessWidget {
-  const LogisticsEarningsScreen({super.key});
+class _BackhaulCard extends StatelessWidget {
+  final BackhaulOption option;
+  const _BackhaulCard({required this.option});
+
+  @override
+  Widget build(BuildContext context) {
+    final logistics = context.read<LogisticsProvider>();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: AutoTranslatedText(
+                  '${option.crop} • ${option.weightKg.round()} kg',
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+                ),
+              ),
+              AutoTranslatedText(
+                formatRupees(option.estimatedEarning),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AutoTranslatedText('🟢 ${option.pickupAddress}', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          AutoTranslatedText('🔴 ${option.dropAddress}', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          AutoTranslatedText(
+            '🛣️ ${option.loadedKm.round()} km  •  📍 ${option.distanceToPickupKm.round()} km to pickup  •  ♻️ saves ${option.emptyKmSaved.round()} empty km',
+            style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 42,
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: logistics.isBusy
+                  ? null
+                  : () async {
+                      final error = await logistics.acceptBackhaul(option.loadId);
+                      if (!context.mounted) return;
+                      _say(context, error ?? '🤝 Load accepted • open 🚚 Trips', ok: error == null);
+                    },
+              child: const AutoTranslatedText('🤝  Accept'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LogisticsActiveScreen extends StatefulWidget {
+  const LogisticsActiveScreen({super.key});
+
+  @override
+  State<LogisticsActiveScreen> createState() => _LogisticsActiveScreenState();
+}
+
+/// The trip screen. While a trip is running, the phone's position is sent every 10 seconds.
+/// The timer stops when the screen closes or the app goes to the background (no background GPS).
+class _LogisticsActiveScreenState extends State<LogisticsActiveScreen> with WidgetsBindingObserver {
+  static const Duration _pingEvery = Duration(seconds: 10);
+  Timer? _timer;
+  bool _inForeground = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadOnce(context);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _inForeground = state == AppLifecycleState.resumed;
+    if (!_inForeground) _stopPings();
+  }
+
+  void _syncPings(bool running) {
+    if (running && _inForeground) {
+      _timer ??= Timer.periodic(_pingEvery, (_) => _ping());
+    } else {
+      _stopPings();
+    }
+  }
+
+  void _stopPings() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  Future<void> _ping() async {
+    final position = await currentDriverPosition();
+    if (position == null || !mounted) return;
+    final speed = position.speed.isNaN ? null : position.speed * 3.6; // m/s -> km/h
+    await context.read<LogisticsProvider>().sendPing(position.latitude, position.longitude, speedKmph: speed);
+  }
 
   @override
   Widget build(BuildContext context) {
     final logistics = context.watch<LogisticsProvider>();
+    final gate = _gate(context, logistics);
+    if (gate != null) return gate;
+
+    final trip = logistics.trip;
+    final running = trip != null && trip.isRunning;
+    // Start or stop the timer after this frame, never while building.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncPings(running);
+    });
+
+    if (trip == null) {
+      return const SymbolEmptyState(
+        symbol: '🛻',
+        message: 'No running trips.\nFind loads in 📋 Loads.',
+      );
+    }
+
+    final next = trip.nextStop;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const SectionHeader(symbol: '🚚', title: 'Running trips'),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.borderLight),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: AutoTranslatedText(
+                      trip.isBackhaul ? '↩️ Return trip' : '🚚 Pooled trip',
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  AutoTranslatedText(
+                    formatRupees(trip.estimatedCost),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              AutoTranslatedText(
+                '🛣️ ${trip.totalDistanceKm.round()} km  •  🕐 ${trip.totalDurationMin.round()} min  •  ${trip.isRunning ? '🚚 On the way' : '🆕 Planned'}',
+                style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
+              ),
+              const SizedBox(height: 12),
+              ...trip.stops.map(_stopRow),
+              const SizedBox(height: 12),
+              if (trip.isPlanned)
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 42,
+                        child: ElevatedButton(
+                          onPressed: logistics.isBusy ? null : () => _run(logistics.startTrip()),
+                          child: const AutoTranslatedText('▶️  Start trip'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: logistics.isBusy ? null : () => _run(logistics.cancelTrip()),
+                      child: const AutoTranslatedText('❌  Cancel'),
+                    ),
+                  ],
+                )
+              else if (next != null)
+                SizedBox(
+                  height: 42,
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: logistics.isBusy ? null : () => _run(logistics.completeStop(next), done: true),
+                    child: AutoTranslatedText(next.isPickup ? '📦  Mark picked up' : '✅  Mark delivered'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Future<void> _run(Future<String?> action, {bool done = false}) async {
+    final error = await action;
+    if (!mounted) return;
+    if (error != null) {
+      _say(context, error);
+    } else if (done && context.read<LogisticsProvider>().trip == null) {
+      _say(context, '✅ Trip finished • the money is released by the server', ok: true);
+    }
+  }
+
+  Widget _stopRow(TripStop stop) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          AutoTranslatedText(stop.isDone ? '✅' : (stop.isPickup ? '🟢' : '🔴'), style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: AutoTranslatedText(
+              '${stop.isPickup ? 'Pick up' : 'Drop'}: ${stop.label}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: stop.isDone ? AppTheme.textMuted : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LogisticsEarningsScreen extends StatefulWidget {
+  const LogisticsEarningsScreen({super.key});
+
+  @override
+  State<LogisticsEarningsScreen> createState() => _LogisticsEarningsScreenState();
+}
+
+class _LogisticsEarningsScreenState extends State<LogisticsEarningsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadOnce(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logistics = context.watch<LogisticsProvider>();
+    final gate = _gate(context, logistics);
+    if (gate != null) return gate;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -291,7 +479,7 @@ class LogisticsEarningsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AutoTranslatedText('💰  Paid out',
+              const AutoTranslatedText('💰  Earned this session',
                   style: TextStyle(fontSize: 12, color: Color(0xFFBBF7D0), fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               AutoTranslatedText(
@@ -322,25 +510,14 @@ class LogisticsEarningsScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  AutoTranslatedText(trip.emoji, style: const TextStyle(fontSize: 22)),
-                  const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        AutoTranslatedText(trip.cropName,
-                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
-                        AutoTranslatedText(
-                          '📍 ${trip.pickup.split(',').first} ➜ ${trip.drop.split(',').first}  •  🛣️ ${trip.distanceKm.round()} km',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
-                        ),
-                      ],
+                    child: AutoTranslatedText(
+                      '🛣️ ${trip.distanceKm.round()} km',
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
                     ),
                   ),
                   AutoTranslatedText(
-                    '➕ ${formatRupees(trip.payout)}',
+                    '➕ ${formatRupees(trip.earning)}',
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen),
                   ),
                 ],
@@ -349,172 +526,6 @@ class LogisticsEarningsScreen extends StatelessWidget {
           ),
         const SizedBox(height: 20),
       ],
-    );
-  }
-}
-
-class _TripCard extends StatelessWidget {
-  final DeliveryTrip trip;
-  final String primaryLabel;
-  final VoidCallback onPrimary;
-  final bool showProgress;
-
-  const _TripCard({
-    required this.trip,
-    required this.primaryLabel,
-    required this.onPrimary,
-    this.showProgress = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              AutoTranslatedText(trip.emoji, style: const TextStyle(fontSize: 24)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AutoTranslatedText(
-                      trip.cropName,
-                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
-                    ),
-                    AutoTranslatedText(
-                      '🆔 ${trip.orderId}  •  🕐 ${trip.scheduledFor}',
-                      style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-              AutoTranslatedText(
-                formatRupees(trip.payout),
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Column(
-                children: [
-                  AutoTranslatedText('🟢', style: TextStyle(fontSize: 11)),
-                  SizedBox(
-                    height: 18,
-                    child: VerticalDivider(width: 10, thickness: 1.2, color: AppTheme.borderLight),
-                  ),
-                  AutoTranslatedText('🔴', style: TextStyle(fontSize: 11)),
-                ],
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AutoTranslatedText(
-                      trip.pickup,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 14),
-                    AutoTranslatedText(
-                      trip.drop,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              _chip('🛣️', '${trip.distanceKm.round()} km'),
-              _chip('⚖️', '${trip.weightQuintal.round()} q'),
-              _chip(trip.vehicleNeeded.substring(0, 2), trip.vehicleNeeded.substring(2).trim()),
-              if (showProgress) _chip(trip.statusSymbol, ''),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 42,
-                  child: ElevatedButton(onPressed: onPrimary, child: AutoTranslatedText(primaryLabel)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _square('🗺️', 'Navigate', () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: AutoTranslatedText('🗺️ ${trip.pickup} ➜ ${trip.drop}')),
-                );
-              }),
-              _square('📞', 'Call', () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: AutoTranslatedText('📞 Calling the farmer…')),
-                );
-              }),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(String symbol, String label) {
-    return Container(
-      margin: const EdgeInsets.only(right: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: AppTheme.borderLight),
-      ),
-      child: AutoTranslatedText(
-        label.isEmpty ? symbol : '$symbol $label',
-        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-
-  Widget _square(String symbol, String tooltip, VoidCallback onTap) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 42,
-          height: 42,
-          margin: const EdgeInsets.only(left: 6),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9FAFB),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.borderLight),
-          ),
-          child: AutoTranslatedText(symbol, style: const TextStyle(fontSize: 17)),
-        ),
-      ),
     );
   }
 }
