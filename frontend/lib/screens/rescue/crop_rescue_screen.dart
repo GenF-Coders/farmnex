@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/rescue_provider.dart';
 import '../../widgets/auto_translated_text.dart';
 import '../../widgets/symbol_widgets.dart';
+import 'buyer_rescue_view.dart';
 import 'publish_rescue_sheet.dart';
 import 'rescue_detail_screen.dart';
 
@@ -20,19 +21,8 @@ class CropRescueScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final isFarmer = auth.isLoggedIn && auth.user?.role == UserRole.farmer;
-    return isFarmer ? const _FarmerRescueView() : const _NotForYouView();
+    return isFarmer ? const _FarmerRescueView() : const BuyerRescueView();
   }
-}
-
-class _NotForYouView extends StatelessWidget {
-  const _NotForYouView();
-
-  @override
-  Widget build(BuildContext context) => SymbolEmptyState(
-        symbol: '🚨',
-        message: 'Crop Rescue warns farmers before their harvest spoils and finds nearby buyers. '
-            'Log in with a farmer account to use it.',
-      );
 }
 
 String rescueStatusLabel(String status) => switch (status) {
