@@ -100,7 +100,9 @@ class ApiConfig {
   // <<< logistics <<<
 
   // >>> waste >>>
-  static const String wasteListingsEndpoint = '/api/waste/listings';
+  static const String wasteRecordsEndpoint = '/api/v2/waste-records';
+  static const String wasteListingsEndpoint = '/api/v2/waste-utilization-listings';
+  static String wasteListingEndpoint(String publicId) => '$wasteListingsEndpoint/$publicId';
   // <<< waste <<<
 
   // >>> voice >>>
