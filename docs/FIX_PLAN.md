@@ -35,7 +35,7 @@ product_image → delivery → delivery_tracking_event → delivery_proof → cr
 farm_crop_activity → waste_record → waste_utilization_listing → buyer_demand_request → review →
 order_dispute → notification → ai_prediction → ai_recommendation → crop_type → audit_log.
 
-**Prototype fast path (saves ~4–5 h — confirm with Atharv first):** modules that no screen or demo
+**Prototype fast path — DONE by S08 (PR 14): the 9 modules below are unmounted; 13 modules remain to fix.** (Original note: saves ~4–5 h.) modules that no screen or demo
 step will use can be **unmounted** instead of fixed: remove them from the `modules` list in
 `backend/app/api/v2/router.py` (the code files and tables stay; nothing is deleted). Candidates:
 `ai_prediction`, `ai_recommendation` (the forecaster replaces them), `delivery`,
@@ -114,7 +114,7 @@ modules are re-mounted, not before.
 **How to check:** OpenAPI (`/docs`) shows no `*_id: integer` in request bodies and no owner/status
 fields in create bodies; sending `payer_id` in a body is ignored or rejected.
 
-### - [ ] F3. Role checks
+### - [x] F3. Role checks (dependency done by S08, PR 14; per-module use comes with S09–S14)
 
 **Why:** nothing checks roles today — a BUYER could create crop types or read audit logs.
 
@@ -181,6 +181,7 @@ the session pooler (5432). Ask Atharv what the production URL uses (don't read `
 (duplicate routes/operation ids). Confirm FastAPI Cloud runs `app.main:app`; then delete those two
 files. Keep `app/domain_model_registry.py` but import it from `app/main.py` so `create_all` always sees
 every model.
+S08 review: those two files still mount the 9 unmounted F1 modules, so running `main_complete` would re-expose them — another reason to delete them.
 **Check:** `/docs` lists each route once; `grep -r main_complete` finds nothing.
 
 ### - [x] F11. Test setup + CI
