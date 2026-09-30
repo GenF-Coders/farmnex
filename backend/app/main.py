@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # before any other app / component import: components read os.environ directly
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -16,10 +17,31 @@ from app.core.database import (
     close_database,
     create_tables,
 )
+from app.core.config import settings
 from app.core.exceptions import AppException
+import app.domain_model_registry  # noqa: F401  (registers every model so create_all sees them)
 from app.models.crop_type import CropType
 from app.modules.wiring import mount_components, start_components, stop_components
 from app.repositories.role_repository import RoleRepository
+
+
+logger = logging.getLogger(__name__)
+
+# Used when CORS_ORIGINS is empty or only "*": local development only.
+LOCAL_DEV_ORIGINS = ["http://localhost:3000", "http://localhost:8080"]
+
+
+def get_cors_origins() -> list[str]:
+    """Allowed browser origins from CORS_ORIGINS. A wildcard "*" is never honoured."""
+    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+
+    if "*" in origins:
+        # Only warn when someone set it on purpose; the built-in default is "*" too.
+        if "cors_origins" in settings.model_fields_set:
+            logger.warning("CORS_ORIGINS contains '*'; ignoring it. List the real origins instead.")
+        origins = [o for o in origins if o != "*"]
+
+    return origins or LOCAL_DEV_ORIGINS
 
 
 DEFAULT_ROLES = {
@@ -271,8 +293,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=get_cors_origins(),
+    allow_credentials=False,  # we use bearer tokens, not cookies
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -313,12 +335,13 @@ async def database_health_check():
             "database": "connected",
         }
 
-    except Exception as exc:
+    except Exception:
+        # Details (host, user, ...) go to the server log only, never to the caller.
+        logger.exception("Database health check failed")
+
         return {
             "status": "error",
             "database": "disconnected",
-            "error_type": type(exc).__name__,
-            "error": str(exc),
         }
 
 
