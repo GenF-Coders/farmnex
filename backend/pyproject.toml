@@ -20,6 +20,8 @@ dependencies = [
     # Component sections. Each component session adds lines ONLY inside its own
     # section, and the same lines to requirements.txt (this file is what FastAPI Cloud installs).
     # --- Crop Rescue (ENABLE_CROP_RESCUE) ---
+    "psycopg[binary]>=3.1,<4.0",
+    "apscheduler>=3.10,<4.0",
 
     # --- AI forecaster connector (ENABLE_FORECAST) ---
 
