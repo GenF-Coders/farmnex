@@ -81,9 +81,8 @@ async def _make_event(client, make_token, user, listing_id: str, **extra) -> dic
 
 
 async def _bid(client, make_token, user, event_id: str, amount: str = "19.00", **extra):
-    return await client.post(
-        BIDS, json={"bid_event_id": event_id, "amount": amount, **extra}, headers=_auth(user, make_token)
-    )
+    body = {"bid_event_id": event_id, "amount": amount, "quantity": "10", **extra}  # S19: quantity required
+    return await client.post(BIDS, json=body, headers=_auth(user, make_token))
 
 
 async def _set_event_status(public_id: str, status: str) -> None:
@@ -123,7 +122,8 @@ async def test_event_create_uses_server_fields_and_public_ids(client, make_user,
 
     assert event["status"] == "ACTIVE"
     assert event["listing_id"] == listing_id
-    assert "id" not in event and "winner_bid_id" not in event and "created_by_id" not in event
+    # S19: winner_bid_id is shown now, as a public UUID - and it is None until the farmer accepts.
+    assert "id" not in event and event["winner_bid_id"] is None and "created_by_id" not in event
     assert [e["public_id"] for e in (await client.get(f"{EVENTS}?mine=true", headers=_auth(farmer, make_token))).json()] == [event["public_id"]]
     assert (await client.get(f"{EVENTS}?mine=true", headers=_auth(other, make_token))).json() == []
 
@@ -243,10 +243,12 @@ async def test_only_buyers_can_bid(client, make_user, make_token, farmer_event) 
 async def test_bid_rules_price_window_and_status(client, make_user, make_token) -> None:
     farmer = await make_user("FARMER")
     buyer = await make_user("BUYER")
-    listing_id = await _make_listing(client, make_token, farmer)
-    open_event = await _make_event(client, make_token, farmer, listing_id)
-    future_event = await _make_event(client, make_token, farmer, listing_id, starts_at=_iso(timedelta(days=1)))
-    closed_event = await _make_event(client, make_token, farmer, listing_id)
+    # S19: one open event per listing, so each event gets its own listing.
+    open_event = await _make_event(client, make_token, farmer, await _make_listing(client, make_token, farmer))
+    future_event = await _make_event(
+        client, make_token, farmer, await _make_listing(client, make_token, farmer), starts_at=_iso(timedelta(days=1))
+    )
+    closed_event = await _make_event(client, make_token, farmer, await _make_listing(client, make_token, farmer))
     await _set_event_status(closed_event["public_id"], "CLOSED")
 
     assert (await _bid(client, make_token, buyer, open_event["public_id"], "5.00")).status_code == 422  # below start

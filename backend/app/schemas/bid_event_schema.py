@@ -36,5 +36,7 @@ class BidEventResponse(BaseModel):
     starting_price: Decimal
     minimum_increment: Decimal
     status: str
+    # The accepted bid (public id), set by the server when the farmer accepts a bid (S19).
+    winner_bid_id: UUID | None = Field(default=None, validation_alias="winner_bid_public_id")
     created_at: datetime
     updated_at: datetime

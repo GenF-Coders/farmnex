@@ -35,6 +35,9 @@ class BidEventService:
             raise NotFoundError("ProductListing not found.")
         if listing.status != "ACTIVE":
             raise ConflictError("This listing is not active.")
+        if await self.repository.has_open_event(listing.id):
+            # One open event per listing, so two accepted bids can't both sell the same stock.
+            raise ConflictError("This listing already has an open bid event.")
         self._validate_window(data["starts_at"], data["ends_at"])
 
         values = {
