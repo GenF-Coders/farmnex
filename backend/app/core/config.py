@@ -151,6 +151,13 @@ class Settings(BaseSettings):
     jwt_private_key_path: str = "secrets/jwt_private.pem"
     jwt_public_key_path: str = "secrets/jwt_public.pem"
 
+    # Optional: the same keys as ONE line of base64 (for hosts like FastAPI
+    # Cloud, which never receive the git-ignored secrets/ folder). When set,
+    # these win over the *_PATH files. Make them with:
+    #   python generate_jwt_keys.py --print-env
+    jwt_private_key_b64: str | None = None
+    jwt_public_key_b64: str | None = None
+
     # ============================================================
     # PASSWORD SECURITY
     # ============================================================
@@ -478,14 +485,14 @@ class Settings(BaseSettings):
                     "Production must use an approved asymmetric JWT algorithm."
                 )
 
-            if not self.jwt_private_key_path:
+            if not (self.jwt_private_key_b64 or self.jwt_private_key_path):
                 raise ValueError(
-                    "JWT private key path is required in production."
+                    "JWT private key (JWT_PRIVATE_KEY_B64 or path) is required in production."
                 )
 
-            if not self.jwt_public_key_path:
+            if not (self.jwt_public_key_b64 or self.jwt_public_key_path):
                 raise ValueError(
-                    "JWT public key path is required in production."
+                    "JWT public key (JWT_PUBLIC_KEY_B64 or path) is required in production."
                 )
 
         # --------------------------------------------------------
