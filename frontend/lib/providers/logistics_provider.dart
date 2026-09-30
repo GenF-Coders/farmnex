@@ -1,182 +1,201 @@
 import 'package:flutter/material.dart';
 
-class DeliveryTrip {
-  final String id;
-  final String orderId;
-  final String cropName;
-  final String emoji;
-  final String pickup;
-  final String drop;
+import '../core/network/route_api.dart';
+
+/// A trip finished during this app session (the backend has no trip history list yet).
+class FinishedTrip {
   final double distanceKm;
-  final double weightQuintal;
-  final double payout;
-  final String vehicleNeeded;
-  final String status;
-  final String otp;
-  final String scheduledFor;
+  final double earning;
+  const FinishedTrip({required this.distanceKm, required this.earning});
+}
 
-  const DeliveryTrip({
-    required this.id,
-    required this.orderId,
-    required this.cropName,
-    required this.emoji,
-    required this.pickup,
-    required this.drop,
-    required this.distanceKm,
-    required this.weightQuintal,
-    required this.payout,
-    required this.vehicleNeeded,
-    required this.otp,
-    this.status = 'available',
-    this.scheduledFor = 'Today',
-  });
+/// The signed-in driver's vehicle, current trip and return-load offers
+/// (`/api/v2/logistics` and `/api/v2/routes`).
+class LogisticsProvider extends ChangeNotifier {
+  final RouteApi _api = RouteApi();
 
-  String get statusSymbol {
-    switch (status) {
-      case 'accepted':
-        return '🤝';
-      case 'picked':
-        return '📦';
-      case 'in_transit':
-        return '🚚';
-      case 'delivered':
-        return '✅';
-      default:
-        return '🆕';
+  VehicleModel? _vehicle;
+  TripModel? _trip;
+  List<BackhaulOption> _backhaul = [];
+  final List<FinishedTrip> _finished = [];
+
+  bool _isLoading = false;
+  bool _loaded = false;
+  bool _busy = false;
+  String? _error;
+
+  VehicleModel? get vehicle => _vehicle;
+  TripModel? get trip => _trip;
+  List<BackhaulOption> get backhaul => List.unmodifiable(_backhaul);
+  bool get isLoading => _isLoading;
+  bool get hasLoaded => _loaded;
+  bool get isBusy => _busy;
+  String? get error => _error;
+
+  bool get hasVehicle => _vehicle != null;
+  bool get isOnline => _vehicle?.isOnline ?? false;
+  String get vehicleStatus => _vehicle?.status ?? 'offline';
+
+  List<FinishedTrip> get completedTrips => List.unmodifiable(_finished);
+  double get earningsPaid => _finished.fold<double>(0, (sum, t) => sum + t.earning);
+  double get earningsPending => _trip?.estimatedCost ?? 0;
+  double get kmCovered => _finished.fold<double>(0, (sum, t) => sum + t.distanceKm);
+
+  /// Loads the driver's vehicle, its running trip and (when free) return-load offers.
+  Future<void> load() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final vehicles = await _api.myVehicles();
+      _vehicle = vehicles.isEmpty ? null : vehicles.first;
+      await _refreshTripAndOffers();
+      _loaded = true;
+    } catch (e) {
+      _error = routeErrorMessage(e);
+    }
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Forget everything (logout / another driver logs in).
+  void clear() {
+    _vehicle = null;
+    _trip = null;
+    _backhaul = [];
+    _finished.clear();
+    _loaded = false;
+    _error = null;
+    notifyListeners();
+  }
+
+  Future<void> _refreshTripAndOffers() async {
+    final v = _vehicle;
+    if (v == null) {
+      _trip = null;
+      _backhaul = [];
+      return;
+    }
+    _trip = await _api.currentTrip(v.id);
+    _backhaul = (_trip == null && v.isOnline) ? await _api.backhaul(v.id) : [];
+  }
+
+  /// Runs one action, shows its busy state and returns null on success or a short error message.
+  Future<String?> _run(Future<void> Function() action) async {
+    _busy = true;
+    notifyListeners();
+    try {
+      await action();
+      return null;
+    } catch (e) {
+      return routeErrorMessage(e);
+    } finally {
+      _busy = false;
+      notifyListeners();
     }
   }
 
-  bool get isOpen => status == 'available';
-  bool get isDone => status == 'delivered';
+  Future<String?> registerVehicle({
+    required String vehicleNumber,
+    required String vehicleType,
+    required double capacityKg,
+    required double ratePerTonKm,
+    required bool refrigerated,
+    required double baseLat,
+    required double baseLng,
+    String? baseLabel,
+  }) =>
+      _run(() async {
+        _vehicle = await _api.registerVehicle(
+          vehicleNumber: vehicleNumber,
+          vehicleType: vehicleType,
+          capacityKg: capacityKg,
+          ratePerTonKm: ratePerTonKm,
+          refrigerated: refrigerated,
+          baseLat: baseLat,
+          baseLng: baseLng,
+          baseLabel: baseLabel,
+        );
+      });
 
-  DeliveryTrip copyWith({String? status}) => DeliveryTrip(
-        id: id,
-        orderId: orderId,
-        cropName: cropName,
-        emoji: emoji,
-        pickup: pickup,
-        drop: drop,
-        distanceKm: distanceKm,
-        weightQuintal: weightQuintal,
-        payout: payout,
-        vehicleNeeded: vehicleNeeded,
-        otp: otp,
-        status: status ?? this.status,
-        scheduledFor: scheduledFor,
-      );
-}
-
-class LogisticsProvider extends ChangeNotifier {
-  final List<DeliveryTrip> _trips = [
-    const DeliveryTrip(
-      id: 'trip-1',
-      orderId: 'ord-8821',
-      cropName: 'Sharbati Wheat',
-      emoji: '🌾',
-      pickup: 'Depalpur Village, Indore',
-      drop: 'Kishanlal Agro Warehouse, Indore APMC',
-      distanceKm: 42,
-      weightQuintal: 100,
-      payout: 4800,
-      vehicleNeeded: '🚛 Truck (10T)',
-      otp: '4417',
-      scheduledFor: 'Today • 4:00 PM',
-    ),
-    const DeliveryTrip(
-      id: 'trip-2',
-      orderId: 'ord-8834',
-      cropName: 'Yellow Soybean',
-      emoji: '🌱',
-      pickup: 'Ausa Road, Latur',
-      drop: 'Sunrise Edible Oils Plant, Pune',
-      distanceKm: 386,
-      weightQuintal: 50,
-      payout: 11200,
-      vehicleNeeded: '🚛 Truck (16T)',
-      otp: '9032',
-      scheduledFor: 'Tomorrow • 6:00 AM',
-    ),
-    const DeliveryTrip(
-      id: 'trip-3',
-      orderId: 'ord-8840',
-      cropName: 'Nashik Onion',
-      emoji: '🧅',
-      pickup: 'Lasalgaon Mandi Yard',
-      drop: 'Vashi APMC, Navi Mumbai',
-      distanceKm: 198,
-      weightQuintal: 80,
-      payout: 7600,
-      vehicleNeeded: '🚚 Tempo (7T)',
-      otp: '6621',
-      scheduledFor: 'Today • 9:00 PM',
-    ),
-    const DeliveryTrip(
-      id: 'trip-4',
-      orderId: 'ord-8712',
-      cropName: 'Kolar Tomato',
-      emoji: '🍅',
-      pickup: 'Kolar Farm Cluster',
-      drop: 'HOPCOMS Cold Store, Bengaluru',
-      distanceKm: 71,
-      weightQuintal: 30,
-      payout: 3400,
-      vehicleNeeded: '❄️ Reefer Van',
-      otp: '1188',
-      status: 'delivered',
-      scheduledFor: 'Yesterday',
-    ),
-  ];
-
-  String _vehicleStatus = 'online';
-
-  List<DeliveryTrip> get trips => List.unmodifiable(_trips);
-
-  List<DeliveryTrip> get availableTrips =>
-      _trips.where((t) => t.status == 'available').toList();
-
-  List<DeliveryTrip> get activeTrips => _trips
-      .where((t) => t.status == 'accepted' || t.status == 'picked' || t.status == 'in_transit')
-      .toList();
-
-  List<DeliveryTrip> get completedTrips =>
-      _trips.where((t) => t.status == 'delivered').toList();
-
-  String get vehicleStatus => _vehicleStatus;
-  bool get isOnline => _vehicleStatus == 'online';
-
-  double get earningsPaid =>
-      completedTrips.fold<double>(0, (sum, t) => sum + t.payout);
-
-  double get earningsPending =>
-      activeTrips.fold<double>(0, (sum, t) => sum + t.payout);
-
-  double get kmCovered =>
-      completedTrips.fold<double>(0, (sum, t) => sum + t.distanceKm);
-
-  void toggleOnline() {
-    _vehicleStatus = _vehicleStatus == 'online' ? 'offline' : 'online';
-    notifyListeners();
+  Future<String?> toggleOnline() {
+    final v = _vehicle;
+    if (v == null || v.onTrip) return Future.value(null);
+    return _run(() async {
+      _vehicle = await _api.setStatus(v.id, online: !v.isOnline);
+      _backhaul = (_trip == null && _vehicle!.isOnline) ? await _api.backhaul(v.id) : [];
+    });
   }
 
-  void accept(String tripId) => _setStatus(tripId, 'accepted');
-
-  void markPicked(String tripId) => _setStatus(tripId, 'picked');
-
-  void startTransit(String tripId) => _setStatus(tripId, 'in_transit');
-
-  bool confirmDelivery(String tripId, String enteredOtp) {
-    final index = _trips.indexWhere((t) => t.id == tripId);
-    if (index == -1) return false;
-    if (_trips[index].otp != enteredOtp.trim()) return false;
-    _trips[index] = _trips[index].copyWith(status: 'delivered');
-    notifyListeners();
-    return true;
+  /// Lets the optimizer pool nearby pending loads into one trip.
+  Future<String?> findLoads() {
+    final v = _vehicle;
+    if (v == null) return Future.value(null);
+    return _run(() async {
+      _trip = await _api.planTrip(v.id);
+      _backhaul = [];
+      await _reloadVehicle();
+    });
   }
 
-  void _setStatus(String tripId, String status) {
-    final index = _trips.indexWhere((t) => t.id == tripId);
-    if (index == -1) return;
-    _trips[index] = _trips[index].copyWith(status: status);
-    notifyListeners();
+  Future<String?> acceptBackhaul(String loadId) {
+    final v = _vehicle;
+    if (v == null) return Future.value(null);
+    return _run(() async {
+      _trip = await _api.acceptLoad(v.id, loadId);
+      _backhaul = [];
+      await _reloadVehicle();
+    });
+  }
+
+  Future<String?> startTrip() {
+    final t = _trip;
+    if (t == null) return Future.value(null);
+    return _run(() async {
+      _trip = await _api.startTrip(t.id);
+    });
+  }
+
+  Future<String?> cancelTrip() {
+    final t = _trip;
+    if (t == null) return Future.value(null);
+    return _run(() async {
+      await _api.cancelTrip(t.id);
+      _trip = null;
+      await _reloadVehicle();
+      await _refreshTripAndOffers();
+    });
+  }
+
+  /// Marks a pickup or drop as done. The server releases the money when the last drop is done.
+  Future<String?> completeStop(TripStop stop) {
+    final t = _trip;
+    if (t == null) return Future.value(null);
+    return _run(() async {
+      await _api.completeStop(t.id, stop.id);
+      final fresh = await _api.currentTrip(_vehicle!.id);
+      if (fresh == null) {
+        _finished.add(FinishedTrip(distanceKm: t.totalDistanceKm, earning: t.estimatedCost));
+        _trip = null;
+        await _reloadVehicle();
+        await _refreshTripAndOffers();
+      } else {
+        _trip = fresh;
+      }
+    });
+  }
+
+  /// GPS ping from the trip screen. Failures are ignored on purpose: the next ping retries.
+  Future<void> sendPing(double lat, double lng, {double? speedKmph}) async {
+    final v = _vehicle;
+    if (v == null) return;
+    try {
+      await _api.ping(v.id, lat, lng, speedKmph: speedKmph);
+    } catch (_) {}
+  }
+
+  Future<void> _reloadVehicle() async {
+    final vehicles = await _api.myVehicles();
+    _vehicle = vehicles.isEmpty ? null : vehicles.first;
   }
 }

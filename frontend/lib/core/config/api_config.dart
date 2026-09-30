@@ -82,6 +82,21 @@ class ApiConfig {
   // <<< forecast <<<
 
   // >>> logistics >>>
+  static const String logisticsVehiclesEndpoint = '/api/v2/logistics/vehicles';
+  static const String logisticsMyVehiclesEndpoint = '/api/v2/logistics/my-vehicles';
+  static const String routesBase = '/api/v2/routes';
+  static String routesVehicleStatusEndpoint(String id) => '$routesBase/vehicles/$id/status';
+  static String routesVehicleLocationEndpoint(String id) => '$routesBase/vehicles/$id/location';
+  static String routesVehicleTripEndpoint(String id) => '$routesBase/vehicles/$id/current-trip';
+  static String routesVehicleBackhaulEndpoint(String id) => '$routesBase/vehicles/$id/backhaul';
+  static String routesAcceptLoadEndpoint(String vehicleId, String loadId) =>
+      '$routesBase/vehicles/$vehicleId/accept-load/$loadId';
+  static const String routesPlanTripEndpoint = '$routesBase/trips/plan';
+  static String routesTripStartEndpoint(String id) => '$routesBase/trips/$id/start';
+  static String routesTripCancelEndpoint(String id) => '$routesBase/trips/$id/cancel';
+  static String routesStopCompleteEndpoint(String tripId, String stopId) =>
+      '$routesBase/trips/$tripId/stops/$stopId/complete';
+  static String routesOrderDeliveryEndpoint(String orderId) => '$routesBase/orders/$orderId/delivery';
   // <<< logistics <<<
 
   // >>> waste >>>

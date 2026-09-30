@@ -27,7 +27,7 @@ enum UserRole {
       case UserRole.buyer:
         return 'BUYER';
       case UserRole.logistics:
-        return 'LOGISTIC';
+        return 'DELIVERY_AGENT';
       case UserRole.admin:
         return 'ADMIN';
       case UserRole.guest:
@@ -44,6 +44,8 @@ enum UserRole {
         return UserRole.buyer;
       case 'logistic':
       case 'logistics':
+      case 'deliveryagent':
+      case 'logisticsmanager':
       case 'logisticpartner':
       case 'transporter':
       case 'transport':
