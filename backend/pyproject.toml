@@ -26,6 +26,8 @@ dependencies = [
     # --- AI forecaster connector (ENABLE_FORECAST) ---
 
     # --- Route optimizer (ENABLE_ROUTE_OPTIMIZER) ---
+    # Pinned to a commit (never @main). Import name: farmnex_routes. Also uses psycopg[binary] above.
+    "farmnex-route-optimizer @ git+https://github.com/atharvpatil1733-art/farmnex_route_optimization.git@22d4859",
 
     # --- Voice tools (ENABLE_VOICE_TOOLS) ---
 ]
