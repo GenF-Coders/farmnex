@@ -13,6 +13,8 @@ from app.models.product_listing import ProductListing
 
 # "Open for bids". The table default and the home feed (home_service) both use ACTIVE for this.
 OPEN_STATUS = "ACTIVE"
+# After the farmer accepts a bid (F12 / S19).
+CLOSED_STATUS = "CLOSED"
 
 
 def _visible_to(user_id: int):
@@ -30,6 +32,18 @@ class BidEventRepository:
     def _base_query():
         return select(BidEvent).options(joinedload(BidEvent.listing))
 
+    async def attach_winner_public_ids(self, events: list[BidEvent]) -> list[BidEvent]:
+        """Responses show the winning bid as its public UUID (`winner_bid_public_id`), never the
+        internal row id. One query for the whole page."""
+        winner_ids = {e.winner_bid_id for e in events if e.winner_bid_id is not None}
+        public_ids: dict[int, UUID] = {}
+        if winner_ids:
+            result = await self.db.execute(select(Bid.id, Bid.public_id).where(Bid.id.in_(winner_ids)))
+            public_ids = {row.id: row.public_id for row in result}
+        for event in events:
+            event.winner_bid_public_id = public_ids.get(event.winner_bid_id)
+        return events
+
     async def get_listing_owned_by_user(self, listing_public_id: UUID, user_id: int) -> ProductListing | None:
         result = await self.db.execute(
             select(ProductListing).where(
@@ -42,7 +56,10 @@ class BidEventRepository:
         result = await self.db.execute(
             self._base_query().where(BidEvent.public_id == public_id, _visible_to(user_id))
         )
-        return result.unique().scalar_one_or_none()
+        entity = result.unique().scalar_one_or_none()
+        if entity is not None:
+            await self.attach_winner_public_ids([entity])
+        return entity
 
     async def get_owned_by_public_id(self, public_id: UUID, user_id: int) -> BidEvent | None:
         # Locked, so a bid can't slip in between "has no bids?" and the change (bids take a share lock).
@@ -66,7 +83,7 @@ class BidEventRepository:
             .offset(offset)
             .limit(limit)
         )
-        return list(result.unique().scalars().all())
+        return await self.attach_winner_public_ids(list(result.unique().scalars().all()))
 
     async def count_visible(self, *, user_id: int, only_mine: bool) -> int:
         condition = BidEvent.created_by_id == user_id if only_mine else _visible_to(user_id)
@@ -79,6 +96,7 @@ class BidEventRepository:
         await self.db.flush()
         await self.db.refresh(entity)
         await self.db.refresh(entity, ["listing"])
+        await self.attach_winner_public_ids([entity])
         return entity
 
     async def update(self, entity: BidEvent, **values: Any) -> BidEvent:
@@ -87,6 +105,7 @@ class BidEventRepository:
         await self.db.flush()
         await self.db.refresh(entity)
         await self.db.refresh(entity, ["listing"])
+        await self.attach_winner_public_ids([entity])
         return entity
 
     async def delete(self, entity: BidEvent) -> None:

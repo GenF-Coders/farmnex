@@ -123,7 +123,8 @@ async def test_event_create_uses_server_fields_and_public_ids(client, make_user,
 
     assert event["status"] == "ACTIVE"
     assert event["listing_id"] == listing_id
-    assert "id" not in event and "winner_bid_id" not in event and "created_by_id" not in event
+    # S19: winner_bid_id is shown now, as a public UUID - and it is None until the farmer accepts.
+    assert "id" not in event and event["winner_bid_id"] is None and "created_by_id" not in event
     assert [e["public_id"] for e in (await client.get(f"{EVENTS}?mine=true", headers=_auth(farmer, make_token))).json()] == [event["public_id"]]
     assert (await client.get(f"{EVENTS}?mine=true", headers=_auth(other, make_token))).json() == []
 

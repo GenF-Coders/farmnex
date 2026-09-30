@@ -6,12 +6,15 @@ from uuid import UUID
 
 from pydantic import AliasPath, BaseModel, ConfigDict, Field
 
+from app.schemas.bid_event_schema import BidEventResponse
+from app.schemas.order_schema import OrderResponse
+
 
 class BidCreate(BaseModel):
     """What the app may send. The bidder comes from the login; status and placed_at are set by the server."""
 
     bid_event_id: UUID
-    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)  # price per unit (e.g. per kg)
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=3)
 
 
@@ -27,3 +30,12 @@ class BidResponse(BaseModel):
     placed_at: datetime
     created_at: datetime
     updated_at: datetime
+
+
+class BidAcceptResponse(BaseModel):
+    """The farmer accepted a bid: the closed event, the winning bid and the buyer's PLACED order.
+    Accepting the same bid again returns the same three."""
+
+    bid_event: BidEventResponse
+    bid: BidResponse
+    order: OrderResponse
