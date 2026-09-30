@@ -20,13 +20,15 @@ from farmnex_routes.db import session_scope
 from farmnex_routes.models import RtVehicle
 from farmnex_routes.schemas import VehicleOut
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.dependencies.current_user import get_current_user
 from app.api.dependencies.roles import require_roles
 from app.models.user import User
 
 router = APIRouter(tags=["Logistics"])
+
+MAX_VEHICLES_PER_USER = 5
 
 VehicleType = Literal["pickup", "tempo", "mini_truck", "truck"]
 
@@ -60,8 +62,13 @@ def _driver_name(user: User) -> str | None:
     return name[:120] or None
 
 
-def _create_vehicle(fields: dict) -> RtVehicle:
+def _create_vehicle(fields: dict) -> RtVehicle | None:
     with session_scope() as session:
+        owned = session.scalar(
+            select(func.count()).select_from(RtVehicle).where(RtVehicle.driver_user_id == fields["driver_user_id"])
+        )
+        if owned >= MAX_VEHICLES_PER_USER:
+            return None
         return upsert_vehicle(session, str(uuid4()), **fields)
 
 
@@ -70,6 +77,8 @@ def _update_vehicle(vehicle_id: str, me: str, fields: dict) -> RtVehicle | None:
         vehicle = session.get(RtVehicle, vehicle_id)
         if vehicle is None or vehicle.driver_user_id != me:
             return None
+        if vehicle.status == "on_trip":
+            raise HTTPException(409, "Finish or cancel the current trip before editing the vehicle.")
         return upsert_vehicle(session, vehicle_id, **fields)
 
 
@@ -95,7 +104,10 @@ async def register_vehicle(
         driver_phone=user.phone_number,
         owner_role="farmer" if user.role.name.upper() == "FARMER" else "transporter",
     )
-    return await run_in_threadpool(_create_vehicle, fields)
+    vehicle = await run_in_threadpool(_create_vehicle, fields)
+    if vehicle is None:
+        raise HTTPException(409, f"You can register at most {MAX_VEHICLES_PER_USER} vehicles.")
+    return vehicle
 
 
 @router.patch("/vehicles/{vehicle_id}", response_model=VehicleOut)

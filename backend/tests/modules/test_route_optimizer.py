@@ -484,3 +484,22 @@ async def test_only_the_driver_can_edit_a_vehicle(world):
 
     bad = await world.call("driver_a", "PATCH", path, json={"vehicle_type": "spaceship"})
     assert bad.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_vehicle_cap_and_no_edit_during_a_trip(world):
+    from app.modules.logistics_host import MAX_VEHICLES_PER_USER
+    from farmnex_routes.models import RtVehicle
+
+    first = None
+    for _ in range(MAX_VEHICLES_PER_USER):
+        response = await world.call("farmer", "POST", f"{L}/vehicles", json=VEHICLE)
+        assert response.status_code == 201
+        first = first or response.json()["id"]
+    assert (await world.call("farmer", "POST", f"{L}/vehicles", json=VEHICLE)).status_code == 409
+
+    with world.rdb.session_scope() as s:
+        s.get(RtVehicle, first).status = "on_trip"
+        s.commit()
+    response = await world.call("farmer", "PATCH", f"{L}/vehicles/{first}", json={"capacity_kg": 10})
+    assert response.status_code == 409
