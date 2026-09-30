@@ -54,15 +54,30 @@ class BidRepository:
     async def get_for_accept(self, public_id: UUID, creator_id: int) -> Bid | None:
         """A bid on an event this user created, with the event row locked until the transaction
         ends: two accepts (or an accept and a new bid) on one event run one after the other."""
-        result = await self.db.execute(
-            select(Bid)
+        found = (await self.db.execute(
+            select(Bid.id, Bid.bid_event_id)
             .join(BidEvent, BidEvent.id == Bid.bid_event_id)
-            .options(joinedload(Bid.bid_event).joinedload(BidEvent.listing), joinedload(Bid.bidder))
             .where(Bid.public_id == public_id, BidEvent.created_by_id == creator_id)
+        )).one_or_none()
+        if found is None:
+            return None
+        # Lock the event and read it in its own query: after waiting for another accept, Postgres
+        # returns the event as that accept left it (a joined copy in one big query would be stale).
+        await self.db.execute(
+            select(BidEvent)
+            .options(joinedload(BidEvent.listing))
+            .where(BidEvent.id == found.bid_event_id)
             .with_for_update(of=BidEvent)
             .execution_options(populate_existing=True)
         )
-        return result.unique().scalar_one_or_none()
+        # Only now read the bid (a new statement sees everything committed before the lock).
+        result = await self.db.execute(
+            select(Bid)
+            .options(joinedload(Bid.bid_event).joinedload(BidEvent.listing), joinedload(Bid.bidder))
+            .where(Bid.id == found.id)
+            .execution_options(populate_existing=True)
+        )
+        return result.unique().scalar_one()
 
     async def lock_listing(self, listing_id: int) -> ProductListing:
         """Lock the listing row and re-read it, so its stock is the current number, not the copy
