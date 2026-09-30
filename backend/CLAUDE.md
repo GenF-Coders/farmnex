@@ -7,9 +7,11 @@ Read the root `CLAUDE.md` first. This file adds backend-specific detail.
 - Python 3.11+, FastAPI 0.141, Pydantic 2, SQLAlchemy 2 **async** with `asyncpg`.
 - DB: Supabase PostgreSQL via `DATABASE_URL=postgresql+asyncpg://...` (`app/core/database.py`,
   `NullPool`). Tables are created at startup with `Base.metadata.create_all` (creates missing
-  tables only; it never changes existing ones). There is no Alembic.
+  tables only; it never changes existing ones). There is no Alembic. The main DB was built from
+  `migrations/001_core_schema.sql` + the component files (see `migrations/README.md`).
 - Auth: our **own** phone-OTP login with RS256 JWTs (`app/core/security.py`), not Supabase Auth.
-  Keys are loaded from `secrets/jwt_private.pem` / `jwt_public.pem`.
+  Keys come from `JWT_PRIVATE_KEY_B64` / `JWT_PUBLIC_KEY_B64` (one-line base64, used on FastAPI
+  Cloud) or, if those are empty, from `secrets/jwt_private.pem` / `jwt_public.pem` (local).
   `Depends(get_current_user)` (`app/api/dependencies/current_user.py`) returns the `User` ORM row
   with `user.role` already loaded. `user.id` is the internal int; `user.public_id` is the UUID.
 - Roles (seeded in `app/main.py`): SUPER_ADMIN, ADMIN, MANAGER, STAFF, LOGISTICS_MANAGER,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -80,8 +82,27 @@ def verify_value(hashed_value: str, plain_value: str) -> bool:
 # JWT KEY LOADING
 # ============================================================
 
+def _decode_b64_key(value: str, name: str) -> str:
+    """Turn a one-line base64 env value back into the PEM text."""
+    try:
+        pem = base64.b64decode(value.strip(), validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, ValueError) as exc:
+        raise RuntimeError(f"{name} is not valid base64.") from exc
+
+    if "-----BEGIN" not in pem:
+        raise RuntimeError(f"{name} does not contain a PEM key.")
+
+    return pem
+
+
 def _load_private_key() -> str:
-    """Load the RSA private key used to sign JWTs."""
+    """Load the RSA private key used to sign JWTs.
+
+    JWT_PRIVATE_KEY_B64 (env) wins; otherwise the file at JWT_PRIVATE_KEY_PATH.
+    """
+    if settings.jwt_private_key_b64:
+        return _decode_b64_key(settings.jwt_private_key_b64, "JWT_PRIVATE_KEY_B64")
+
     path = _resolve_key_path(settings.jwt_private_key_path)
 
     if not path.is_file():
@@ -96,7 +117,13 @@ def _load_private_key() -> str:
 
 
 def _load_public_key() -> str:
-    """Load the RSA public key used to verify JWTs."""
+    """Load the RSA public key used to verify JWTs.
+
+    JWT_PUBLIC_KEY_B64 (env) wins; otherwise the file at JWT_PUBLIC_KEY_PATH.
+    """
+    if settings.jwt_public_key_b64:
+        return _decode_b64_key(settings.jwt_public_key_b64, "JWT_PUBLIC_KEY_B64")
+
     path = _resolve_key_path(settings.jwt_public_key_path)
 
     if not path.is_file():

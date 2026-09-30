@@ -54,6 +54,7 @@ Backend (run from `backend/`):
 ```bash
 pip install -r requirements.txt           # psycopg2 fails to build — see FIX_PLAN F5
 python generate_jwt_keys.py               # creates secrets/jwt_*.pem (never commit them)
+python generate_jwt_keys.py --print-env   # also prints the 2 lines for FastAPI Cloud (never paste them anywhere else)
 cp .env.example .env                      # then fill DATABASE_URL etc. Never read or print .env
 uvicorn app.main:app --reload             # http://localhost:8000/docs
 python -m pytest -q                       # tests
