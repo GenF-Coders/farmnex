@@ -7,7 +7,7 @@ Short, current picture of where the main app stands. **Only the coordinator sess
 
 | Group | Items | Done |
 |---|---|---|
-| P0 security | F1 ownership · F2 request fields · F3 roles | 0 / 3 |
+| P0 security | F1 ownership · F2 request fields · F3 roles | **1 / 3** (F3 done; F1 fast path done — 9 modules unmounted, 13 left to fix in S09–S14) |
 | P1 repo health | F4 junk files · F5 deps · F6 /db · F7 CORS · F8 middleware · F9 pooler · F10 entrypoint · F11 tests/CI · F17 load .env · F18 crop list | **5 / 10** (F4 F5 F11 F17 F18 done) |
 | P2 marketplace logic | F12 orders/bids/escrow/payments | 0 / 1 |
 | P3 frontend | F13 connect screens · F14 secure tokens · F15 demo names · F16 READMEs | **3 / 4** (F14 F15 F16 done; F13 open) |
@@ -90,6 +90,7 @@ Short, current picture of where the main app stands. **Only the coordinator sess
 
 ## Log
 
+- 2026-09-30 — Coordinator update for S08 (PR 14, merged, CI green: 36 passed): F3 `require_roles` added (`backend/app/api/dependencies/roles.py`, not used by any controller yet — S09–S14 use it per module); F1 fast path done (9 approved modules unmounted in `router.py`; code and tables untouched). `security-reviewer`: no exploitable issue on `app.main:app`; LOW: `main_complete.py` / `domain_router.py` still mount the 9 modules (production doesn't run them) — S06/F10 deletes them. The crop-types BUYER→403 test moved to S14. Manual steps: none; the live `/docs` loses the 9 modules if a merge to `main` deploys (still unconfirmed).
 - 2026-09-30 — Coordinator update: merged S01 (PR 9: F4 F5 F17 F18 + wiring/crops slots), S05 (PR 11: F11 tests + CI), S02 (PR 10: F14 F15 F16 + packages + api_config sections + Flutter CI), S02b (PR 12: token hardening). S03 done in the Crop Rescue repo (PR 4). Backend `pytest` on main: 3 passed, 7 skipped (no test DB here); CI green. M1 (forecaster on Render) not reported.
 - 2026-09-30 — Docs pre-flight for wave 2 (S08–S17; Wave 1's S06/S07 not covered): F1 rules approved once;
   order/payment create routes removed until S18/F12; S08 vs F3 check clarified (audit-logs is unmounted);
