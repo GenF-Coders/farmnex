@@ -33,6 +33,7 @@ STAFF_ROLES = ("LOGISTICS_MANAGER", "ADMIN")  # never SUPER_ADMIN, never a publi
 async def create_staff_user(phone_number: str, role_name: str) -> str:
     """Add the user and return a one-line result. Never touches an existing user."""
     import app.domain_model_registry  # noqa: F401  (registers every model)
+    import app.models.address  # noqa: F401  (User points at Address; the app loads it via the routers)
     from sqlalchemy import select
 
     from app.core.database import AsyncSessionLocal, close_database
