@@ -3,6 +3,8 @@ import 'dart:math';
 
 import '../../models/payment_model.dart';
 
+/// NOT used by the app any more. Checkout is Pay (demo) on the backend (core/network/payment_api.dart).
+/// These fake gateways stay in the repo only so nothing is deleted; nothing creates them by default.
 abstract class PaymentGateway {
 
   String get displayName;

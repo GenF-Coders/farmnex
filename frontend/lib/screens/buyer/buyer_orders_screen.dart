@@ -3,77 +3,162 @@ import '../../widgets/auto_translated_text.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../models/payment_model.dart';
+import '../../models/order_model.dart';
 import '../../providers/payment_provider.dart';
 import '../../widgets/symbol_widgets.dart';
+import '../logistics/track_delivery_button.dart';
 
-class BuyerOrdersScreen extends StatelessWidget {
+class BuyerOrdersScreen extends StatefulWidget {
   final VoidCallback? onBrowse;
 
   const BuyerOrdersScreen({super.key, this.onBrowse});
+
+  @override
+  State<BuyerOrdersScreen> createState() => _BuyerOrdersScreenState();
+}
+
+class _BuyerOrdersScreenState extends State<BuyerOrdersScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PaymentProvider>().load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final payments = context.watch<PaymentProvider>();
     final orders = payments.orders;
 
-    if (orders.isEmpty) {
+    if (payments.isLoading && orders.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (payments.lastError != null && orders.isEmpty) {
       return SymbolEmptyState(
-        symbol: '📦',
-        message: 'No orders yet.\nBuy a lot to start tracking 🔒 escrow here.',
-        actionLabel: '🏪  Browse mandi',
-        onAction: onBrowse,
+        symbol: '⚠️',
+        message: payments.lastError!,
+        actionLabel: '🔄  Try again',
+        onAction: () => payments.load(),
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: SymbolStat(
-                symbol: '🔒',
-                value: formatRupeesShort(payments.moneyInEscrow),
-                caption: 'In escrow',
-                color: AppTheme.accentAmber,
+    if (orders.isEmpty) {
+      return SymbolEmptyState(
+        symbol: '📦',
+        message: 'No orders yet.\nBuy a lot to start tracking your money here.',
+        actionLabel: '🏪  Browse mandi',
+        onAction: widget.onBrowse,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => payments.load(keepOld: true),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SymbolStat(
+                  symbol: '🔒',
+                  value: formatRupeesShort(payments.wallet.heldFromMe),
+                  caption: 'Held for delivery',
+                  color: AppTheme.accentAmber,
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SymbolStat(
-                symbol: '✅',
-                value: formatRupeesShort(payments.lifetimeSettled),
-                caption: 'Settled',
+              const SizedBox(width: 10),
+              Expanded(
+                child: SymbolStat(
+                  symbol: '↩️',
+                  value: formatRupeesShort(payments.wallet.refunded),
+                  caption: 'Refunded',
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SymbolStat(
-                symbol: '📦',
-                value: '${orders.length}',
-                caption: 'Orders',
-                color: AppTheme.accentTeal,
+              const SizedBox(width: 10),
+              Expanded(
+                child: SymbolStat(
+                  symbol: '📦',
+                  value: '${orders.length}',
+                  caption: 'Orders',
+                  color: AppTheme.accentTeal,
+                ),
               ),
+            ],
+          ),
+          if (payments.lastError != null) ...[
+            const SizedBox(height: 10),
+            AutoTranslatedText(
+              payments.lastError!,
+              style: const TextStyle(fontSize: 11.5, color: AppTheme.alertRed, fontWeight: FontWeight.w700),
             ),
           ],
-        ),
-        const SizedBox(height: 20),
-        const SectionHeader(symbol: '🧾', title: 'My orders'),
-        ...orders.map((order) => _OrderTile(order: order)),
-        const SizedBox(height: 20),
-      ],
+          const SizedBox(height: 20),
+          const SectionHeader(symbol: '🧾', title: 'My orders'),
+          ...orders.map((order) => _OrderTile(order: order)),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 }
 
-class _OrderTile extends StatelessWidget {
-  final OrderRecord order;
+class _OrderTile extends StatefulWidget {
+  final OrderModel order;
 
   const _OrderTile({required this.order});
 
   @override
+  State<_OrderTile> createState() => _OrderTileState();
+}
+
+class _OrderTileState extends State<_OrderTile> {
+  bool _busy = false;
+
+  Future<void> _pay() async {
+    final payments = context.read<PaymentProvider>();
+    setState(() => _busy = true);
+    final receipt = await payments.payOrder(widget.order.publicId);
+    if (receipt != null) await payments.load(keepOld: true);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _say(receipt != null ? '🔒 Paid (demo). The amount is held until delivery.' : payments.lastError);
+  }
+
+  Future<void> _cancel() async {
+    final payments = context.read<PaymentProvider>();
+    setState(() => _busy = true);
+    final ok = await payments.cancelOrder(widget.order.publicId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    _say(ok ? 'Order cancelled.' : payments.lastError);
+  }
+
+  void _say(String? message) {
+    if (message == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: AutoTranslatedText(message)));
+  }
+
+  Color get _statusColor {
+    final order = widget.order;
+    if (order.isCancelled) return AppTheme.alertRed;
+    if (order.canPay) return AppTheme.accentAmber;
+    return AppTheme.primaryGreen;
+  }
+
+  String get _statusSymbol {
+    final order = widget.order;
+    if (order.isCancelled) return '❌';
+    if (order.isDelivered) return '📦';
+    if (order.canPay) return '⏳';
+    return '🔒';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final order = widget.order;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -87,53 +172,79 @@ class _OrderTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              AutoTranslatedText(order.emoji, style: const TextStyle(fontSize: 22)),
+              const AutoTranslatedText('🌾', style: TextStyle(fontSize: 22)),
               const SizedBox(width: 8),
               Expanded(
                 child: AutoTranslatedText(
-                  order.cropName,
+                  order.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
                 ),
               ),
-              StatusPill(
-                symbol: order.paymentStatus.symbol,
-                label: order.paymentStatus.label,
-                color: order.paymentStatus == PaymentStatus.failed
-                    ? AppTheme.alertRed
-                    : order.paymentStatus == PaymentStatus.escrowHeld
-                        ? AppTheme.accentAmber
-                        : AppTheme.primaryGreen,
-              ),
+              StatusPill(symbol: _statusSymbol, label: order.statusLabel, color: _statusColor),
             ],
           ),
           const SizedBox(height: 8),
-          SymbolRow(symbol: '🆔', label: 'Txn', value: order.transactionId ?? '—'),
-          SymbolRow(symbol: '⚖️', label: 'Quantity', value: '${order.quantity.round()} ${order.unit}'),
-          SymbolRow(symbol: order.method.symbol, label: 'Paid via', value: order.method.label),
+          SymbolRow(symbol: '🆔', label: 'Order', value: order.orderNumber),
+          for (final line in order.lines)
+            SymbolRow(
+              symbol: '⚖️',
+              label: line.title,
+              value: '${_trim(line.quantity)} ${line.unit}',
+            ),
+          SymbolRow(symbol: '🔒', label: 'Payment', value: order.paymentLabel),
           SymbolRow(
             symbol: '💰',
             label: 'Total',
-            value: formatRupees(order.totalPaid),
+            value: formatRupees(order.total),
             bold: true,
             valueColor: AppTheme.primaryGreen,
           ),
-          const Divider(height: 18),
-          _timeline(order.deliveryStatus),
+          if (!order.isCancelled) ...[
+            const Divider(height: 18),
+            _timeline(order),
+          ],
+          if (order.canPay || order.canCancel || order.canTrack) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (order.canPay)
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _busy ? null : _pay,
+                      child: const AutoTranslatedText('🔒  Pay (demo)'),
+                    ),
+                  ),
+                if (order.canPay && order.canCancel) const SizedBox(width: 10),
+                if (order.canCancel)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : _cancel,
+                      child: const AutoTranslatedText('Cancel'),
+                    ),
+                  ),
+                if (order.canTrack) Expanded(child: TrackDeliveryButton(orderPublicId: order.publicId)),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _timeline(String status) {
+  static String _trim(double value) => value == value.roundToDouble() ? value.round().toString() : value.toString();
+
+  Widget _timeline(OrderModel order) {
     const steps = ['🧾', '🔒', '🚚', '📦'];
-    const labels = ['Placed', 'Escrow', 'Transit', 'Delivered'];
-    final reached = switch (status) {
-      'in_transit' => 3,
-      'delivered' => 4,
-      _ => 2,
-    };
+    const labels = ['Placed', 'Paid', 'Transit', 'Delivered'];
+    final reached = order.isDelivered
+        ? 4
+        : order.status == 'SHIPPED'
+            ? 3
+            : order.isPaid
+                ? 2
+                : 1;
 
     return Row(
       children: List.generate(steps.length, (i) {
