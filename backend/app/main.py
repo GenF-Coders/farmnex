@@ -24,6 +24,7 @@ import app.domain_model_registry  # noqa: F401  (registers every model so create
 from app.models.crop_type import CropType
 from app.modules.wiring import mount_components, start_components, stop_components
 from app.repositories.role_repository import RoleRepository
+from app.services.wallet_service import start_wallet_timer, stop_wallet_timer
 
 
 logger = logging.getLogger(__name__)
@@ -277,9 +278,11 @@ async def lifespan(app: FastAPI):
     await seed_default_roles()
     await seed_default_crop_types()
     start_components()
+    start_wallet_timer()  # S20: unpaid PLACED orders expire after 30 min (checked every 5 min)
 
     yield
 
+    stop_wallet_timer()
     stop_components()
     await close_database()
 
