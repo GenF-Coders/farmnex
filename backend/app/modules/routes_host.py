@@ -3,6 +3,7 @@
 Loaded by `wiring.py` when ENABLE_ROUTE_OPTIMIZER=true. `farmnex_routes` reads its settings the
 moment it is imported, so it is imported inside `mount` (after the database URL check), never at
 the top of this file: a bad ROUTES_* setting only disables the route optimizer, never the backend.
+It also registers the delivery listener (Slip 3, in logistics_host.py) once.
 
 What is exposed (everything else in the package is left out on purpose):
   * guarded routes  -> /api/v2/routes/...  login + ownership guard, "not yours" is a 404
@@ -184,12 +185,28 @@ def _build_routers() -> tuple[APIRouter, APIRouter]:
     return guarded, public
 
 
+_listener_registered = False
+
+
+def _register_delivery_listener(listener: Any) -> None:
+    """Slip 3: the component calls `listener(load, status)` after each delivery step. Registered once
+    per process, even if mount() runs again (tests build fresh apps)."""
+    global _listener_registered
+    if _listener_registered:
+        return
+    from farmnex_routes import on_delivery_update
+
+    on_delivery_update(listener)
+    _listener_registered = True
+
+
 def mount(app: FastAPI) -> None:
     _check_database_url()
 
     guarded, public = _build_routers()  # imports farmnex_routes here on purpose (shared rule 3)
     from . import logistics_host
 
+    _register_delivery_listener(logistics_host.on_delivery)
     app.include_router(
         guarded,
         prefix="/api/v2/routes",
