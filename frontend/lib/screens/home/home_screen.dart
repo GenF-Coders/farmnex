@@ -11,6 +11,7 @@ import '../../widgets/dialogs/ai_forecast_dialog.dart';
 import '../../widgets/dialogs/crop_pre_bidding_dialog.dart';
 import '../../widgets/dialogs/waste_to_wealth_dialog.dart';
 import '../rescue/publish_rescue_sheet.dart';
+import '../rescue/rescue_alerts_banner.dart';
 
 class HomeScreen extends StatelessWidget {
   final void Function(String tabId)? onNavigateTab;
@@ -36,6 +37,7 @@ class HomeScreen extends StatelessWidget {
             children: [
               _greeting(context, auth),
               const SizedBox(height: 16),
+              const RescueAlertsBanner(),
               _hero(context),
               const SizedBox(height: 20),
               AutoTranslatedText(context.t('quick_access'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
