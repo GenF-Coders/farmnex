@@ -50,18 +50,11 @@ void main() {
     expect(provider.filteredCrops.every((c) => c.category == 'Grains'), true);
   });
 
-  test('BiddingProvider unit test - placing bid sets highest bid', () {
+  test('BiddingProvider unit test - starts empty, no demo bids', () {
     final bidding = BiddingProvider();
-    final initialHighest = bidding.getHighestBid('crop-1', 2450);
-
-    bidding.placeBid(
-      cropId: 'crop-1',
-      buyerName: 'Test Buyer',
-      companyName: 'Test Firm',
-      amount: initialHighest + 100,
-    );
-
-    final newHighest = bidding.getHighestBid('crop-1', 2450);
-    expect(newHighest, initialHighest + 100);
+    expect(bidding.events, isEmpty);
+    expect(bidding.bids, isEmpty);
+    expect(bidding.openEventForListing('any-listing'), isNull);
+    expect(bidding.highestBid('any-event'), isNull);
   });
 }

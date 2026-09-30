@@ -60,8 +60,11 @@ class ApiConfig {
   // <<< payment <<<
 
   // >>> bidding >>>
+  // Dead: only the unused websocket_service.dart reads it (that file is not in S27's row, so it stays).
   static String cropBidsWsUrl(String cropId) => '$wsBaseUrl/ws/bidding/$cropId';
-  static String cropBidsEndpoint(String cropId) => '$cropsEndpoint/$cropId/bids';
+  static const String bidEventsEndpoint = '/api/v2/bid-events';
+  static const String bidsEndpoint = '/api/v2/bids';
+  static String bidAcceptEndpoint(String bidId) => '$bidsEndpoint/$bidId/accept';
   // <<< bidding <<<
 
   // >>> rescue >>>

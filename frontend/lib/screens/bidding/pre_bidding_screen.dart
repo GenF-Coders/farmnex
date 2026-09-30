@@ -2,16 +2,33 @@ import '../../widgets/auto_translated_text.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
+import '../../providers/bidding_provider.dart';
 import '../../providers/market_provider.dart';
 import '../../widgets/dialogs/crop_pre_bidding_dialog.dart';
 import '../../widgets/crop_media_uploader.dart';
 
-class PreBiddingScreen extends StatelessWidget {
+class PreBiddingScreen extends StatefulWidget {
   const PreBiddingScreen({super.key});
+
+  @override
+  State<PreBiddingScreen> createState() => _PreBiddingScreenState();
+}
+
+class _PreBiddingScreenState extends State<PreBiddingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<BiddingProvider>().load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final market = context.watch<MarketProvider>();
+    final bidding = context.watch<BiddingProvider>();
+    final openEvents = bidding.events.where((e) => e.isOpen).length;
+    final myBids = bidding.bids.length;
     final preBiddingCrops = market.crops.where((c) => c.biddingActive).toList();
 
     return ListView(
@@ -72,11 +89,11 @@ class PreBiddingScreen extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          AutoTranslatedText('Active Bids', style: TextStyle(fontSize: 11, color: Color(0xFFBBF7D0))),
-                          AutoTranslatedText('24 Lots', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                          const AutoTranslatedText('Open bidding', style: TextStyle(fontSize: 11, color: Color(0xFFBBF7D0))),
+                          AutoTranslatedText('$openEvents Lots', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
                         ],
                       ),
                     ),
@@ -89,11 +106,11 @@ class PreBiddingScreen extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          AutoTranslatedText('Avg Premium', style: TextStyle(fontSize: 11, color: Color(0xFFBBF7D0))),
-                          AutoTranslatedText('+12.4%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF86EFAC))),
+                          const AutoTranslatedText('Bids I can see', style: TextStyle(fontSize: 11, color: Color(0xFFBBF7D0))),
+                          AutoTranslatedText('$myBids', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF86EFAC))),
                         ],
                       ),
                     ),
@@ -211,7 +228,7 @@ class PreBiddingScreen extends StatelessWidget {
                             children: [
                               const Icon(Icons.schedule, size: 14, color: AppTheme.primaryGreen),
                               const SizedBox(width: 4),
-                              AutoTranslatedText('Harvest: ${crop.expectedHarvestDate}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              AutoTranslatedText(bidding.openEventForListing(crop.id) != null ? 'Bidding is open' : 'Bidding not opened yet', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             ],
                           ),
                           if (crop.lastTwoDaysAIActive && crop.expectedMaxPrice != null)
@@ -227,7 +244,7 @@ class PreBiddingScreen extends StatelessWidget {
                               ),
                             )
                           else
-                            AutoTranslatedText('Bids open', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                            AutoTranslatedText('${bidding.openEventForListing(crop.id)?.minimumIncrement.toStringAsFixed(0) ?? '-'} min step', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
                         ],
                       ),
                     ),
