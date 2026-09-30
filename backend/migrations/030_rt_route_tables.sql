@@ -3,6 +3,8 @@
 -- Run once in Supabase: Dashboard -> SQL Editor -> paste -> Run.
 -- (The package can also create these itself on first request when ROUTES_AUTO_CREATE_TABLES=true.)
 
+begin;
+
 create table if not exists rt_vehicles (
     id              varchar(64) primary key,   -- same id as the vehicle in the main app
     driver_user_id  varchar(64),
@@ -125,3 +127,5 @@ alter table rt_trips         enable row level security;
 alter table rt_trip_stops    enable row level security;
 alter table rt_locations     enable row level security;
 alter table rt_notifications enable row level security;
+
+commit;
