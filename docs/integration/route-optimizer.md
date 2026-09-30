@@ -25,7 +25,7 @@ Follow the shared rules in `README.md` in this folder.
 | Mount at `/routes`, "protect with your auth" | Login alone isn't enough: any logged-in user could mark someone's load **delivered** (which will release payment) or read driver phones and live locations. | Mount at `/api/v2/routes` with an **allow-list + ownership guard** (below). Endpoints only our server should call are not exposed at all. |
 | ids like `order.id`, `driver.id` | Our internal ids are ints; the app only knows `public_id` UUIDs | Always pass `str(x.public_id)` for `order_id`, `farmer_id`, `buyer_id`, `driver_user_id`. Vehicle id = new `uuid4()` string. |
 | Listener `@on_delivery_update` calls "your existing wallet release" | Our DB code is **async** while the listener is **sync** | Listener hands off to async code with `anyio.from_thread.run(...)` (explained below). The wallet release exists since S20 (PR 46): module function `release_for_order(order_public_id)` in `app/services/wallet_service.py` — opens its own DB session, needs the order `DELIVERED` first (else `ConflictError`), pays once (a repeat returns `None`). |
-| Order confirmation exists | Orders are plain CRUD today (F12) | Slip 2 is wired when F12 adds the CONFIRMED step. Until then, a manager-only demo endpoint can create a load for an order. |
+| Order confirmation creates the load | The farmer confirms (S18), but confirming does **not** create the load | Slip 2 is a separate call, `request-transport`, made after confirming (decided in S26 — STATUS → Verified facts → "Wave 4 decisions"). |
 | Main `deliveries` table | We have `deliveries`, `delivery_tracking_events`, `delivery_proofs` (unused by the app) | **Decision (confirm with Atharv):** for the prototype `rt_loads` is the delivery system; unmount those 3 controllers (FIX_PLAN F1 fast path) so there aren't two competing delivery systems. |
 
 ---
@@ -145,7 +145,7 @@ In `backend/app/modules/logistics_host.py`, mounted at `/api/v2/logistics` with 
 | `POST /vehicles` | DELIVERY_AGENT, or FARMER (self-delivery → `owner_role="farmer"`) | new `str(uuid4())` id → `upsert_vehicle(..., driver_user_id=str(user.public_id), driver_name, driver_phone from the user)` |
 | `PATCH /vehicles/{vehicle_id}` | that vehicle's driver | re-calls `upsert_vehicle` (rate/capacity/base change) |
 | `GET /my-vehicles` | any | vehicles where `driver_user_id == me` |
-| `POST /orders/{order_public_id}/request-transport` | LOGISTICS_MANAGER / ADMIN (demo, until F12) | builds and calls `create_delivery_for_order`. **Part 2 (S26), not S17:** it reads core orders, which S11 only secures after S17 may already be running |
+| `POST /orders/{order_public_id}/request-transport` | the order's farmer, or LOGISTICS_MANAGER / ADMIN (others → 404; decided in S26) | CONFIRMED orders only; builds and calls `create_delivery_for_order` (Slip 2 below). **Part 2 (S26), not S17** |
 
 Validate inputs here: `vehicle_type` ∈ `pickup | tempo | mini_truck | truck`; `capacity_kg > 0`;
 `rate_per_ton_km > 0`; base lat/lng present. These are async endpoints, so call the sync helpers with
@@ -154,9 +154,9 @@ blocks the whole server while it waits for the database).
 
 ---
 
-## Slip 2 — order → load (after F12)
+## Slip 2 — order → load (S26: `request-transport`)
 
-Where F12 moves an order to **CONFIRMED** (and the buyer chose platform transport):
+Called by hand after the farmer **confirms** the order (not automatic; there is no "platform transport" field, so every booked order is a normal load):
 - `order_id=str(order.public_id)`, `farmer_id=str(seller.public_id)`, `buyer_id=str(buyer.public_id)`.
 - Pickup = the listing's farm `latitude/longitude`; drop = `order.delivery_address_snapshot`
   lat/lng. **If either is missing, don't create the load** — return a clear error ("Add your farm
@@ -199,6 +199,8 @@ def _on_delivery(load, status):                       # sync, called by the comp
   `dispose()`.
 - Tracking: order card shows status/ETA from `GET /orders/{id}/delivery`; a **Track** button opens
   `tracking_url` in a WebView (`webview_flutter` is already in `pubspec.yaml`). S24 builds the button as a reusable widget (`screens/logistics/track_delivery_button.dart`); **S28** puts it on the order card, because the orders screen is connected there.
+- Farmer **Confirm** + **Book truck** (`request-transport`): no app screen in the prototype — STATUS →
+  Verified facts → "Wave 4 decisions".
 - Set `ROUTES_PUBLIC_BASE_URL=https://farmnex-a.fastapicloud.dev` (origin only, no path) so tracking
   links are `https` — Android WebViews block `http`.
 
