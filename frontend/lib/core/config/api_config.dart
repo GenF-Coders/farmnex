@@ -65,7 +65,14 @@ class ApiConfig {
   // <<< bidding <<<
 
   // >>> rescue >>>
-  static const String cropRescueEndpoint = '/api/rescue/request';
+  static const String rescueCropsEndpoint = '/api/v2/rescue/crops';
+  static const String rescueLotsEndpoint = '/api/v2/rescue/lots';
+  static String rescueLotEndpoint(String lotId) => '$rescueLotsEndpoint/$lotId';
+  static String rescueLotMatchesEndpoint(String lotId) => '${rescueLotEndpoint(lotId)}/matches';
+  static String rescueLotSoldEndpoint(String lotId) => '${rescueLotEndpoint(lotId)}/sold';
+  static const String rescueSimulateEndpoint = '/api/v2/rescue/simulate';
+  static const String rescueAlertsEndpoint = '/api/v2/rescue/alerts';
+  static String rescueAlertReadEndpoint(String alertId) => '$rescueAlertsEndpoint/$alertId/read';
   // <<< rescue <<<
 
   // >>> forecast >>>
