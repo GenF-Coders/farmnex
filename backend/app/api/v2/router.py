@@ -58,6 +58,9 @@ from app.api.v2.endpoints import (
 router = APIRouter()
 
 
+# Unmounted modules (F1 fast path, approved in docs/STATUS.md 2026-09-29): their routes had no
+# ownership checks, and no screen or demo step uses them. Code and tables stay. Re-mount one only
+# together with its F1 ownership fix.
 modules = [
     
     # Authentication and users
@@ -79,7 +82,7 @@ modules = [
     crop_type_controller,
     farm_crop_controller,
     crop_batch_controller,
-    farm_crop_activity_controller,
+    #farm_crop_activity_controller,  # unmounted (F1 fast path)
     
     
     # Products
@@ -94,7 +97,7 @@ modules = [
     
     # Notifications / Reviews
     notification_controller,
-    review_controller,
+    #review_controller,  # unmounted (F1 fast path)
     
     
      # Marketplace / Trading
@@ -106,10 +109,10 @@ modules = [
     # Orders / Deliveries
     order_controller,
     order_item_controller,
-    order_dispute_controller,
-    delivery_controller,
-    delivery_proof_controller,
-    delivery_tracking_event_controller,
+    #order_dispute_controller,  # unmounted (F1 fast path)
+    #delivery_controller,  # unmounted (F1 fast path)
+    #delivery_proof_controller,  # unmounted (F1 fast path)
+    #delivery_tracking_event_controller,  # unmounted (F1 fast path)
 
 
     # Payments
@@ -117,11 +120,11 @@ modules = [
 
     
     # AI
-    ai_prediction_controller,
-    ai_recommendation_controller,
+    #ai_prediction_controller,  # unmounted (F1 fast path)
+    #ai_recommendation_controller,  # unmounted (F1 fast path)
 
     # Audit
-    audit_log_controller,
+    #audit_log_controller,  # unmounted (F1 fast path)
 ]
 
 
