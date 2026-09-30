@@ -24,7 +24,7 @@ Follow the shared rules in `README.md` in this folder.
 | `DATABASE_URL` works for both | Ours is `postgresql+asyncpg://…` (async). The component is **sync** (`psycopg`). Its URL fixer only rewrites `postgres://`/`postgresql://`, so our URL breaks it. If no URL is found it **silently uses a local SQLite file** — on FastAPI Cloud that file is wiped on every redeploy. | Always set **`ROUTES_DATABASE_URL`** (Supabase **session pooler**, port 5432, `postgresql://…?sslmode=require`). `routes_host.py` refuses to mount if it's missing, empty, `sqlite…` or `+asyncpg`. |
 | Mount at `/routes`, "protect with your auth" | Login alone isn't enough: any logged-in user could mark someone's load **delivered** (which will release payment) or read driver phones and live locations. | Mount at `/api/v2/routes` with an **allow-list + ownership guard** (below). Endpoints only our server should call are not exposed at all. |
 | ids like `order.id`, `driver.id` | Our internal ids are ints; the app only knows `public_id` UUIDs | Always pass `str(x.public_id)` for `order_id`, `farmer_id`, `buyer_id`, `driver_user_id`. Vehicle id = new `uuid4()` string. |
-| Listener `@on_delivery_update` calls "your existing wallet release" | There is no wallet yet (FIX_PLAN F12), and our DB code is **async** while the listener is **sync** | Listener hands off to async code with `anyio.from_thread.run(...)` (explained below). Wallet release comes with F12. |
+| Listener `@on_delivery_update` calls "your existing wallet release" | Our DB code is **async** while the listener is **sync** | Listener hands off to async code with `anyio.from_thread.run(...)` (explained below). The wallet release exists since S20 (PR 46): module function `release_for_order(order_public_id)` in `app/services/wallet_service.py` — opens its own DB session, needs the order `DELIVERED` first (else `ConflictError`), pays once (a repeat returns `None`). |
 | Order confirmation exists | Orders are plain CRUD today (F12) | Slip 2 is wired when F12 adds the CONFIRMED step. Until then, a manager-only demo endpoint can create a load for an order. |
 | Main `deliveries` table | We have `deliveries`, `delivery_tracking_events`, `delivery_proofs` (unused by the app) | **Decision (confirm with Atharv):** for the prototype `rt_loads` is the delivery system; unmount those 3 controllers (FIX_PLAN F1 fast path) so there aren't two competing delivery systems. |
 
@@ -179,7 +179,7 @@ def _on_delivery(load, status):                       # sync, called by the comp
 - This works because the component's endpoints are sync and run in FastAPI's worker threads. Don't
   call it from any other thread.
 - `handle_delivery_update` opens its **own** `AsyncSessionLocal()` session, updates the order
-  status, and (after F12) releases escrow **only if not already released** — it can be called twice.
+  status, and (after F12) releases escrow **only if not already released** (`release_for_order` already guarantees this) — it can be called twice.
 - The component logs and swallows listener errors, so a failure here does not undo the delivery.
   Log it clearly and add a manager-only "re-sync order from load" endpoint so it can be fixed by hand
   during the demo.

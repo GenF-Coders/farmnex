@@ -14,7 +14,7 @@ Time budgets and who does what: `docs/FINALE_PLAN.md`. Copy-paste prompts: `docs
 
 ## P0 — Security (must fix before any demo or judging)
 
-### - [ ] F1. Ownership checks on 22 modules
+### - [x] F1. Ownership checks on 22 modules (done: all 13 mounted modules fixed by S09–S14; the other 9 unmounted by S08)
 
 **Why:** these modules only check that someone is logged in, not *whose* data it is. Any logged-in
 user can list every payment, edit anyone's bid, delete other people's orders, or read the audit log.
@@ -55,7 +55,7 @@ attacked. That leaves 13 modules to fix. Re-mount one later only together with i
   `modules` list), only if time is left after the demo story works. In the pitch, call them
   "next release" features; judges see only working, safe endpoints in `/docs`.
 
-**Progress (2026-09-30):** fixed and tested — payments (S09, PR 25), orders + order_items (S11, PR 23), product_listings + product_images + crop_batches (S12, PR 24), bids + bid_events (S10, PR 29). **5 left:** waste_records, waste_utilization_listings (S13) · buyer_demand_requests, notifications, crop_types (S14). Follow-up (PR 33) already scoped the dashboard's bids and orders and made `/home` and `/api/v2/me/dashboard` show public ids only. Still left after S13 and S14 merge: the dashboard's waste records, notifications and farm-crop activities (`me_service.py`) still call unscoped `list()` and filter afterwards.
+**Progress (2026-09-30): done — all 13 mounted modules fixed and tested:** payments (S09, PR 25), orders + order_items (S11, PR 23), product_listings + product_images + crop_batches (S12, PR 24), bids + bid_events (S10, PR 29), waste_records + waste_utilization_listings (S13, PR 45), buyer_demand_requests + notifications + crop_types (S14, PR 47; crop-type delete now retires it, `POST /notifications` removed). Follow-up (PR 33) already scoped the dashboard's bids and orders and made `/home` and `/api/v2/me/dashboard` show public ids only. **Still open (small, needs an owner session for `me_service.py`):** the dashboard's waste records, notifications and farm-crop activities still call unscoped `list()` and filter afterwards — switch them to `list(current_user=...)`. The result is right but reads every user's rows.
 
 **Approved rules** (Atharv approved this whole table on 2026-09-30 — sessions apply their rows without asking again):
 
@@ -66,7 +66,7 @@ attacked. That leaves 13 modules to fix. Re-mount one later only together with i
 | crop_batches | via `farm_crop.farmer_id` | owner | owner of the farm crop | owner | owner |
 | farm_crop_activities | via `farm_crop.farmer_id` | owner | owner | owner | owner |
 | crop_types | reference data | any logged-in user | ADMIN | ADMIN | ADMIN (prefer deactivate) |
-| buyer_demand_requests | `buyer_id` | owner; FARMERs see OPEN ones | BUYER | owner | owner |
+| buyer_demand_requests | `buyer_id` | owner; FARMERs see open ones (status `ACTIVE`, the table default — there is no `OPEN`) | BUYER | owner | owner |
 | bid_events | `created_by_id` | anyone sees open events (status `ACTIVE`, the table default) on active listings; creator sees own in any status | seller of the listing | creator (not `status`/`winner_bid_id`) | creator, only if no bids |
 | bids | `bidder_id` | bidder sees own; event creator sees bids on their event | BUYER, event open (`ACTIVE`), not own listing | none (withdraw = status change by server) | none |
 | orders | `buyer_id` (+ sellers via order_items) | buyer; sellers of its items | BUYER; totals computed by server (F12). **Until S18 (F12a) adds it, remove the public create route** — nothing creates orders in the meantime | buyer may cancel while PLACED | none |
@@ -96,7 +96,7 @@ file `backend/tests/test_<module>.py` (never in `conftest.py`, which S05 owns).
 on get/update/delete and does not see it in the list; wrong role gets **403**. Then ask the
 `security-reviewer` agent to review the module.
 
-### - [ ] F2. Server-owned fields and public ids in request bodies
+### - [x] F2. Server-owned fields and public ids in request bodies
 
 **Why:** request bodies accept fields the phone must never control, e.g. `PaymentCreate` accepts
 `payer_id`, `status`, `paid_at`; bids accept `bidder_id`; orders accept `buyer_id` and totals. They
@@ -113,12 +113,12 @@ While no app uses them yet, also fix the misspelled URL prefixes: `/crop-batchs`
 `/farm-crop-activities` belong to modules that are unmounted (F1 fast path): fix them when those
 modules are re-mounted, not before.
 
-**Progress:** F2 is done for the same 8 modules as F1 (see the F1 progress line); the 5 left get it with their F1 session.
+**Progress:** done for all 13 mounted modules, with F1 (S09–S14). The unmounted modules get it if they are ever re-mounted.
 
 **How to check:** OpenAPI (`/docs`) shows no `*_id: integer` in request bodies and no owner/status
 fields in create bodies; sending `payer_id` in a body is ignored or rejected.
 
-### - [x] F3. Role checks (dependency done by S08, PR 14; per-module use comes with S09–S14)
+### - [x] F3. Role checks (dependency done by S08, PR 14; used per module by S09–S14 — all done)
 
 **Why:** nothing checks roles today — a BUYER could create crop types or read audit logs.
 
@@ -224,15 +224,15 @@ Today these services are plain save/edit/delete. Needed:
    On CONFIRMED → create the delivery load (route optimizer Slip 2, S26).
 2. ✅ **Done by S19 (PR 42)** — rules in STATUS → Verified facts → "Bid accept rules". Pre-bidding: bid rules above; **the farmer accepts a bid** (decided 2026-09-29) — accepting
    closes the event and sets `winner_bid_id`. No timer needed.
-3. Escrow: one new **core** table `wallet_ledger` — a new model in `app/models/` registered in
+3. ✅ **Done by S20 (PR 46)** — rules in STATUS → Verified facts → "Wallet and demo payment rules"; the release call on delivery is wired by S26. Escrow: one new **core** table `wallet_ledger` — a new model in `app/models/` registered in
    `domain_model_registry.py`, so the backend's startup `create_all` creates it (no SQL file; nothing
    existing changes) ( user_public_id, order/bid public id, amount,
    type HOLD/RELEASE/REFUND, idempotency key, created_at). Balance = sum of entries. HOLD 20% on
    bid win, RELEASE on DELIVERED (route optimizer Slip 3), each exactly once.
-4. Payments: a clearly labelled demo provider ("Pay (demo)") that writes the ledger — no real
+4. ✅ **Done by S20 (PR 46).** Payments: a clearly labelled demo provider ("Pay (demo)") that writes the ledger — no real
    gateway in the prototype.
 5. **Decided:** the farmer accepts a bid (any time during the 7 days). Accepting = close the event +
-   set `winner_bid_id` + create the winner's `PLACED` order (✅ S19, PR 42) + HOLD 20% (**still to do:** S20 adds it inside `BidService.accept` once the ledger exists).
+   set `winner_bid_id` + create the winner's `PLACED` order (✅ S19, PR 42) + HOLD 20% (✅ S20, PR 46 — inside `BidService.accept`, once per bid).
 6. Write endpoints the voice assistant calls (create pre-bid listing, accept bid) accept an
    `Idempotency-Key` header and return the same result for the same key.
 Skip for the prototype: refunds UI, partial deliveries, disputes, multiple currencies.
@@ -241,7 +241,8 @@ Skip for the prototype: refunds UI, partial deliveries, disputes, multiple curre
 - **S18 must create orders and order items with status `PLACED`.** The tables default to `ACTIVE`; S11's rules treat `ACTIVE` like `PLACED` for items only, and only `PLACED` orders can be cancelled.
 - Item status chain S11 enforces (forward only, steps may be skipped, `CANCELLED` only before `SHIPPED`): PLACED → CONFIRMED → PACKED → SHIPPED → DELIVERED. **Approved by Atharv** (STATUS → Decisions log, 2026-09-30); the prototype minimum above fits it because steps may be skipped.
 - ✅ **Done by S19 (PR 42)** (was left by S10, PR 29): a new bid must beat the highest bid by `minimum_increment` (lock the event row with `FOR UPDATE`); farmer accepts a bid and sets the winner; show `winner_bid_id` as a UUID in the bid-event response. Bid events use status `ACTIVE` for "open" (not `OPEN`); S10 already blocks bids on your own listing, below the starting price, outside the time window, and on closed listings, and blocks edits/deletes of an event that has bids.
-- **Left by S18 (PR 40, security review):** (a) ✅ **done by S19 (PR 42):** creating a bid event doesn't lock the listing row, so a direct sale can slip in at the moment pre-bidding opens — lock the listing (`FOR UPDATE`) when creating the event. (b) **S20 (approved by Atharv):** unpaid `PLACED` orders expire after **30 minutes** — cancel them and give the stock back through S18's cancel path (a paid order is never expired). (c) **S26 (approved by Atharv):** S11 still lets the seller `PATCH` an item to `DELIVERED`; remove that step — only the route-optimizer listener (driver's last stop) sets DELIVERED.
+- **Left by S18 (PR 40, security review):** (a) ✅ **done by S19 (PR 42):** creating a bid event doesn't lock the listing row, so a direct sale can slip in at the moment pre-bidding opens — lock the listing (`FOR UPDATE`) when creating the event. (b) ✅ **done by S20 (PR 46):** unpaid `PLACED` orders expire after **30 minutes** — cancelled through S18's cancel path, stock back (paid orders and bid orders never expire; only orders placed after 2026-09-30 15:00 UTC). (c) **S26 (approved by Atharv):** S11 still lets the seller `PATCH` an item to `DELIVERED`; remove that step — only the route-optimizer listener (driver's last stop) sets DELIVERED.
+- **Left by S20 (PR 46, security review, LOW — decision for Atharv, STATUS → Waiting):** the farmer can confirm an **unpaid** order within its 30 minutes; a `CONFIRMED` order never expires, and on delivery the farmer gets only what was paid. Options: (a) confirm only a fully paid order (edit in `order_service.py`), or (b) unpaid `CONFIRMED` orders expire too. S28's checkout calls Pay (demo) right after placing the order, which avoids it in the demo.
 - Payments are read-only over HTTP; the repository still has `create`/`update` for **S20** to use. S20: store only short fixed codes in `failure_reason`, never raw provider error text (sellers can read it).
 
 **Wave 3 decisions (STATUS → Verified facts → "Wave 3 decisions" and "Pre-flight defaults" — read them, they aren't repeated here):** accepting a bid creates the `PLACED` order; the farmer confirms, the driver's last stop delivers; stock, `Idempotency-Key` and address-coordinate defaults are listed there. Which session owns which file: `docs/PARALLEL_SESSIONS.md` §6 "Wave 3".

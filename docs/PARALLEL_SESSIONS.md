@@ -82,7 +82,7 @@ S02) prepare "slots" in these files so later sessions only add to their own slot
 
 | Shared file | Owner | Everyone else |
 |---|---|---|
-| `backend/app/main.py` | S01 (then S06) | Don't touch. Components plug in via their own `app/modules/<name>_host.py` |
+| `backend/app/main.py` | S01 (then S06; S20 added the wallet timer start/stop with Atharv's OK) | Don't touch. Components plug in via their own `app/modules/<name>_host.py` |
 | `backend/app/modules/wiring.py` | S01 creates it with all 4 components listed | Don't touch — it already imports your `<name>_host.py` when your flag is on |
 | `backend/app/api/v2/router.py` | S08 (unmount) | Don't touch (components mount through `wiring.py`, not here) |
 | `backend/pyproject.toml`, `backend/requirements.txt`, `backend/.env.example` | S01 creates a marked section per component | Add lines **only inside your own section** — dependencies go in **both** `pyproject.toml` (production uses it) and `requirements.txt`. Only exception: S17 may change `[tool.setuptools.packages.find]` in `pyproject.toml` if it has to use the `backend/farmnex_routes/` fallback |
