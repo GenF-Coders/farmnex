@@ -214,6 +214,8 @@ async def request_transport(
 
     farmer = await db.get(User, live[0].seller_id)
     buyer = await db.get(User, order.buyer_id)
+    if farmer is None or buyer is None:  # only very old rows can miss a user
+        raise HTTPException(409, "This order's farmer or buyer account no longer exists.")
     fields = {
         "order_id": str(order.public_id),
         "farmer_id": str(farmer.public_id),
