@@ -54,7 +54,7 @@ def test_routes_absent_when_flag_off(monkeypatch):
 
 @pytest.mark.parametrize(
     "bad_url",
-    [None, "", "postgresql+asyncpg://u:p@localhost/db", "sqlite:///x.db", "not a url"],
+    [None, "", "postgresql+asyncpg://u:p@localhost/db", "sqlite:///x.db", "postgresql://u:p@localhost/db", "not a url"],
 )
 def test_bad_database_url_leaves_it_unmounted_but_app_starts(monkeypatch, caplog, bad_url):
     with caplog.at_level(logging.ERROR):

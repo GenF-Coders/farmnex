@@ -50,10 +50,10 @@ def _check_database_url() -> None:
         url = make_url(raw)
     except Exception:  # SQLAlchemy's message would quote the URL (and the password)
         raise RuntimeError("CR_DATABASE_URL is not a valid database URL.") from None
-    if not url.drivername.startswith("postgresql") or "asyncpg" in url.drivername:
+    if url.drivername != "postgresql+psycopg":
         raise RuntimeError(
-            "CR_DATABASE_URL must be a synchronous PostgreSQL URL (postgresql+psycopg://...), "
-            "not an asyncpg or SQLite one."
+            "CR_DATABASE_URL must start with postgresql+psycopg:// (the synchronous driver we "
+            "install), not asyncpg, plain postgresql:// or SQLite."
         )
 
 
