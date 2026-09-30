@@ -12,7 +12,9 @@ from app.models.order import Order
 from app.repositories.bid_event_repository import CLOSED_STATUS, OPEN_STATUS, BidEventRepository
 from app.repositories.bid_repository import BidRepository
 from app.repositories.order_repository import OrderRepository
+from app.repositories.wallet_repository import WalletRepository
 from app.services.order_service import OrderLine, OrderService
+from app.services.wallet_service import WalletService
 
 
 def bid_order_number(bid: Bid) -> str:
@@ -105,7 +107,9 @@ class BidService:
 
         Repeating it for the same bid returns the same event, bid and order (so a repeated
         `Idempotency-Key` gets the same result); another bid after a winner is chosen gets 409.
-        `idempotency_key` is not stored yet: S20 uses it as the wallet-ledger key for the 20% HOLD.
+        The same transaction holds 20% of the order from the buyer (S20 wallet). The ledger's own key
+        is made from the bid, so the advance is held once however often accept is called;
+        `idempotency_key` is only stored next to it for tracing.
         """
         bid = await self.repository.get_for_accept(public_id, current_user.id)
         if bid is None:
@@ -140,6 +144,9 @@ class BidService:
             from_accepted_bid=True,
         )
         order = await order_repository.update(order, order_number=bid_order_number(bid))
+        await WalletService(WalletRepository(self.repository.db)).hold_bid_advance(
+            order, bid, request_key=idempotency_key
+        )
 
         await self.repository.mark_winner(event, bid, closed_status=CLOSED_STATUS)
         return await self._with_winner(event), bid, order
