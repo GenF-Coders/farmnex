@@ -2,15 +2,28 @@ import '../../widgets/auto_translated_text.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/network/listing_api.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/crop_model.dart';
-import '../../providers/auth_provider.dart';
+import '../../models/listing_model.dart';
 import '../../providers/listing_provider.dart';
 import '../../widgets/symbol_widgets.dart';
-import '../../widgets/crop_media_uploader.dart';
 
-class MyCropsScreen extends StatelessWidget {
+class MyCropsScreen extends StatefulWidget {
   const MyCropsScreen({super.key});
+
+  @override
+  State<MyCropsScreen> createState() => _MyCropsScreenState();
+}
+
+class _MyCropsScreenState extends State<MyCropsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ListingProvider>().load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,51 +31,56 @@ class MyCropsScreen extends StatelessWidget {
 
     return Stack(
       children: [
-        ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: SymbolStat(
-                    symbol: '🌾',
-                    value: '${listings.activeListings.length}',
-                    caption: 'Live lots',
+        RefreshIndicator(
+          onRefresh: () => context.read<ListingProvider>().load(),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: SymbolStat(
+                      symbol: '🌾',
+                      value: '${listings.activeListings.length}',
+                      caption: 'Live lots',
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SymbolStat(
-                    symbol: '👁️',
-                    value: '${listings.totalViews}',
-                    caption: 'Views',
-                    color: AppTheme.accentTeal,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SymbolStat(
+                      symbol: '📋',
+                      value: '${listings.listings.length}',
+                      caption: 'All lots',
+                      color: AppTheme.accentTeal,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SymbolStat(
-                    symbol: '⚖️',
-                    value: '${listings.totalBids}',
-                    caption: 'Bids',
-                    color: AppTheme.accentAmber,
+                ],
+              ),
+              const SizedBox(height: 10),
+              SymbolStat(
+                symbol: '💰',
+                value: formatRupees(listings.inventoryValue),
+                caption: 'Value of live lots at your prices',
+              ),
+              const SizedBox(height: 20),
+              const SectionHeader(symbol: '📋', title: 'My lots'),
+              if (listings.isLoading && listings.listings.isEmpty)
+                const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator()))
+              else if (listings.error != null && listings.listings.isEmpty)
+                Column(children: [
+                  SymbolEmptyState(symbol: '☁️', message: listings.error!),
+                  OutlinedButton(
+                    onPressed: () => context.read<ListingProvider>().load(),
+                    child: const AutoTranslatedText('Try again'),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SymbolStat(
-              symbol: '💰',
-              value: formatRupees(listings.inventoryValue),
-              caption: 'Inventory value at today\'s mandi rate',
-            ),
-            const SizedBox(height: 20),
-            const SectionHeader(symbol: '📋', title: 'My lots'),
-            if (listings.listings.isEmpty)
-              const SymbolEmptyState(symbol: '🌱', message: 'No lots listed yet.')
-            else
-              ...listings.listings.map((crop) => _ListingTile(crop: crop)),
-          ],
+                ])
+              else if (listings.listings.isEmpty)
+                const SymbolEmptyState(symbol: '🌱', message: 'No lots listed yet.')
+              else
+                ...listings.listings.map((crop) => _ListingTile(crop: crop)),
+            ],
+          ),
         ),
         Positioned(
           right: 16,
@@ -71,8 +89,8 @@ class MyCropsScreen extends StatelessWidget {
             onPressed: () => _openAddSheet(context),
             backgroundColor: AppTheme.primaryGreen,
             foregroundColor: Colors.white,
-            icon: AutoTranslatedText('➕', style: TextStyle(fontSize: 16)),
-            label: AutoTranslatedText('🌾  List lot', style: TextStyle(fontWeight: FontWeight.w800)),
+            icon: const AutoTranslatedText('➕', style: TextStyle(fontSize: 16)),
+            label: const AutoTranslatedText('🌾  List lot', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ),
       ],
@@ -99,14 +117,13 @@ class _ListingTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final listings = context.read<ListingProvider>();
     final (statusSymbol, statusLabel, statusColor) = switch (crop.status) {
       'active' => ('🟢', 'Live', AppTheme.primaryGreen),
-      'paused' => ('⏸️', 'Paused', AppTheme.textMuted),
+      'closed' => ('⚪', 'Closed', AppTheme.textMuted),
       'sold_out' => ('✅', 'Sold', AppTheme.accentTeal),
-      'pending_approval' => ('⏳', 'Review', AppTheme.accentAmber),
       _ => ('⚪', 'Draft', AppTheme.textMuted),
     };
+    final closed = crop.status == 'closed';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -134,7 +151,8 @@ class _ListingTile extends StatelessWidget {
                       style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
                     ),
                     AutoTranslatedText(
-                      '🏅 ${crop.grade}${crop.isOrganic ? '  •  🌿 Organic' : ''}  •  📍 ${crop.location}',
+                      '${crop.biddingActive ? '⚖️ Pre-bid' : '🛒 Fixed price'}'
+                      '${crop.variety.isEmpty ? '' : '  •  🏅 ${crop.variety}'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
@@ -148,62 +166,44 @@ class _ListingTile extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _metric('💰', '₹${crop.currentPrice.round()}', '/q')),
-              Expanded(child: _metric('⚖️', '${crop.quantityAvailable}', 'q left')),
-              Expanded(child: _metric('👁️', '${crop.views}', 'views')),
-              Expanded(child: _metric('⚖️', '${crop.bidsCount}', 'bids')),
-              Expanded(
-                child: _metric(
-                  crop.priceTrend >= 0 ? '📈' : '📉',
-                  '${crop.priceTrend >= 0 ? '+' : ''}${crop.priceTrend.toStringAsFixed(1)}%',
-                  'trend',
-                ),
-              ),
+              Expanded(child: _metric('💰', '₹${crop.currentPrice.round()}', '/${crop.unit}')),
+              Expanded(child: _metric('⚖️', '${crop.quantityAvailable}', '${crop.unit} left')),
             ],
           ),
-          CropMediaGallery(cropId: crop.id),
-          const Divider(height: 20),
-          Row(
-            children: [
-              _iconAction(
-                symbol: crop.status == 'paused' ? '▶️' : '⏸️',
-                tooltip: crop.status == 'paused' ? 'Resume' : 'Pause',
-                onTap: () => listings.togglePause(crop.id),
-              ),
-              Expanded(
-                child: CropMediaUploader(cropId: crop.id, cropName: crop.name),
-              ),
-              _iconAction(
-                symbol: '₹',
-                tooltip: 'Set selling price',
-                onTap: () => _editPrice(context, crop),
-              ),
-              _iconAction(
-                symbol: '📊',
-                tooltip: 'Analytics',
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: AutoTranslatedText('📊 ${crop.views} views • ${crop.bidsCount} bids • ⭐ ${crop.rating}')),
+          if (!closed) ...[
+            const Divider(height: 20),
+            Row(
+              children: [
+                _iconAction(
+                  symbol: '₹',
+                  tooltip: 'Set selling price',
+                  onTap: () => _editPrice(context, crop),
                 ),
-              ),
-              _iconAction(
-                symbol: '🗑️',
-                tooltip: 'Delete',
-                onTap: () => listings.remove(crop.id),
-              ),
-              const SizedBox(width: 8),
-              AutoTranslatedText(
-                '⭐ ${crop.rating}  (${crop.ratingCount})',
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.textMuted),
-              ),
-            ],
-          ),
+                _iconAction(
+                  symbol: '🗑️',
+                  tooltip: 'Close lot',
+                  onTap: () => _closeLot(context, crop),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
+  Future<void> _closeLot(BuildContext context, CropItem crop) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await context.read<ListingProvider>().remove(crop.id);
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: AutoTranslatedText('⚠️ $error')));
+    }
+  }
+
   void _editPrice(BuildContext context, CropItem crop) {
     final controller = TextEditingController(text: crop.currentPrice.toStringAsFixed(0));
+    final messenger = ScaffoldMessenger.of(context);
+    final listings = context.read<ListingProvider>();
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -212,18 +212,21 @@ class _ListingTile extends StatelessWidget {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Selling price per quintal', prefixText: '₹ '),
+          decoration: InputDecoration(labelText: 'Selling price per ${crop.unit}', prefixText: '₹ '),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: AutoTranslatedText('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const AutoTranslatedText('Cancel')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final price = double.tryParse(controller.text.trim());
               if (price == null || price <= 0) return;
-              context.read<ListingProvider>().updatePrice(crop.id, price);
               Navigator.pop(dialogContext);
+              final error = await listings.updatePrice(crop.id, price);
+              if (error != null) {
+                messenger.showSnackBar(SnackBar(content: AutoTranslatedText('⚠️ $error')));
+              }
             },
-            child: AutoTranslatedText('Save price'),
+            child: const AutoTranslatedText('Save price'),
           ),
         ],
       ),
@@ -279,69 +282,130 @@ class _AddLotSheet extends StatefulWidget {
 }
 
 class _AddLotSheetState extends State<_AddLotSheet> {
-  final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _quantityController = TextEditingController();
+  // New-farm form (only shown when the farmer has no farm yet).
+  final _farmName = TextEditingController();
+  final _address = TextEditingController();
+  final _city = TextEditingController();
+  final _district = TextEditingController();
+  final _state = TextEditingController();
+  final _postal = TextEditingController();
 
-  String _emoji = '🌾';
-  String _category = 'Grains';
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+  List<CropTypeModel> _cropTypes = [];
+  List<FarmSummary> _farms = [];
+  CropTypeModel? _cropType;
   String _grade = 'Grade A';
   bool _organic = false;
+  bool _preBid = false;
 
-  static const Map<String, String> _cropSymbols = {
-    '🌾': 'Grains',
-    '🌱': 'Oilseeds',
-    '🧅': 'Vegetables',
-    '🍅': 'Vegetables',
-    '🥔': 'Vegetables',
-    '🍇': 'Fruits',
-    '🥭': 'Fruits',
-    '🫘': 'Grains',
-  };
+  @override
+  void initState() {
+    super.initState();
+    _loadSetup();
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _priceController.dispose();
-    _quantityController.dispose();
+    for (final c in [_priceController, _quantityController, _farmName, _address, _city, _district, _state, _postal]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
-  void _submit() {
-    final name = _nameController.text.trim();
+  Future<void> _loadSetup() async {
+    final listings = context.read<ListingProvider>();
+    try {
+      final types = await listings.cropTypes();
+      final farms = await listings.myFarms();
+      if (!mounted) return;
+      setState(() {
+        _cropTypes = types;
+        _farms = farms;
+        _cropType = types.isEmpty ? null : types.first;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = listingErrorMessage(e);
+        _loading = false;
+      });
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: AutoTranslatedText(message)));
+  }
+
+  Future<void> _submit() async {
+    final cropType = _cropType;
     final price = double.tryParse(_priceController.text.trim()) ?? 0;
-    final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
-    if (name.isEmpty || price <= 0 || quantity <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: AutoTranslatedText('⚠️ Fill crop name, ₹ price and ⚖️ quantity.')),
-      );
+    final quantity = double.tryParse(_quantityController.text.trim()) ?? 0;
+    if (cropType == null || price <= 0 || quantity <= 0) {
+      _showMessage('⚠️ Choose a crop and fill ₹ price and ⚖️ quantity.');
+      return;
+    }
+    if (_farms.isEmpty &&
+        [_farmName, _address, _city, _district, _state, _postal].any((c) => c.text.trim().isEmpty)) {
+      _showMessage('⚠️ Fill in all the farm details.');
       return;
     }
 
-    final user = context.read<AuthProvider>().user;
-    context.read<ListingProvider>().addListing(
-          name: name,
-          category: _category,
-          emoji: _emoji,
-          price: price,
-          quantity: quantity,
-          grade: _grade,
-          location: user?.address ?? 'My village',
-          farmerName: user?.name ?? 'Farmer',
-          isOrganic: _organic,
-        );
-
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: AutoTranslatedText('✅ Lot submitted. ⏳ APMC review usually takes under 2 hours.'),
-        backgroundColor: AppTheme.primaryGreen,
-      ),
-    );
+    final listings = context.read<ListingProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    setState(() => _saving = true);
+    try {
+      var farm = _farms.isEmpty ? null : _farms.first;
+      farm ??= await listings.createFarm(
+        farmName: _farmName.text.trim(),
+        addressLine1: _address.text.trim(),
+        city: _city.text.trim(),
+        district: _district.text.trim(),
+        state: _state.text.trim(),
+        postalCode: _postal.text.trim(),
+      );
+      // Remember the new farm so a retry doesn't create a second one.
+      if (_farms.isEmpty) _farms = [farm];
+      final error = await listings.addListing(
+        farmId: farm.publicId,
+        cropType: cropType,
+        price: price,
+        quantity: quantity,
+        grade: _grade,
+        preBid: _preBid,
+        isOrganic: _organic,
+      );
+      if (error != null) {
+        if (mounted) setState(() => _saving = false);
+        messenger.showSnackBar(SnackBar(content: AutoTranslatedText('⚠️ $error')));
+        return;
+      }
+      navigator.pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: AutoTranslatedText('✅ Lot is live.'),
+          backgroundColor: AppTheme.primaryGreen,
+        ),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _saving = false);
+      messenger.showSnackBar(SnackBar(content: AutoTranslatedText('⚠️ ${listingErrorMessage(e)}')));
+    }
   }
+
+  Widget _field(TextEditingController c, String label, {TextInputType? type}) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TextField(controller: c, keyboardType: type, decoration: InputDecoration(labelText: label)),
+      );
 
   @override
   Widget build(BuildContext context) {
+    final unit = _cropType?.defaultUnit ?? 'unit';
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -362,89 +426,105 @@ class _AddLotSheetState extends State<_AddLotSheet> {
               ],
             ),
             const SizedBox(height: 16),
-
-            AutoTranslatedText('Crop symbol', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _cropSymbols.keys.map((symbol) {
-                final selected = _emoji == symbol;
-                return InkWell(
-                  onTap: () => setState(() {
-                    _emoji = symbol;
-                    _category = _cropSymbols[symbol]!;
-                  }),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: 46,
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected ? AppTheme.primaryGreen.withValues(alpha: 0.12) : const Color(0xFFF9FAFB),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selected ? AppTheme.primaryGreen : AppTheme.borderLight,
-                        width: selected ? 1.8 : 1,
+            if (_loading)
+              const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+            else if (_error != null)
+              Column(children: [
+                AutoTranslatedText(_error!, textAlign: TextAlign.center),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _loading = true;
+                      _error = null;
+                    });
+                    _loadSetup();
+                  },
+                  child: const AutoTranslatedText('Try again'),
+                ),
+              ])
+            else ...[
+              const AutoTranslatedText('Crop', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _cropTypes.map((type) {
+                  final selected = _cropType?.publicId == type.publicId;
+                  return ChoiceChip(
+                    label: AutoTranslatedText('${type.emoji} ${type.name}', style: const TextStyle(fontSize: 12)),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _cropType = type),
+                    selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.15),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _priceController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: '💰  ₹ / $unit'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _quantityController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(labelText: '⚖️  Quantity ($unit)'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const AutoTranslatedText('🏅', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  ...['Grade A', 'Grade B', 'Grade C'].map(
+                    (g) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: AutoTranslatedText(g.replaceAll('Grade ', ''), style: const TextStyle(fontSize: 12)),
+                        selected: _grade == g,
+                        onSelected: (_) => setState(() => _grade = g),
+                        selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.15),
                       ),
                     ),
-                    child: AutoTranslatedText(symbol, style: const TextStyle(fontSize: 22)),
                   ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 14),
-
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: '🏷️  Crop name', hintText: 'Sharbati Wheat'),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _priceController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '💰  ₹ / quintal'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _quantityController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '⚖️  Quintals'),
-                  ),
-                ),
+                  const Spacer(),
+                  const AutoTranslatedText('🌿', style: TextStyle(fontSize: 16)),
+                  Switch(value: _organic, onChanged: (v) => setState(() => _organic = v)),
+                ],
+              ),
+              Row(
+                children: [
+                  const Expanded(child: AutoTranslatedText('⚖️  Accept pre-bids from buyers', style: TextStyle(fontSize: 12.5))),
+                  Switch(value: _preBid, onChanged: (v) => setState(() => _preBid = v)),
+                ],
+              ),
+              if (_farms.isEmpty) ...[
+                const Divider(height: 24),
+                const AutoTranslatedText('🏡  Your farm (one-time)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                _field(_farmName, 'Farm name'),
+                _field(_address, 'Address'),
+                _field(_city, 'Village / city'),
+                _field(_district, 'District'),
+                _field(_state, 'State'),
+                _field(_postal, 'PIN code', type: TextInputType.number),
               ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                AutoTranslatedText('🏅', style: TextStyle(fontSize: 16)),
-                const SizedBox(width: 8),
-                ...['Grade A', 'Grade B', 'Grade C'].map(
-                  (g) => Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      label: AutoTranslatedText(g.replaceAll('Grade ', ''), style: const TextStyle(fontSize: 12)),
-                      selected: _grade == g,
-                      onSelected: (_) => setState(() => _grade = g),
-                      selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.15),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                AutoTranslatedText('🌿', style: TextStyle(fontSize: 16)),
-                Switch(
-                  value: _organic,
-                  onChanged: (v) => setState(() => _organic = v),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            ElevatedButton(onPressed: _submit, child: AutoTranslatedText('✅  Submit lot')),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _saving ? null : _submit,
+                child: _saving
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const AutoTranslatedText('✅  Submit lot'),
+              ),
+            ],
           ],
         ),
       ),

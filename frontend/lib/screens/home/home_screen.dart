@@ -26,7 +26,7 @@ class HomeScreen extends StatelessWidget {
 
     return RefreshIndicator(
       color: AppTheme.primaryGreen,
-      onRefresh: () async => Future<void>.delayed(const Duration(milliseconds: 350)),
+      onRefresh: () => context.read<MarketProvider>().load(),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 900;

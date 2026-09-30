@@ -40,10 +40,17 @@ class ApiConfig {
   // will replace it. A later session edits only between its own two marker lines.
 
   // >>> listing >>>
+  // Old URL, not on the backend. Kept only because the bidding section below still builds on it (S27).
   static const String cropsEndpoint = '/api/crops';
+  static const String productListingsEndpoint = '/api/v2/product-listings';
+  static String productListingEndpoint(String publicId) => '$productListingsEndpoint/$publicId';
+  static const String cropTypesEndpoint = '/api/v2/crop-types';
+  static const String farmCropsEndpoint = '/api/v2/farm-crops';
+  static const String cropBatchesEndpoint = '/api/v2/crop-batches';
   // <<< listing <<<
 
   // >>> market >>>
+  // The market reads productListingsEndpoint (listing section above); it has no URL of its own.
   // <<< market <<<
 
   // >>> cart >>>
