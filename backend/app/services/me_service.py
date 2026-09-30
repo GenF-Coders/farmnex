@@ -61,10 +61,10 @@ class MeService:
         user = await self.user_service.get_my_profile(current_user=current_user)
 
         farms, _ = await self.farm_service.list_farms(user_id=user.id, offset=0, limit=limit)
-        products, _ = await self.product_listing_service.list(offset=0, limit=limit)
+        products, _ = await self.product_listing_service.list(current_user=current_user, only_mine=True, offset=0, limit=limit)
         bids, _ = await self.bid_service.list(offset=0, limit=limit)
         orders, _ = await self.order_service.list(offset=0, limit=limit)
-        batches, _ = await self.crop_batch_service.list(offset=0, limit=limit)
+        batches, _ = await self.crop_batch_service.list(current_user=current_user, offset=0, limit=limit)
         activities, _ = await self.activity_service.list(offset=0, limit=limit)
         waste, _ = await self.waste_record_service.list(offset=0, limit=limit)
         notifications, _ = await self.notification_service.list(offset=0, limit=limit)
