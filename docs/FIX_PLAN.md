@@ -122,13 +122,13 @@ ADMIN → allowed.
 
 ## P1 — Repo health and deployment
 
-### - [ ] F4. Delete junk files
+### - [x] F4. Delete junk files
 `backend/app.zip` (1.1 MB old copy of the backend with `__pycache__` and an old `api/v1`) and
 `backend/0.141` (empty file created by an unquoted `pip install fastapi>=0.141`). Use `git rm`.
 Add `*.zip` to `.gitignore`.
 **Check:** `git ls-files | grep -E "app.zip|0.141"` prints nothing.
 
-### - [ ] F5. Fix dependencies
+### - [x] F5. Fix dependencies
 `requirements.txt` has `psycopg2` (fails to build without Postgres dev tools — likely to break
 deploys) and `PyMySQL` (unused, the DB is Postgres). It pins `uvicorn==0.52.4` but `pyproject.toml`
 requires `uvicorn>=0.53` — they conflict. Remove `psycopg2` and `PyMySQL`, align uvicorn, and move
@@ -172,7 +172,7 @@ files. Keep `app/domain_model_registry.py` but import it from `app/main.py` so `
 every model.
 **Check:** `/docs` lists each route once; `grep -r main_complete` finds nothing.
 
-### - [ ] F11. Test setup + CI
+### - [x] F11. Test setup + CI
 Add `backend/tests/conftest.py` with a `TEST_DATABASE_URL` fixture (skip DB tests when unset), a
 test-user + token factory, and an `httpx.AsyncClient` against the app. Add
 `.github/workflows/backend-tests.yml` running pytest with a Postgres service container.
@@ -218,7 +218,7 @@ Skip for the prototype: refunds UI, partial deliveries, disputes, multiple curre
 **Check:** tests for each rule (double bid race, own-listing bid, total tampering, early release,
 release called twice pays once).
 
-### - [ ] F17. Load `.env` first and list component settings
+### - [x] F17. Load `.env` first and list component settings
 **Why:** our settings read `.env` themselves, but Crop Rescue, the route optimizer and the forecaster
 connector read the process environment directly. Locally they would silently miss their settings
 (the route optimizer then quietly uses a SQLite file). **What to do:** first two lines of
@@ -228,7 +228,7 @@ add one marked section per component (format: `PARALLEL_SESSIONS.md` §7) holdin
 each. Component sessions add any further variables inside their own section.
 **Check:** with `ROUTES_DATABASE_URL` only in `.env`, `python -c "import app.main, os; print(bool(os.getenv('ROUTES_DATABASE_URL')))"` prints `True`.
 
-### - [ ] F18. One crop list across the app and components
+### - [x] F18. One crop list across the app and components
 **Why:** each part supports different crops (the exact lists are in `docs/STATUS.md` → Verified
 facts). **Only tomato is in all four.** A demo with any other crop
 breaks halfway (e.g. an onion lot can't go into Crop Rescue).
@@ -257,18 +257,18 @@ Remove dead URLs from `api_config.dart` (`/api/crops`, `/api/ai/*`, `/api/rescue
 `core/payments/payment_gateway.dart` must not stay the default once real payments exist.
 **Check:** the screen shows backend data; airplane mode shows a friendly error + retry.
 
-### - [ ] F14. Store tokens securely
+### - [x] F14. Store tokens securely
 Move access/refresh tokens from `shared_preferences` to `flutter_secure_storage` (keep language and
 onboarding flags in shared_preferences). Migrate: read old keys once, save securely, delete old.
 **Check:** log in, restart the app → still logged in; old prefs keys are gone.
 
-### - [ ] F15. Made-up names in demo data
+### - [x] F15. Made-up names in demo data
 `bidding_provider.dart` (and possibly others) uses real company names like "Godrej Agrovet" and
 "Adani Wilmar" as "verified buyers". Replace with fictional names across `lib/`.
 **Check:** `grep -rniwE "godrej|adani|reliance|tata|itc|mahindra" frontend/lib` finds nothing.
 
-### - [ ] F16. One README per app
-`frontend/` has `README.md`, `README_original.md`, `README_FINAL.md`, `README_HTML_REBUILD.md`,
+### - [x] F16. One README per app
+*(Done 2026-09-29, S02: `CHANGES.md` content was judged stale and dropped.)* `frontend/` had `README.md`, `README_original.md`, `README_FINAL.md`, `README_HTML_REBUILD.md`,
 `CHANGES.md`, `LANGUAGE_AND_API_UPDATE.md`, `FARMNEX_V2_INTEGRATION.md`. Merge what's still true
 into `frontend/README.md`; delete the rest. Update the root `README.md` "run locally" section.
 **Check:** one README per folder; setup steps work on a fresh clone.

@@ -290,7 +290,7 @@ capabilities:
 
 ### Database
 
-- MySQL
+- PostgreSQL (Supabase)
 
 ### Maps & Logistics
 
@@ -324,7 +324,7 @@ capabilities:
               │               │                │
               ▼               ▼                ▼
         ┌──────────┐   ┌──────────────┐  ┌──────────────┐
-        │  MySQL   │   │   AI / ML    │  │ External APIs│
+        │ Postgres │   │   AI / ML    │  │ External APIs│
         │ Database │   │   Services   │  │ Maps/Weather │
         └──────────┘   └──────────────┘  └──────────────┘
 

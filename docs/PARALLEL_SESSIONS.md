@@ -91,6 +91,7 @@ S02) prepare "slots" in these files so later sessions only add to their own slot
 | `backend/app/core/*`, `backend/app/models/user.py` | nobody after S06 | Stop and ask |
 | `backend/migrations/` | per component number range (`010–019` Crop Rescue, `020–029` forecaster, `030–039` routes) | Only your range |
 | `frontend/pubspec.yaml` | S02 adds every planned package up front | Don't touch; ask the coordinator if you need a new package |
+| `.github/workflows/*` | S05 (`backend-tests.yml`); S02 added `flutter-check.yml` | Don't touch; ask the coordinator |
 | `frontend/lib/core/config/api_config.dart` | S02 creates a marked section per feature | Add URLs only in your section |
 | `frontend/lib/core/network/api_client.dart`, `storage_service.dart`, `main.dart` | S02 | Don't touch |
 | `frontend/lib/core/network/backend_service.dart` | nobody | New calls go in your own `lib/core/network/<feature>_api.dart` |
