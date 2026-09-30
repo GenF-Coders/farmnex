@@ -1,43 +1,36 @@
+/// One waste lot for sale (`waste-utilization-listings`). Money and quantity are kept as numbers.
 class WasteItem {
   final String id;
-  final String farmerName;
-  final String wasteType;
-  final String quantity;
-  final String location;
-  final String bestUse;
-  final String potentialIncome;
-  final String createdDate;
+  final String title;
+  final String utilizationType;
+  final double quantity;
+  final String unit;
+  final double price;
+  final String status;
+  final DateTime createdAt;
 
   const WasteItem({
     required this.id,
-    required this.farmerName,
-    required this.wasteType,
+    required this.title,
+    required this.utilizationType,
     required this.quantity,
-    required this.location,
-    required this.bestUse,
-    required this.potentialIncome,
-    required this.createdDate,
+    required this.unit,
+    required this.price,
+    required this.status,
+    required this.createdAt,
   });
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'farmerName': farmerName,
-        'wasteType': wasteType,
-        'quantity': quantity,
-        'location': location,
-        'bestUse': bestUse,
-        'potentialIncome': potentialIncome,
-        'createdDate': createdDate,
-      };
+  /// Price is per unit; the total is what the lot is worth.
+  double get total => price * quantity;
 
   factory WasteItem.fromJson(Map<String, dynamic> json) => WasteItem(
-        id: json['id'] as String,
-        farmerName: json['farmerName'] as String,
-        wasteType: json['wasteType'] as String,
-        quantity: json['quantity'] as String,
-        location: json['location'] as String,
-        bestUse: json['bestUse'] as String,
-        potentialIncome: json['potentialIncome'] as String,
-        createdDate: json['createdDate'] as String,
+        id: json['public_id'].toString(),
+        title: (json['title'] ?? '').toString(),
+        utilizationType: (json['utilization_type'] ?? '').toString(),
+        quantity: double.tryParse(json['quantity'].toString()) ?? 0,
+        unit: (json['unit'] ?? '').toString(),
+        price: double.tryParse(json['price'].toString()) ?? 0,
+        status: (json['status'] ?? '').toString(),
+        createdAt: DateTime.tryParse((json['created_at'] ?? '').toString()) ?? DateTime.now(),
       );
 }

@@ -1,87 +1,75 @@
 import 'package:flutter/material.dart';
+
+import '../core/network/farm_crop_api.dart';
+import '../core/network/waste_api.dart';
 import '../models/waste_model.dart';
 
+/// Waste lots from the backend. No demo data: an empty list means nobody has listed waste yet.
 class WasteProvider extends ChangeNotifier {
-  final List<WasteItem> _items = [];
+  final WasteApi _api = WasteApi();
+  final FarmCropApi _farms = FarmCropApi();
+
+  List<WasteItem> _items = [];
+  bool _isLoading = false;
   bool _isListing = false;
+  String? _error;
 
-  List<WasteItem> get items => _items;
+  List<WasteItem> get items => List.unmodifiable(_items);
+  bool get isLoading => _isLoading;
   bool get isListing => _isListing;
+  String? get error => _error;
 
-  WasteProvider() {
-    _initDefaultItems();
+  Future<void> load() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      _items = await _api.list();
+    } catch (e) {
+      _error = wasteErrorMessage(e);
+    }
+    _isLoading = false;
+    notifyListeners();
   }
 
-  void _initDefaultItems() {
-    _items.addAll([
-      const WasteItem(
-        id: 'w-1',
-        farmerName: 'Balasaheb Shinde',
-        wasteType: 'Paddy Straw (धान की पराली)',
-        quantity: '12 Tonnes',
-        location: 'Latur, Maharashtra',
-        bestUse: 'Bio-CNG & Thermal Pellets',
-        potentialIncome: '₹16,800 (@ ₹1,400/T)',
-        createdDate: 'Yesterday',
-      ),
-      const WasteItem(
-        id: 'w-2',
-        farmerName: 'Ramesh Patil',
-        wasteType: 'Sugarcane Bagasse (गन्ने की खोई)',
-        quantity: '25 Tonnes',
-        location: 'Indore Mandi Region, MP',
-        bestUse: 'Packaging Paper & Pulp',
-        potentialIncome: '₹37,500 (@ ₹1,500/T)',
-        createdDate: '2 Days ago',
-      ),
-      const WasteItem(
-        id: 'w-3',
-        farmerName: 'Sanjay Jadhav',
-        wasteType: 'Corn Stalks (मक्के के डंठल)',
-        quantity: '8 Tonnes',
-        location: 'Nashik, Maharashtra',
-        bestUse: 'Compressed Animal Fodder Pellets',
-        potentialIncome: '₹9,600 (@ ₹1,200/T)',
-        createdDate: '3 Days ago',
-      ),
-    ]);
+  /// Forget everything (someone logged out / another user logged in).
+  void clear() {
+    _items = [];
+    _error = null;
+    notifyListeners();
   }
 
-  Future<bool> createWasteListing({
-    required String farmerName,
+  /// Lists the waste on the farmer's first farm. Returns null on success, else a message for the screen.
+  Future<String?> createWasteListing({
     required String wasteType,
-    required String quantity,
-    required String location,
-    required String bestUse,
-    required String potentialIncome,
-    String? mediaPath,
+    required String utilizationType,
+    required double quantity,
+    required String unit,
+    required double pricePerUnit,
   }) async {
     _isListing = true;
     notifyListeners();
-
+    String? problem;
     try {
-
-      await Future.delayed(const Duration(milliseconds: 700));
-
-      final newItem = WasteItem(
-        id: 'w-${DateTime.now().millisecondsSinceEpoch}',
-        farmerName: farmerName,
-        wasteType: wasteType,
-        quantity: quantity,
-        location: location,
-        bestUse: bestUse,
-        potentialIncome: potentialIncome,
-        createdDate: 'Just now',
-      );
-
-      _items.insert(0, newItem);
-      _isListing = false;
-      notifyListeners();
-      return true;
+      final farms = await _farms.listMyFarms();
+      if (farms.isEmpty) {
+        problem = 'Add a farm first (My Crops), then list your waste.';
+      } else {
+        final item = await _api.create(
+          farmId: farms.first.publicId,
+          wasteType: wasteType,
+          utilizationType: utilizationType,
+          quantity: quantity,
+          unit: unit,
+          pricePerUnit: pricePerUnit,
+        );
+        _items = [item, ..._items];
+      }
     } catch (e) {
-      _isListing = false;
-      notifyListeners();
-      return false;
+      problem = wasteErrorMessage(e);
     }
+    _isListing = false;
+    notifyListeners();
+    return problem;
   }
 }

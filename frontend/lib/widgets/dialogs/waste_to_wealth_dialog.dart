@@ -17,8 +17,11 @@ class WasteToWealthDialog extends StatefulWidget {
 
 class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
   String _selectedWasteType = 'Paddy Straw (धान की पराली)';
-  final _quantityController = TextEditingController(text: '10 Tonnes');
-  final _locationController = TextEditingController(text: 'Indore, Madhya Pradesh');
+  final _quantityController = TextEditingController(text: '10');
+  final _priceController = TextEditingController(text: '1400');
+  String _unit = 'Tonnes';
+  String _bestUse = 'Bio-CNG & Thermal Pellets';
+  String? _error;
   PlatformFile? _mediaFile;
   bool _showSuccess = false;
 
@@ -32,10 +35,27 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
     'Fruit & Vegetable Pulp (फलों का गूदा)',
   ];
 
+  final List<String> _units = const ['Tonnes', 'Quintal', 'Kg'];
+  final List<String> _bestUses = const [
+    'Bio-CNG & Thermal Pellets',
+    'Packaging Paper & Pulp',
+    'Animal Fodder Pellets',
+    'Compost & Bio-manure',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Load the lots the moment the dialog opens (only if we haven't got any yet).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<WasteProvider>().load();
+    });
+  }
+
   @override
   void dispose() {
     _quantityController.dispose();
-    _locationController.dispose();
+    _priceController.dispose();
     super.dispose();
   }
 
@@ -60,19 +80,26 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
       actionType: 'waste',
       actionReason: 'Please sign in to list crop residue and connect with bio-fuel buyers',
       onAuthenticated: () async {
-        final success = await waste.createWasteListing(
-          farmerName: auth.user?.name ?? 'Verified Farmer',
+        final quantity = double.tryParse(_quantityController.text.trim());
+        final price = double.tryParse(_priceController.text.trim());
+        if (quantity == null || quantity <= 0 || price == null || price < 0) {
+          setState(() => _error = 'Enter the quantity and the price per $_unit as numbers.');
+          return;
+        }
+        setState(() => _error = null);
+        final problem = await waste.createWasteListing(
           wasteType: _selectedWasteType,
-          quantity: _quantityController.text.trim(),
-          location: _locationController.text.trim(),
-          bestUse: 'Bio-CNG & Compressed Thermal Pellets',
-          potentialIncome: '₹14,000 (@ ₹1,400/T)',
-          mediaPath: _mediaFile?.path,
+          utilizationType: _bestUse,
+          quantity: quantity,
+          unit: _unit,
+          pricePerUnit: price,
         );
+        final success = problem == null;
+        if (!success && mounted) setState(() => _error = problem);
 
-        if (_mediaFile != null) {
+        if (success && _mediaFile != null && mounted) {
           context.read<CropMediaProvider>().addFiles(
-            cropId: 'waste:${_selectedWasteType}',
+            cropId: 'waste:$_selectedWasteType',
             cropName: _selectedWasteType,
             farmerName: auth.user?.name ?? 'Farmer',
             files: [_mediaFile!],
@@ -88,6 +115,8 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
       },
     );
   }
+
+  static String _num(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +212,7 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
                           SizedBox(width: 8),
                           Expanded(
                             child: AutoTranslatedText(
-                              'Listing created! 3 Biofuel processing units within 45km notified.',
+                              'Listing created! Buyers can now see your waste lot.',
                               style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -214,23 +243,39 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
                           onChanged: (val) => setState(() => _selectedWasteType = val!),
                         ),
                         const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: _bestUse,
+                          decoration: const InputDecoration(labelText: 'Best use'),
+                          items: _bestUses.map((u) => DropdownMenuItem(value: u, child: AutoTranslatedText(u, style: const TextStyle(fontSize: 13)))).toList(),
+                          onChanged: (val) => setState(() => _bestUse = val!),
+                        ),
+                        const SizedBox(height: 12),
 
                         Row(
                           children: [
                             Expanded(
                               child: TextFormField(
                                 controller: _quantityController,
-                                decoration: const InputDecoration(labelText: 'Quantity (e.g. 10 Tonnes)'),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(labelText: 'Quantity'),
                               ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: TextFormField(
-                                controller: _locationController,
-                                decoration: const InputDecoration(labelText: 'Mandi / Village Location'),
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _unit,
+                                decoration: const InputDecoration(labelText: 'Unit'),
+                                items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                                onChanged: (val) => setState(() => _unit = val!),
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _priceController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(labelText: 'Price per $_unit (₹)'),
                         ),
                         const SizedBox(height: 12),
 
@@ -268,6 +313,10 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
                             ),
                           ),
                         ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 10),
+                          AutoTranslatedText(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFB91C1C), fontWeight: FontWeight.w600)),
+                        ],
                         const SizedBox(height: 16),
 
                         ElevatedButton(
@@ -284,6 +333,12 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
                   AutoTranslatedText('Available Residue Lots in Your APMC Circle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
 
+                  if (waste.isLoading && waste.items.isEmpty)
+                    const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))
+                  else if (waste.error != null && waste.items.isEmpty)
+                    AutoTranslatedText(waste.error!, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted))
+                  else if (waste.items.isEmpty)
+                    const AutoTranslatedText('No waste lots listed yet. Be the first!', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
                   ...waste.items.map((item) => Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(14),
@@ -308,9 +363,9 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  AutoTranslatedText(item.wasteType, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                  AutoTranslatedText(item.title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 2),
-                                  AutoTranslatedText('${item.quantity} • ${item.location} • By ${item.farmerName}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                                  AutoTranslatedText('${_num(item.quantity)} ${item.unit} • ₹${_num(item.price)} per ${item.unit}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
                                   const SizedBox(height: 6),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -321,9 +376,9 @@ class _WasteToWealthDialogState extends State<WasteToWealthDialog> {
                                           color: const Color(0xFFECFDF5),
                                           borderRadius: BorderRadius.circular(6),
                                         ),
-                                        child: AutoTranslatedText(item.bestUse, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
+                                        child: AutoTranslatedText(item.utilizationType, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
                                       ),
-                                      AutoTranslatedText(item.potentialIncome, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF166534))),
+                                      AutoTranslatedText('₹${_num(item.total)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF166534))),
                                     ],
                                   ),
                                 ],
