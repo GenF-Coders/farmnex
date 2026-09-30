@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 DEMO_PROVIDER = "DEMO"
 BID_ADVANCE_SHARE = Decimal("0.20")
 UNPAID_ORDER_MINUTES = 30
+# Only orders placed after S20 was built expire: older ones could never be paid (no Pay route yet),
+# so the first timer run must not cancel rows that are already in the live database.
+EXPIRY_STARTS_AT = datetime(2026, 9, 30, 15, 0, tzinfo=timezone.utc)
+# Orders made by accepting a bid (S19: order_number "BID-...") never expire - they have the advance.
+BID_ORDER_PREFIX = "BID-"
 TIMER_SECONDS = 300
 PAYABLE_ORDER_STATUSES = {"PLACED", "CONFIRMED"}
 MONEY = Decimal("0.01")
@@ -149,6 +154,8 @@ class WalletService:
                 amount=extra, currency=order.currency, idempotency_key=f"REFUND:EXTRA:{order.public_id}",
             )
         if entry is None:
+            if extra > 0:  # nothing left to release (every item cancelled): it all went back
+                await self.repository.set_payment_status(order.id, from_status="HELD", to_status="REFUNDED")
             return None
         await self.repository.set_payment_status(order.id, from_status="HELD", to_status="RELEASED")
         return released
@@ -206,8 +213,11 @@ class WalletService:
 
 def _is_expired(order: Order, now: datetime | None = None) -> bool:
     placed = order.placed_at or order.created_at
-    return order.status == "PLACED" and placed is not None and placed < (now or _now()) - timedelta(
-        minutes=UNPAID_ORDER_MINUTES
+    return (
+        order.status == "PLACED"
+        and not order.order_number.startswith(BID_ORDER_PREFIX)
+        and placed is not None
+        and EXPIRY_STARTS_AT <= placed < (now or _now()) - timedelta(minutes=UNPAID_ORDER_MINUTES)
     )
 
 
@@ -268,7 +278,11 @@ async def run_wallet_jobs(now: datetime | None = None) -> tuple[int, int]:
     now = now or _now()
     async with AsyncSessionLocal() as session:
         repository = WalletRepository(session)
-        unpaid = await repository.unpaid_placed_orders(now - timedelta(minutes=UNPAID_ORDER_MINUTES))
+        unpaid = await repository.unpaid_placed_orders(
+            now - timedelta(minutes=UNPAID_ORDER_MINUTES),
+            placed_after=EXPIRY_STARTS_AT,
+            skip_order_prefix=BID_ORDER_PREFIX,
+        )
     expired = await _one_order_each(unpaid, "expiry", lambda s, order_id: s.expire_if_unpaid(order_id, now))
 
     async with AsyncSessionLocal() as session:

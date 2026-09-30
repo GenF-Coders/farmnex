@@ -60,15 +60,25 @@ def test_ledger_table_is_registered_with_a_unique_key():
 
 
 def test_expiry_rule():
-    from app.services.wallet_service import _is_expired
+    from app.services.wallet_service import EXPIRY_STARTS_AT, _is_expired
 
-    now = datetime.now(timezone.utc)
-    order = lambda status, minutes: SimpleNamespace(  # noqa: E731
-        status=status, placed_at=now - timedelta(minutes=minutes), created_at=now
+    now = EXPIRY_STARTS_AT + timedelta(days=1)
+    order = lambda status, minutes, number="CHK-1-1": SimpleNamespace(  # noqa: E731
+        status=status, placed_at=now - timedelta(minutes=minutes), created_at=now, order_number=number
     )
     assert _is_expired(order("PLACED", 31), now)
     assert not _is_expired(order("PLACED", 29), now)
     assert not _is_expired(order("CONFIRMED", 60), now)
+    assert not _is_expired(order("PLACED", 60, "BID-ABC"), now)  # bid orders never expire
+    assert not _is_expired(order("PLACED", 60 * 24 * 2), now)  # placed before S20: left alone
+
+
+@pytest.fixture(autouse=True)
+def _expiry_from_long_ago(monkeypatch):
+    """The DB tests place orders 'N minutes ago'; let the expiry start well before that."""
+    import app.services.wallet_service as wallet_service
+
+    monkeypatch.setattr(wallet_service, "EXPIRY_STARTS_AT", datetime(2000, 1, 1, tzinfo=timezone.utc))
 
 
 async def test_wallet_and_pay_need_login(client):
@@ -171,6 +181,20 @@ async def _set_order(order_id, **values) -> None:
 
     async with AsyncSessionLocal() as session:
         await session.execute(update(Order).where(Order.public_id == uuid.UUID(str(order_id))).values(**values))
+        await session.commit()
+
+
+async def _delete_ledger(order_id) -> None:
+    """Test DB only: make an order look like it was made before the wallet existed."""
+    from sqlalchemy import delete
+
+    from app.core.database import AsyncSessionLocal
+    from app.models.wallet_ledger import WalletLedgerEntry
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            delete(WalletLedgerEntry).where(WalletLedgerEntry.order_public_id == uuid.UUID(str(order_id)))
+        )
         await session.commit()
 
 
@@ -400,6 +424,23 @@ async def test_bid_order_with_advance_never_expires(client, make_token, won_bid)
     from app.services.wallet_service import run_wallet_jobs
 
     await _set_order(won_bid["order"], placed_at=_ago(120))
+    assert await run_wallet_jobs() == (0, 0)
+    assert await _order_status(won_bid["order"]) == "PLACED"
+
+
+async def test_orders_from_before_s20_are_left_alone(client, make_token, shop, won_bid, monkeypatch):
+    """The first timer run after the deploy must not cancel rows already in the live database:
+    orders placed before EXPIRY_STARTS_AT, and bid orders from S19 that have no advance."""
+    import app.services.wallet_service as wallet_service
+    from app.services.wallet_service import run_wallet_jobs
+
+    await _set_order(shop["order"], placed_at=_ago(120))
+    monkeypatch.setattr(wallet_service, "EXPIRY_STARTS_AT", datetime.now(timezone.utc) - timedelta(minutes=60))
+    assert await run_wallet_jobs() == (0, 0)  # placed before the start
+    assert await _order_status(shop["order"]) == "PLACED"
+
+    await _delete_ledger(won_bid["order"])  # like an S19 order: accepted before the wallet existed
+    await _set_order(won_bid["order"], placed_at=_ago(40))
     assert await run_wallet_jobs() == (0, 0)
     assert await _order_status(won_bid["order"]) == "PLACED"
 

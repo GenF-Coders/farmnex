@@ -105,16 +105,22 @@ class WalletRepository:
         result = await self.db.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
-    async def unpaid_placed_orders(self, placed_before: datetime, *, limit: int = 100) -> list[UUID]:
-        """PLACED orders placed before the cut-off with no HOLD at all (never paid)."""
+    async def unpaid_placed_orders(
+        self, placed_before: datetime, *, placed_after: datetime, skip_order_prefix: str, limit: int = 100
+    ) -> list[UUID]:
+        """PLACED orders placed between the two times with no HOLD at all (never paid), leaving out
+        order numbers that start with `skip_order_prefix`."""
         paid = exists().where(
             WalletLedgerEntry.order_public_id == Order.public_id, WalletLedgerEntry.entry_type == "HOLD"
         )
+        placed = func.coalesce(Order.placed_at, Order.created_at)
         result = await self.db.execute(
             select(Order.public_id)
             .where(
                 Order.status == "PLACED",
-                func.coalesce(Order.placed_at, Order.created_at) < placed_before,
+                placed >= placed_after,
+                placed < placed_before,
+                ~Order.order_number.startswith(skip_order_prefix, autoescape=True),
                 ~paid,
             )
             .order_by(Order.id)
