@@ -114,7 +114,7 @@ class BiddingProvider extends ChangeNotifier {
     final buyers = [
       {'name': 'Kishanlal Agro Export', 'buyer': 'Manoj Agarwal'},
       {'name': 'Harvest Link Logistics', 'buyer': 'Sunil Rao'},
-      {'name': 'Choupal Trade Hub', 'buyer': 'Anand Mishra'},
+      {'name': 'Green Valley Trade Hub', 'buyer': 'Anand Mishra'},
       {'name': 'South India Millers Co', 'buyer': 'K. Venkatesan'},
     ];
     final chosen = buyers[Random().nextInt(buyers.length)];
