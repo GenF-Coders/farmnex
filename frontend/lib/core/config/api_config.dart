@@ -76,8 +76,9 @@ class ApiConfig {
   // <<< rescue <<<
 
   // >>> forecast >>>
-  static const String aiPricePredictionEndpoint = '/api/ai/price-prediction';
-  static String cropPricePredictionEndpoint(String cropId) => '$aiPricePredictionEndpoint/$cropId';
+  static const String forecastMetaEndpoint = '/api/v2/forecast/meta';
+  static const String forecastPriceEndpoint = '/api/v2/forecast/price';
+  static const String forecastDemandEndpoint = '/api/v2/forecast/demand';
   // <<< forecast <<<
 
   // >>> logistics >>>
