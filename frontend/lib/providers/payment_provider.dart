@@ -1,275 +1,153 @@
 import 'package:flutter/material.dart';
 
-import '../core/payments/payment_gateway.dart';
-import '../models/payment_model.dart';
+import '../core/network/order_api.dart';
+import '../core/network/payment_api.dart';
+import '../models/order_model.dart';
 
+/// Orders, Pay (demo) and the demo wallet, all read from the backend. No real money moves: the
+/// server works out every amount, holds it until delivery and releases it to the farmer.
 class PaymentProvider extends ChangeNotifier {
-  PaymentProvider({PaymentGateway? gateway})
-      : _gateway = gateway ?? RazorpaySandboxGateway();
+  PaymentProvider({OrderApi? orderApi, PaymentApi? paymentApi})
+      : _orderApi = orderApi ?? OrderApi(),
+        _paymentApi = paymentApi ?? PaymentApi();
 
-  final PaymentGateway _gateway;
+  final OrderApi _orderApi;
+  final PaymentApi _paymentApi;
 
-  double _walletBalance = 12450;
+  List<OrderModel> _orders = [];
+  WalletSummary _wallet = const WalletSummary();
+  bool _isLoading = false;
   bool _isProcessing = false;
   String? _lastError;
-  PaymentResult? _lastResult;
 
-  final List<OrderRecord> _orders = [];
-  final List<WalletTxn> _ledger = [
-    WalletTxn(
-      id: 'txn-seed-1',
-      symbol: '🌾',
-      title: 'Wheat settlement • Indore APMC',
-      amount: 36750,
-      timestamp: DateTime.now().subtract(const Duration(days: 4)),
-      status: PaymentStatus.released,
-    ),
-    WalletTxn(
-      id: 'txn-seed-2',
-      symbol: '🚚',
-      title: 'Freight paid • Latur ➜ Pune',
-      amount: -4200,
-      timestamp: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    WalletTxn(
-      id: 'txn-seed-3',
-      symbol: '🏦',
-      title: 'Bank withdrawal • SBI ••4412',
-      amount: -20100,
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-  ];
-
-  String get gatewayName => _gateway.displayName;
-  double get walletBalance => _walletBalance;
+  bool get isLoading => _isLoading;
   bool get isProcessing => _isProcessing;
   String? get lastError => _lastError;
-  PaymentResult? get lastResult => _lastResult;
 
-  List<WalletTxn> get ledger =>
-      List.unmodifiable(_ledger..sort((a, b) => b.timestamp.compareTo(a.timestamp)));
+  List<OrderModel> get orders => List.unmodifiable(_orders);
+  WalletSummary get wallet => _wallet;
 
-  List<OrderRecord> get orders => List.unmodifiable(_orders);
+  /// Money released to me on delivery (the profile card calls this the wallet balance).
+  double get walletBalance => _wallet.received;
 
-  List<OrderRecord> ordersForBuyer(String buyerName) =>
-      _orders.where((o) => o.buyerName == buyerName).toList();
+  /// Money held until delivery: what I paid plus what is held for my sales.
+  double get moneyInEscrow => _wallet.heldFromMe + _wallet.heldForMe;
 
-  List<OrderRecord> ordersForFarmer(String farmerName) =>
-      _orders.where((o) => o.farmerName == farmerName).toList();
+  double get lifetimeSettled => _wallet.received;
 
-  double get moneyInEscrow => _orders
-      .where((o) => o.paymentStatus == PaymentStatus.escrowHeld)
-      .fold<double>(0, (sum, o) => sum + o.totalPaid);
+  String orderNumberFor(String orderId) {
+    for (final o in _orders) {
+      if (o.publicId == orderId) return o.orderNumber;
+    }
+    return '';
+  }
 
-  double get lifetimeSettled => _orders
-      .where((o) => o.paymentStatus == PaymentStatus.released)
-      .fold<double>(0, (sum, o) => sum + o.totalPaid);
+  /// Reload orders, their items, my payments and the wallet. `keepOld` keeps what is on screen while
+  /// refreshing; a first load clears it so one person never sees another person's data.
+  Future<void> load({bool keepOld = false}) async {
+    _isLoading = true;
+    _lastError = null;
+    if (!keepOld) {
+      _orders = [];
+      _wallet = const WalletSummary();
+    }
+    notifyListeners();
+    try {
+      final results = await Future.wait<dynamic>([
+        _orderApi.list(),
+        _orderApi.itemsByOrder(),
+        _paymentApi.list(),
+        _paymentApi.wallet(),
+      ]);
+      final orders = results[0] as List<OrderModel>;
+      final items = results[1] as Map<String, List<OrderLine>>;
+      final payments = results[2] as List<PaymentReceipt>;
+      _wallet = results[3] as WalletSummary;
 
-  double maxWalletApplicable(double billTotal) =>
-      _walletBalance < billTotal ? _walletBalance : billTotal;
+      final paymentStatus = <String, String>{};
+      for (final p in payments) {
+        final current = paymentStatus[p.orderId];
+        if (_rank(p.status) > _rank(current)) paymentStatus[p.orderId] = p.status;
+      }
+      _orders = [
+        for (final o in orders)
+          o.withDetails(lines: items[o.publicId] ?? const [], paymentStatus: paymentStatus[o.publicId]),
+      ];
+    } catch (e) {
+      _lastError = orderErrorMessage(e);
+      if (!keepOld) {
+        _orders = [];
+        _wallet = const WalletSummary();
+      }
+    }
+    _isLoading = false;
+    notifyListeners();
+  }
 
-  Future<PaymentResult> pay({
-    required PaymentIntent intent,
-    required PaymentMethod method,
-    Map<String, String> instrument = const {},
-    required OrderRecord Function(PaymentResult result) buildOrder,
-  }) async {
+  static int _rank(String? status) {
+    switch (status) {
+      case 'RELEASED':
+        return 3;
+      case 'REFUNDED':
+        return 2;
+      case 'HELD':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  /// Step 1 of checkout: the server turns the cart into orders (one per farmer). Returns null and
+  /// sets [lastError] if it could not.
+  Future<List<OrderModel>?> placeOrders(List<({String listingId, num quantity})> lines) async {
     _isProcessing = true;
     _lastError = null;
     notifyListeners();
-
-    PaymentResult result;
-
-    if (method == PaymentMethod.wallet) {
-
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-      if (_walletBalance + 0.001 < intent.amount) {
-        result = PaymentResult.failure(
-          method: method,
-          amount: intent.amount,
-          message: '⚠️ Wallet short by ₹${(intent.amount - _walletBalance).toStringAsFixed(0)}. Pick another method.',
-        );
-      } else {
-        _walletBalance -= intent.amount;
-        result = PaymentResult(
-          success: true,
-          transactionId: 'WLT${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}',
-          status: intent.useEscrow ? PaymentStatus.escrowHeld : PaymentStatus.success,
-          method: method,
-          amount: intent.amount,
-          message: '👛 ₹${intent.amount.toStringAsFixed(0)} paid from wallet.',
-        );
-      }
-    } else if (method == PaymentMethod.cod) {
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      result = PaymentResult(
-        success: true,
-        transactionId: 'COD${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}',
-        status: PaymentStatus.pending,
-        method: method,
-        amount: intent.amount,
-        message: '💵 Pay ₹${intent.amount.toStringAsFixed(0)} at the mandi gate on delivery.',
-      );
-    } else {
-      result = await _gateway.charge(
-        intent: intent,
-        method: method,
-        instrument: instrument,
-      );
-
-      if (result.success && intent.breakdown.walletApplied > 0) {
-        _walletBalance -= intent.breakdown.walletApplied;
-      }
+    try {
+      return await _orderApi.checkout(lines);
+    } catch (e) {
+      _lastError = orderErrorMessage(e);
+      return null;
+    } finally {
+      _isProcessing = false;
+      notifyListeners();
     }
-
-    if (result.success) {
-      final order = buildOrder(result);
-      _orders.insert(0, order);
-      _ledger.add(
-        WalletTxn(
-          id: result.transactionId ?? 'txn-${DateTime.now().millisecondsSinceEpoch}',
-          symbol: method.symbol,
-          title: '${order.emoji} ${order.cropName} • ${method.label}',
-          amount: method == PaymentMethod.cod ? 0 : -result.amount,
-          timestamp: result.completedAt,
-          status: result.status,
-          referenceOrderId: order.id,
-        ),
-      );
-    } else {
-      _lastError = result.message;
-    }
-
-    _lastResult = result;
-    _isProcessing = false;
-    notifyListeners();
-    return result;
   }
 
-  void releaseEscrow(String orderId) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
-    if (index == -1) return;
-    final order = _orders[index];
-    if (order.paymentStatus != PaymentStatus.escrowHeld) return;
-
-    _orders[index] = order.copyWith(
-      paymentStatus: PaymentStatus.released,
-      deliveryStatus: 'delivered',
-    );
-    _walletBalance += order.totalPaid;
-    _ledger.add(
-      WalletTxn(
-        id: 'rel-${order.id}',
-        symbol: '✅',
-        title: '${order.emoji} Escrow released • ${order.cropName}',
-        amount: order.totalPaid,
-        timestamp: DateTime.now(),
-        status: PaymentStatus.released,
-        referenceOrderId: order.id,
-      ),
-    );
-    notifyListeners();
-  }
-
-  Future<void> refundOrder(String orderId) async {
-    final index = _orders.indexWhere((o) => o.id == orderId);
-    if (index == -1) return;
-    final order = _orders[index];
-
-    final result = await _gateway.refund(
-      transactionId: order.transactionId ?? order.id,
-      amount: order.totalPaid,
-      method: order.method,
-    );
-    if (!result.success) return;
-
-    _orders[index] = order.copyWith(paymentStatus: PaymentStatus.refunded);
-    _walletBalance += order.totalPaid;
-    _ledger.add(
-      WalletTxn(
-        id: 'rfd-${order.id}',
-        symbol: '↩️',
-        title: '${order.emoji} Refund • ${order.cropName}',
-        amount: order.totalPaid,
-        timestamp: DateTime.now(),
-        status: PaymentStatus.refunded,
-        referenceOrderId: order.id,
-      ),
-    );
-    notifyListeners();
-  }
-
-  void markInTransit(String orderId) {
-    final index = _orders.indexWhere((o) => o.id == orderId);
-    if (index == -1) return;
-    _orders[index] = _orders[index].copyWith(deliveryStatus: 'in_transit');
-    notifyListeners();
-  }
-
-  Future<bool> topUp(double amount, PaymentMethod method) async {
-    if (amount <= 0) return false;
+  /// Step 2: Pay (demo) one order. Paying twice returns the same payment.
+  Future<PaymentReceipt?> payOrder(String orderId) async {
     _isProcessing = true;
+    _lastError = null;
     notifyListeners();
-
-    final result = await _gateway.charge(
-      intent: PaymentIntent(
-        id: 'topup-${DateTime.now().millisecondsSinceEpoch}',
-        orderId: '-',
-        title: 'Wallet top-up',
-        symbol: '👛',
-        breakdown: MoneyBreakdown(subtotal: amount),
-        payerId: 'self',
-        payeeName: 'FarmNex Wallet',
-        useEscrow: false,
-      ),
-      method: method,
-      instrument: const {'vpa': 'demo@ybl', 'number': '4111111111111111'},
-    );
-
-    if (result.success) {
-      _walletBalance += amount;
-      _ledger.add(
-        WalletTxn(
-          id: result.transactionId ?? 'top-${DateTime.now().millisecondsSinceEpoch}',
-          symbol: '➕',
-          title: 'Wallet top-up • ${method.label}',
-          amount: amount,
-          timestamp: DateTime.now(),
-        ),
-      );
-    } else {
-      _lastError = result.message;
+    try {
+      final receipt = await _paymentApi.payDemo(orderId, idempotencyKey: 'pay-$orderId');
+      return receipt;
+    } catch (e) {
+      _lastError = paymentErrorMessage(e);
+      return null;
+    } finally {
+      _isProcessing = false;
+      notifyListeners();
     }
-
-    _isProcessing = false;
-    notifyListeners();
-    return result.success;
   }
 
-  Future<bool> withdrawToBank(double amount) async {
-    if (amount <= 0 || amount > _walletBalance) {
-      _lastError = '⚠️ Amount exceeds wallet balance.';
+  /// The buyer cancels an order that is still waiting for payment. Returns true when it worked.
+  Future<bool> cancelOrder(String orderId) async {
+    _lastError = null;
+    try {
+      await _orderApi.cancel(orderId);
+    } catch (e) {
+      _lastError = orderErrorMessage(e);
       notifyListeners();
       return false;
     }
-    _isProcessing = true;
-    notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-
-    _walletBalance -= amount;
-    _ledger.add(
-      WalletTxn(
-        id: 'wd-${DateTime.now().millisecondsSinceEpoch}',
-        symbol: '🏦',
-        title: 'Withdrawal to bank • IMPS',
-        amount: -amount,
-        timestamp: DateTime.now(),
-      ),
-    );
-    _isProcessing = false;
-    notifyListeners();
+    await load(keepOld: true);
     return true;
   }
+
+  /// Kept so older callers compile. Money is released by the server when the driver finishes the
+  /// last stop, never from the app.
+  void releaseEscrow(String orderId) {}
 
   void clearError() {
     _lastError = null;

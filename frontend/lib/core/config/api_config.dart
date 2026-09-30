@@ -54,9 +54,16 @@ class ApiConfig {
   // <<< market <<<
 
   // >>> cart >>>
+  // The cart lives in the app; "check out" is a POST on ordersEndpoint (payment section below).
   // <<< cart <<<
 
   // >>> payment >>>
+  static const String ordersEndpoint = '/api/v2/orders';
+  static String orderEndpoint(String publicId) => '$ordersEndpoint/$publicId';
+  static const String orderItemsEndpoint = '/api/v2/order-items';
+  static const String paymentsEndpoint = '/api/v2/payments';
+  static const String walletEndpoint = '/api/v2/payments/wallet';
+  static String payDemoEndpoint(String orderId) => '$paymentsEndpoint/orders/$orderId/pay-demo';
   // <<< payment <<<
 
   // >>> bidding >>>

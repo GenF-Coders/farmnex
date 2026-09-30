@@ -3,118 +3,122 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../models/payment_model.dart';
+import '../../models/order_model.dart';
 import '../../providers/payment_provider.dart';
 import '../../widgets/symbol_widgets.dart';
 
-class WalletScreen extends StatelessWidget {
+/// The demo wallet: money held for deliveries, money released to me and refunds, straight from the
+/// server's ledger. There is no Top up or Withdraw: no real money moves in this prototype.
+class WalletScreen extends StatefulWidget {
   final bool asTab;
 
   const WalletScreen({super.key, this.asTab = true});
+
+  @override
+  State<WalletScreen> createState() => _WalletScreenState();
+}
+
+class _WalletScreenState extends State<WalletScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<PaymentProvider>().load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final payments = context.watch<PaymentProvider>();
     final body = _buildBody(context, payments);
 
-    if (asTab) return body;
+    if (widget.asTab) return body;
     return Scaffold(
-      appBar: AppBar(title: AutoTranslatedText('👛  Wallet')),
+      appBar: AppBar(title: const AutoTranslatedText('👛  Wallet')),
       body: body,
     );
   }
 
   Widget _buildBody(BuildContext context, PaymentProvider payments) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    if (payments.isLoading && payments.wallet.entries.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (payments.lastError != null && payments.wallet.entries.isEmpty) {
+      return SymbolEmptyState(
+        symbol: '⚠️',
+        message: payments.lastError!,
+        actionLabel: '🔄  Try again',
+        onAction: () => payments.load(),
+      );
+    }
 
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF166534), Color(0xFF0F766E)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    final wallet = payments.wallet;
+    return RefreshIndicator(
+      onRefresh: () => payments.load(keepOld: true),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF166534), Color(0xFF0F766E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
             ),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  AutoTranslatedText('👛', style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 8),
-                  AutoTranslatedText(
-                    'Balance',
-                    style: TextStyle(fontSize: 12, color: Color(0xFFBBF7D0), fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              AutoTranslatedText(
-                formatRupees(payments.walletBalance),
-                style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Colors.white),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _heroStat('🔒', formatRupeesShort(payments.moneyInEscrow), 'In escrow'),
-                  ),
-                  Container(width: 1, height: 32, color: Colors.white24),
-                  Expanded(
-                    child: _heroStat('✅', formatRupeesShort(payments.lifetimeSettled), 'Settled'),
-                  ),
-                  Container(width: 1, height: 32, color: Colors.white24),
-                  Expanded(
-                    child: _heroStat('📦', '${payments.orders.length}', 'Orders'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        Row(
-          children: [
-            Expanded(
-              child: SymbolAction(
-                symbol: '➕',
-                label: 'Top-up',
-                onTap: () => _showTopUpSheet(context, payments),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SymbolAction(
-                symbol: '🏦',
-                label: 'Withdraw',
-                color: AppTheme.accentTeal,
-                onTap: () => _showWithdrawSheet(context, payments),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SymbolAction(
-                symbol: '📄',
-                label: 'Statement',
-                color: AppTheme.accentAmber,
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: AutoTranslatedText('📧 Statement emailed as PDF.')),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    AutoTranslatedText('👛', style: TextStyle(fontSize: 20)),
+                    SizedBox(width: 8),
+                    AutoTranslatedText(
+                      'Received (demo)',
+                      style: TextStyle(fontSize: 12, color: Color(0xFFBBF7D0), fontWeight: FontWeight.w700),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                AutoTranslatedText(
+                  formatRupees(wallet.received),
+                  style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(child: _heroStat('🔒', formatRupeesShort(wallet.heldFromMe), 'You paid, held')),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    Expanded(child: _heroStat('🌾', formatRupeesShort(wallet.heldForMe), 'Held for you')),
+                    Container(width: 1, height: 32, color: Colors.white24),
+                    Expanded(child: _heroStat('↩️', formatRupeesShort(wallet.refunded), 'Refunded')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          const AutoTranslatedText(
+            'Demo wallet: no real money moves. Money is held until an order is delivered, then paid to the farmer.',
+            style: TextStyle(fontSize: 10.5, color: AppTheme.textMuted, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 20),
+          const SectionHeader(symbol: '📜', title: 'Ledger'),
+          if (wallet.entries.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: AutoTranslatedText(
+                'Nothing yet. Payments and releases will appear here.',
+                style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        const SectionHeader(symbol: '📜', title: 'Ledger'),
-        ...payments.ledger.map((txn) => _txnTile(txn)),
-        const SizedBox(height: 20),
-      ],
+          ...wallet.entries.map((entry) => _entryTile(payments, entry)),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
@@ -129,8 +133,35 @@ class WalletScreen extends StatelessWidget {
     );
   }
 
-  Widget _txnTile(WalletTxn txn) {
-    final credit = txn.isCredit;
+  static String _entryTitle(WalletEntry entry, String orderNumber) {
+    final order = orderNumber.isEmpty ? '' : ' • $orderNumber';
+    switch (entry.type) {
+      case 'HOLD':
+        return 'Held for delivery$order';
+      case 'RELEASE':
+        return 'Paid out on delivery$order';
+      case 'REFUND':
+        return 'Refund$order';
+      default:
+        return '${entry.type}$order';
+    }
+  }
+
+  static String _entrySymbol(String type) {
+    switch (type) {
+      case 'HOLD':
+        return '🔒';
+      case 'RELEASE':
+        return '✅';
+      case 'REFUND':
+        return '↩️';
+      default:
+        return '🧾';
+    }
+  }
+
+  Widget _entryTile(PaymentProvider payments, WalletEntry entry) {
+    final credit = entry.isCredit;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -146,10 +177,10 @@ class WalletScreen extends StatelessWidget {
             height: 40,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: (credit ? AppTheme.primaryGreen : AppTheme.alertRed).withValues(alpha: 0.08),
+              color: (credit ? AppTheme.primaryGreen : AppTheme.accentAmber).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: AutoTranslatedText(txn.symbol, style: const TextStyle(fontSize: 18)),
+            child: AutoTranslatedText(_entrySymbol(entry.type), style: const TextStyle(fontSize: 18)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -157,20 +188,21 @@ class WalletScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AutoTranslatedText(
-                  txn.title,
+                  _entryTitle(entry, payments.orderNumberFor(entry.orderId)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
                 ),
-                AutoTranslatedText(
-                  '${txn.status.symbol} ${_ago(txn.timestamp)}',
-                  style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
-                ),
+                if (entry.createdAt != null)
+                  AutoTranslatedText(
+                    _ago(entry.createdAt!),
+                    style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted),
+                  ),
               ],
             ),
           ),
           AutoTranslatedText(
-            '${credit ? '➕' : '➖'} ${formatRupees(txn.amount.abs())}',
+            '${credit ? '➕' : '➖'} ${formatRupees(entry.amount)}',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w900,
@@ -188,145 +220,5 @@ class WalletScreen extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes} min';
     if (diff.inHours < 24) return '${diff.inHours} hr';
     return '${diff.inDays} d';
-  }
-
-  void _showTopUpSheet(BuildContext context, PaymentProvider payments) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => _AmountSheet(
-        symbol: '➕',
-        title: 'Top-up wallet',
-        confirmLabel: '📲  Pay',
-        presets: const [1000, 5000, 10000, 25000],
-        onConfirm: (amount) async {
-          final ok = await payments.topUp(amount, PaymentMethod.upi);
-          return ok
-              ? '✅ ${formatRupees(amount)} added.'
-              : (payments.lastError ?? '❌ Top-up failed.');
-        },
-      ),
-    );
-  }
-
-  void _showWithdrawSheet(BuildContext context, PaymentProvider payments) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => _AmountSheet(
-        symbol: '🏦',
-        title: 'Withdraw to bank',
-        confirmLabel: '🏦  Withdraw',
-        presets: const [2000, 10000, 20000],
-        onConfirm: (amount) async {
-          final ok = await payments.withdrawToBank(amount);
-          return ok
-              ? '✅ ${formatRupees(amount)} sent via IMPS.'
-              : (payments.lastError ?? '❌ Withdrawal failed.');
-        },
-      ),
-    );
-  }
-}
-
-class _AmountSheet extends StatefulWidget {
-  final String symbol;
-  final String title;
-  final String confirmLabel;
-  final List<double> presets;
-  final Future<String> Function(double amount) onConfirm;
-
-  const _AmountSheet({
-    required this.symbol,
-    required this.title,
-    required this.confirmLabel,
-    required this.presets,
-    required this.onConfirm,
-  });
-
-  @override
-  State<_AmountSheet> createState() => _AmountSheetState();
-}
-
-class _AmountSheetState extends State<_AmountSheet> {
-  final _controller = TextEditingController(text: '5000');
-  bool _busy = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final amount = double.tryParse(_controller.text.trim()) ?? 0;
-    if (amount <= 0) return;
-    setState(() => _busy = true);
-    final message = await widget.onConfirm(amount);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: AutoTranslatedText(message)));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              AutoTranslatedText(widget.symbol, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 10),
-              AutoTranslatedText(widget.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            keyboardType: TextInputType.number,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            decoration: const InputDecoration(prefixText: '₹ '),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: widget.presets
-                .map((p) => ActionChip(
-                      label: AutoTranslatedText('₹${p.round()}'),
-                      onPressed: () => setState(() => _controller.text = p.round().toString()),
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 18),
-          ElevatedButton(
-            onPressed: _busy ? null : _submit,
-            child: _busy
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                  )
-                : AutoTranslatedText(widget.confirmLabel),
-          ),
-        ],
-      ),
-    );
   }
 }
