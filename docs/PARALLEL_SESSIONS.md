@@ -85,8 +85,10 @@ S02) prepare "slots" in these files so later sessions only add to their own slot
 | `backend/app/main.py` | S01 (then S06) | Don't touch. Components plug in via their own `app/modules/<name>_host.py` |
 | `backend/app/modules/wiring.py` | S01 creates it with all 4 components listed | Don't touch — it already imports your `<name>_host.py` when your flag is on |
 | `backend/app/api/v2/router.py` | S08 (unmount) | Don't touch (components mount through `wiring.py`, not here) |
-| `backend/pyproject.toml`, `backend/requirements.txt`, `backend/.env.example` | S01 creates a marked section per component | Add lines **only inside your own section** — dependencies go in **both** `pyproject.toml` (production uses it) and `requirements.txt` |
+| `backend/pyproject.toml`, `backend/requirements.txt`, `backend/.env.example` | S01 creates a marked section per component | Add lines **only inside your own section** — dependencies go in **both** `pyproject.toml` (production uses it) and `requirements.txt`. Only exception: S17 may change `[tool.setuptools.packages.find]` in `pyproject.toml` if it has to use the `backend/farmnex_routes/` fallback |
 | `backend/tests/conftest.py` | S05 | Don't touch. Put helpers in your own test file; if you truly need a shared fixture, stop and ask |
+| Other `backend/tests/` files | the session whose row names them | Create **new** files only: `backend/tests/test_<module>.py` (S08–S14), `backend/tests/modules/test_<component>.py` (S15–S17; no `__init__.py`, unique file names) |
+| Another module's files (e.g. S09 reading orders) | the session whose row lists that module | **Call** its existing functions (read-only use); don't edit its files. Need a new query → add it to your own repository file |
 | `backend/app/api/dependencies/roles.py` | S08 | Use it, don't change it |
 | `backend/app/core/*`, `backend/app/models/user.py` | nobody after S06 | Stop and ask |
 | `backend/migrations/` | per component number range (`010–019` Crop Rescue, `020–029` forecaster, `030–039` routes) | Only your range |
@@ -193,26 +195,38 @@ First, one short session:
 
 | Id | What | Prompt | Files | Needs merged | Time |
 |---|---|---|---|---|---|
-| **S08** | F3 roles + F1 fast path (unmount the 9 modules — already approved) | "Do FIX_PLAN F3, then the F1 fast path. The unmount list is approved in docs/STATUS.md; don't ask again." | `app/api/dependencies/roles.py`, `app/api/v2/router.py`, tests | S05 | 1 h |
+| **S08** | F3 roles + F1 fast path (unmount the 9 modules — already approved) | "Do FIX_PLAN F3 (only `roles.py` and its own test), then the F1 fast path. The unmount list is approved in docs/STATUS.md; don't ask again." | `app/api/dependencies/roles.py`, `app/api/v2/router.py`, new file `backend/tests/test_roles.py` | S05 | 1 h |
 
 Then **up to 4 at a time** (all need S08 merged):
 
 | Id | What (F1 + F2 together) | Prompt | Files | Time |
 |---|---|---|---|---|
-| **S09** | Payments | "/fix F1 payment — do F2 for it too." | payment controller/service/repository/schema + its tests | 45 min |
-| **S10** | Bids: `bid`, `bid_event` | "/fix F1 bid and bid_event — do F2 for both." | bid + bid_event files | 1 h |
-| **S11** | Orders: `order`, `order_item` | "/fix F1 order and order_item — do F2 for both." | order + order_item files | 1 h |
-| **S12** | Listings: `product_listing`, `product_image`, `crop_batch` | "/fix F1 product_listing, product_image and crop_batch — do F2 for all three." | those files | 1.5 h |
-| **S13** | Waste: `waste_record`, `waste_utilization_listing` | "/fix F1 waste_record and waste_utilization_listing — do F2 for both." | those files | 1 h |
-| **S14** | Misc: `buyer_demand_request`, `notification`, `crop_type` | "/fix F1 buyer_demand_request, notification and crop_type — do F2 for all three." | those files | 1 h |
+| **S09** | Payments | "/fix F1 payment — do F2 for it too." | payment controller/service/repository/schema + new `tests/test_payment.py` | 45 min |
+| **S10** | Bids: `bid`, `bid_event` | "/fix F1 bid and bid_event — do F2 for both." | bid + bid_event files + new `tests/test_bid.py` | 1 h |
+| **S11** | Orders: `order`, `order_item` | "/fix F1 order and order_item — do F2 for both. Remove the public create routes (approved)." | order + order_item files + new `tests/test_order.py` | 1 h |
+| **S12** | Listings: `product_listing`, `product_image`, `crop_batch` | "/fix F1 product_listing, product_image and crop_batch — do F2 for all three." | those files + new `tests/test_listing.py` (also renames `/crop-batchs` → `/crop-batches`) | 1.5 h |
+| **S13** | Waste: `waste_record`, `waste_utilization_listing` | "/fix F1 waste_record and waste_utilization_listing — do F2 for both." | those files + new `tests/test_waste.py` | 1 h |
+| **S14** | Misc: `buyer_demand_request`, `notification`, `crop_type` | "/fix F1 buyer_demand_request, notification and crop_type — do F2 for all three." | those files + new `tests/test_misc_ownership.py` | 1 h |
+
+The F1 rules for all of these are **approved** (STATUS → Verified facts): don't stop to ask for them.
+Each session "files" means its module's controller, service, repository and schema files (no models —
+tables never change). Working across modules and test naming: FIX_PLAN F1.
 
 At the same time as S09–S14 (they touch different files):
 
 | Id | What | Prompt | Files | Needs merged | Time |
 |---|---|---|---|---|---|
-| **S15** | Crop Rescue into the backend | PROMPTS.md **B3** | `app/modules/crop_rescue/`, `app/modules/crop_rescue_host.py`, `migrations/010–011`, its requirements/.env sections, `tests/modules/test_crop_rescue.py` | S01, S05, S03 | 2–3 h |
-| **S16** | Forecaster connector | PROMPTS.md **B4** | `app/modules/forecast/`, `app/modules/forecast_host.py`, `migrations/020`, its sections, its tests | S01, S05, M1 | 2 h |
-| **S17** | Route optimizer part 1 (+ driver sign-up, see §10 item 11) | PROMPTS.md **B5** (part 1) | `app/modules/routes_host.py`, `app/modules/logistics_host.py`, `scripts/create_staff_user.py`, `migrations/030`, its sections, its tests | S01, S05 | 3 h |
+| **S15** | Crop Rescue into the backend | PROMPTS.md **B3** | `app/modules/crop_rescue/`, `app/modules/crop_rescue_host.py`, `migrations/010–011`, its sections in `pyproject.toml`, `requirements.txt` and `.env.example`, `tests/modules/test_crop_rescue.py` | S01, S05, S03 | 2–3 h |
+| **S16** | Forecaster connector | PROMPTS.md **B4** | `app/modules/forecast/` (router **and** the small log-writing repository), `app/modules/forecast_host.py`, `migrations/020`, its sections (same three files), `tests/modules/test_forecast.py` | S01, S05, M1 | 2 h |
+| **S17** | Route optimizer part 1 (+ driver sign-up, see §10 item 11) | PROMPTS.md **B5** (part 1) | `app/modules/routes_host.py`, `app/modules/logistics_host.py`, `scripts/create_staff_user.py`, `migrations/030`, its sections (same three files), `tests/modules/test_route_optimizer.py`; **only if pip-from-git fails on FastAPI Cloud:** `backend/farmnex_routes/` and the `packages.find` line in `pyproject.toml` | S01, S05 | 3 h |
+
+S15–S17 don't need S08: they don't import `roles.py` — check roles inline as their guides show. Each of
+them needs its **component repo added to the session** (S15 `farmnex_crop_rescue`, S16
+`farmnex_ai_forecaster`, S17 `farmnex_route_optimization`) — add the folder when you start the session.
+S15 copies the Crop Rescue code from the commit recorded in STATUS → Components **after S03 merged**
+(the coordinator updates that hash; S03 changes the repo). Test recipe: `docs/integration/README.md` →
+"Testing a component". S17's `request-transport` demo endpoint is **not** part 1 (it reads orders): it
+comes with S26.
 
 🧑 After S15–S17 merge: run their SQL files and set their env vars (the PR "Manual steps" list them).
 Do them **in one batch** if you can.

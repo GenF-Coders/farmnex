@@ -51,12 +51,12 @@ Read CLAUDE.md, docs/FINALE_PLAN.md, docs/FIX_PLAN.md and docs/STATUS.md. In sim
 
 **A6. Unmount unused modules** (30 min) — why unmount instead of delete or "fix last": FIX_PLAN F1 "Why unmount now".
 ```
-/fix F1 fast path — show me the list of modules you'd unmount and why each isn't needed for the demo. Wait for my OK, then remove only those from the modules list in api/v2/router.py. Don't delete any files or tables.
+/fix F1 fast path — the list of 9 modules is already approved (docs/STATUS.md → Verified facts); don't ask again. Remove only those from the modules list in api/v2/router.py. Don't delete any files or tables.
 ```
 
 **A7. Ownership, one module at a time** (~30–45 min each)
 ```
-/fix F1 payment — do F2 for payments in the same change. First show me the rules from the F1 table for payments and wait for my OK.
+/fix F1 payment — do F2 for payments in the same change. The F1 rules table is approved (docs/STATUS.md); apply the payments row without asking.
 ```
 Repeat with the next module name, in this order (skip any you unmounted in A6):
 `bid` → `bid_event` → `order` → `order_item` → `product_listing` → `product_image` → `crop_batch` → `waste_record` → `waste_utilization_listing` → `buyer_demand_request` → `notification` → `crop_type`
@@ -110,7 +110,7 @@ Act as a hackathon judge who tests security. Ask the security-reviewer agent to 
 
 **B3. Crop Rescue into the main app** (2–3 h)
 ```
-/integrate crop-rescue — the source is the farmnex_crop_rescue repo at its latest main commit.
+/integrate crop-rescue — the source is the farmnex_crop_rescue repo at the commit recorded in docs/STATUS.md → Components (updated after S03 merged; add that repo folder to this session).
 ```
 🧑 Run `010_cr_crop_rescue.sql` and `011_cr_demo_seed.sql` in Supabase. Set on FastAPI Cloud: `ENABLE_CROP_RESCUE=true`, `CR_DATABASE_URL` (session pooler, psycopg form), `CR_ENABLE_SIMULATE=true`.
 
@@ -124,7 +124,7 @@ Act as a hackathon judge who tests security. Ask the security-reviewer agent to 
 ```
 /integrate route-optimizer — part 1: install farmnex_routes pinned to the commit in the guide, SQL file, wiring with the ROUTES_DATABASE_URL checks, the allow-list + ownership guard, and the vehicle host endpoints. Tests for the guard. Stop before Slip 2/3.
 ```
-🧑 Run `030_rt_route_tables.sql`. Set `ENABLE_ROUTE_OPTIMIZER=true`, `ROUTES_DATABASE_URL`, `ROUTES_AUTO_CREATE_TABLES=false`, `ROUTES_PUBLIC_BASE_URL=https://farmnex.fastapicloud.dev`.
+🧑 Run `030_rt_route_tables.sql`. Set `ENABLE_ROUTE_OPTIMIZER=true`, `ROUTES_DATABASE_URL`, `ROUTES_AUTO_CREATE_TABLES=false`, `ROUTES_PUBLIC_BASE_URL=https://farmnex.fastapicloud.dev`, `PUBLIC_REGISTRATION_ROLES=["FARMER","BUYER","VENDOR","DELIVERY_AGENT"]`. Run `scripts/create_staff_user.py` once for the LOGISTICS_MANAGER account.
 
 After Stream A finishes A9 (orders):
 ```

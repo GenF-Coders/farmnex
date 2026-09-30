@@ -55,7 +55,7 @@ attacked. That leaves 13 modules to fix. Re-mount one later only together with i
   `modules` list), only if time is left after the demo story works. In the pitch, call them
   "next release" features; judges see only working, safe endpoints in `/docs`.
 
-**Suggested rules** (confirm with Atharv before implementing a row; these are business decisions):
+**Approved rules** (Atharv approved this whole table on 2026-09-30 — sessions apply their rows without asking again):
 
 | Resource | Owner field(s) | Who can read | Create | Update | Delete |
 |---|---|---|---|---|---|
@@ -67,8 +67,8 @@ attacked. That leaves 13 modules to fix. Re-mount one later only together with i
 | buyer_demand_requests | `buyer_id` | owner; FARMERs see OPEN ones | BUYER | owner | owner |
 | bid_events | `created_by_id` | anyone sees OPEN; creator sees own | seller of the listing | creator (not `status`/`winner_bid_id`) | creator, only if no bids |
 | bids | `bidder_id` | bidder sees own; event creator sees bids on their event | BUYER, event OPEN, not own listing | none (withdraw = status change by server) | none |
-| orders | `buyer_id` (+ sellers via order_items) | buyer; sellers of its items | BUYER; totals computed by server (F12) | buyer may cancel while PLACED | none |
-| order_items | order buyer / item `seller_id` | buyer or that seller | only by the server with the order | seller: item status | none |
+| orders | `buyer_id` (+ sellers via order_items) | buyer; sellers of its items | BUYER; totals computed by server (F12). **Until S18 (F12a) adds it, remove the public create route** — nothing creates orders in the meantime | buyer may cancel while PLACED | none |
+| order_items | order buyer / item `seller_id` | buyer or that seller | only by the server with the order — **remove the public create route** | seller: item status | none |
 | payments | `payer_id` | payer; seller of the order (read); ADMIN | **server only** — remove public POST/PATCH/DELETE (F12) | server only | never |
 | deliveries | `seller_id`, `delivery_agent_id`, order buyer | those three + LOGISTICS_MANAGER | seller or LOGISTICS_MANAGER | agent: status; manager: assign agent | none |
 | delivery_tracking_events | via delivery | delivery parties | assigned agent | none | none |
@@ -84,6 +84,11 @@ attacked. That leaves 13 modules to fix. Re-mount one later only together with i
 
 "Server only" = remove that route from the public controller; the action happens inside another
 service (e.g. a notification is created when a bid is placed).
+
+**Working across modules:** you may *call* another module's existing service or repository functions
+(read-only use, e.g. payments looking up an order), but you may not *edit* another module's files. If
+you need a query that doesn't exist there, add it to your own repository file. Put your tests in a new
+file `backend/tests/test_<module>.py` (never in `conftest.py`, which S05 owns).
 
 **How to check:** for each module, a pytest test where user A creates a row and user B gets **404**
 on get/update/delete and does not see it in the list; wrong role gets **403**. Then ask the
@@ -101,8 +106,10 @@ winner fields from `*Create`/`*Update` in `backend/app/schemas/`; take related r
 and resolve them in the service (like `farm_crop_service.create`). Remove internal int ids from
 `*Response` (use related `public_id`s). Also remove the duplicated import blocks inside the generated
 schema files.
-While no app uses them yet, also fix the misspelled URL prefixes: `/crop-batchs` → `/crop-batches`,
-`/deliverys` → `/deliveries`, `/farm-crop-activitys` → `/farm-crop-activities`.
+While no app uses them yet, also fix the misspelled URL prefixes: `/crop-batchs` → `/crop-batches`
+(done by S12 with `crop_batch`). `/deliverys` → `/deliveries` and `/farm-crop-activitys` →
+`/farm-crop-activities` belong to modules that are unmounted (F1 fast path): fix them when those
+modules are re-mounted, not before.
 
 **How to check:** OpenAPI (`/docs`) shows no `*_id: integer` in request bodies and no owner/status
 fields in create bodies; sending `payer_id` in a body is ignored or rejected.
@@ -111,12 +118,16 @@ fields in create bodies; sending `payer_id` in a body is ignored or rejected.
 
 **Why:** nothing checks roles today — a BUYER could create crop types or read audit logs.
 
-**What to do:** add `app/api/dependencies/roles.py` with `require_roles(...)` (sketch in
-`backend/CLAUDE.md`) and use it per the F1 table. Keep `role_controller` and `otp_controller`
-unmounted as they are now (they're commented out in `api/v2/router.py`) unless Atharv asks.
+**What to do:** **S08** adds `app/api/dependencies/roles.py` with `require_roles(...)` (sketch in
+`backend/CLAUDE.md`). Each of S09–S14 then uses it in its own modules per the F1 table (e.g. S14 for
+`crop_type`). Keep `role_controller` and `otp_controller` unmounted as they are now (they're commented
+out in `api/v2/router.py`) unless Atharv asks.
 
-**How to check:** tests: BUYER → 403 on `POST /api/v2/crop-types` and `GET /api/v2/audit-logs`;
-ADMIN → allowed.
+**How to check:** S08 tests `require_roles` on its own (`backend/tests/test_roles.py`: a tiny test
+app with one guarded route — wrong role → 403, right role → 200, no token → 401). The per-endpoint
+checks belong to the module that owns the endpoint: BUYER → 403 and ADMIN → allowed on
+`POST /api/v2/crop-types` (S14). `GET /api/v2/audit-logs` is unmounted by the F1 fast path, so it has
+no role test until it is re-mounted.
 
 ---
 

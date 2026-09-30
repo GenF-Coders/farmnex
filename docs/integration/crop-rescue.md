@@ -41,6 +41,8 @@ write the Dart client here following its `docs/SPEC.md` API contract.
    engine; Crop Rescue needs a *sync* engine. Instead set **`CR_DATABASE_URL`** to the Supabase
    *session pooler* URL in psycopg form:
    `postgresql+psycopg://postgres.<ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require`.
+   (S01's `.env.example` comment says "plain `postgresql://`"; this guide wins — S15 fixes that comment
+   inside its own section.)
    If `CR_DATABASE_URL` is missing, Crop Rescue falls back to `DATABASE_URL`, which is an asyncpg URL
    and will fail — so `crop_rescue_host.py` must refuse to mount it (log a clear error) when `CR_DATABASE_URL`
    is unset.
@@ -60,7 +62,7 @@ write the Dart client here following its `docs/SPEC.md` API contract.
    farmer can only pick supported crops for rescue.
 
 7. **`POST /rescue/check` runs the spoilage check for every farmer** and has no farmer check of its
-   own. Allow it only for ADMIN/MANAGER with a small host guard on that one path (the scheduler
+   own. Allow it only for ADMIN, SUPER_ADMIN or MANAGER with a small host guard on that one path (the scheduler
    already runs it every 12 h). Farmers use `/rescue/simulate` (their own lots) in the demo.
 8. **Settings file:** its settings read `.env` from the **current folder**, so run the backend from
    `backend/` (as the commands in `CLAUDE.md` do). Settings are validated when the package is first
@@ -69,7 +71,9 @@ write the Dart client here following its `docs/SPEC.md` API contract.
 
 ## Steps
 
-1. `mkdir -p backend/app/modules` and copy `crop_rescue/` into it. Record the commit hash.
+1. Copy `crop_rescue/` into `backend/app/modules/` (the folder exists). Use the commit recorded in
+   `docs/STATUS.md` → Components (after S03 merged; if it still says Phase 5 is not done, stop).
+   Record the commit hash in the PR.
 2. Add to `backend/pyproject.toml` **and** `backend/requirements.txt` (Crop Rescue section): `psycopg[binary]>=3.1`, `apscheduler>=3.10,<4`
    (`sqlalchemy`, `pydantic-settings`, `httpx` are already there).
 3. Copy its `migrations/001_crop_rescue.sql` → `backend/migrations/010_cr_crop_rescue.sql` and
@@ -82,7 +86,8 @@ write the Dart client here following its `docs/SPEC.md` API contract.
 5. `.env.example`: `ENABLE_CROP_RESCUE=false`, `CR_DATABASE_URL=`, `CR_ENABLE_SIMULATE=true`,
    `CR_ENABLE_SCHEDULER=true`.
 6. Tests `backend/tests/modules/test_crop_rescue.py`: routes under `/api/v2/rescue`; no token → 401;
-   BUYER token → 403; farmer A can't see farmer B's lot (404). Use `CR_TEST_DATABASE_URL`.
+   BUYER token → 403; farmer A can't see farmer B's lot (404). Test database and flag handling:
+   `README.md` → "Testing a component" (variable: `TEST_DATABASE_URL`; the SQL files 010/011 create the tables).
 7. Flutter: `CropRescueApi(ApiClient().dio)` with paths `/api/v2/rescue/...`; switch
    `lib/providers/rescue_provider.dart` from demo data to it; screens in `lib/screens/rescue/`
    (`crop_rescue_screen.dart`, `publish_rescue_sheet.dart`, `rescue_detail_screen.dart`). Poll
