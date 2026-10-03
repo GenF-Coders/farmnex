@@ -9,7 +9,6 @@ import '../../providers/market_provider.dart';
 import '../../localization/l10n_extension.dart';
 import '../../widgets/dialogs/ai_forecast_dialog.dart';
 import '../../widgets/dialogs/waste_to_wealth_dialog.dart';
-import '../rescue/publish_rescue_sheet.dart';
 import '../rescue/rescue_alerts_banner.dart';
 
 /// Home for farmers and guests. Only things that are NOT already a bottom tab live here
@@ -125,16 +124,17 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Two big actions. A guest is sent to login first (both need an account).
+  /// Two big actions: My Crops and Waste to Wealth (Crop Rescue and Pre-Bid are in the bottom bar).
+  /// A guest is sent to login first (both need an account).
   Widget _actions(BuildContext context, UserRole role) {
     final guest = role == UserRole.guest;
     void needLogin(VoidCallback action) => guest ? onNavigateTab?.call('profile') : action();
-    final rescue = _ActionTile(
-      icon: Icons.warning_amber_rounded,
-      color: AppTheme.accentAmber,
-      title: context.t('rescue'),
-      subtitle: 'Save your crop before it spoils',
-      onTap: () => needLogin(() => openPublishRescueSheet(context)),
+    final crops = _ActionTile(
+      icon: Icons.grass_rounded,
+      color: AppTheme.primaryGreen,
+      title: context.t('my_crops'),
+      subtitle: 'List your harvest and get buyers',
+      onTap: () => needLogin(() => onNavigateTab?.call('my_crops')),
     );
     final waste = _ActionTile(
       icon: Icons.recycling_rounded,
@@ -145,7 +145,7 @@ class HomeScreen extends StatelessWidget {
     );
     return IntrinsicHeight(
       child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(child: rescue),
+        Expanded(child: crops),
         const SizedBox(width: 12),
         Expanded(child: waste),
       ]),
@@ -168,10 +168,12 @@ class HomeScreen extends StatelessWidget {
       icon: Icons.insights_rounded,
       title: 'Price forecast: $name',
       subtitle: context.t('market_insights_desc'),
-      onTap: () => showDialog<void>(
-        context: context,
-        builder: (_) => crop != null ? AIForecastDialog(crop: crop) : const AIForecastDialog.forCrop(cropName: 'Tomato'),
-      ),
+      onTap: () => !context.read<AuthProvider>().isLoggedIn
+          ? onNavigateTab?.call('profile') // forecasts need a login
+          : showDialog<void>(
+              context: context,
+              builder: (_) => crop != null ? AIForecastDialog(crop: crop) : const AIForecastDialog.forCrop(cropName: 'Tomato'),
+            ),
     );
   }
 }
