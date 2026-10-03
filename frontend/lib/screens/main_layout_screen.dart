@@ -9,7 +9,6 @@ import '../localization/l10n_extension.dart';
 import '../localization/city_localization.dart';
 import '../localization/language_provider.dart';
 import '../widgets/dialogs/ai_assistant_dialog.dart';
-import '../widgets/dialogs/auth_dialog.dart';
 import '../widgets/dialogs/language_selector_dialog.dart';
 
 class MainLayoutScreen extends StatefulWidget {
@@ -22,7 +21,11 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
   UserRole? _role;
   String _city = 'Pune';
 
-  UserRole _currentRole(BuildContext context) => context.watch<AuthProvider>().user?.role ?? UserRole.guest;
+  // read, not watch: this runs from a tap, outside build.
+  UserRole _currentRole(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    return auth.isLoggedIn ? (auth.user?.role ?? UserRole.guest) : UserRole.guest;
+  }
 
   void _goToTab(String id) {
     final tabs = RoleTabs.forRole(_currentRole(context));
@@ -39,45 +42,74 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
     if (_role != role) { _role = role; _index = 0; }
     if (_index >= tabs.length) _index = 0;
 
+    final column = Column(children: [
+      _header(context, auth, lang),
+      Expanded(child: IndexedStack(index: _index, children: tabs.map((t) => t.builder(context, _goToTab)).toList())),
+      _bottomNav(tabs, lang),
+    ]);
     return Scaffold(
-      backgroundColor: const Color(0xFFEEF1EA),
+      backgroundColor: AppTheme.backgroundWarm,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1280),
-            child: Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(color: const Color(0xFFF7F6F2), borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .08), blurRadius: 24, offset: const Offset(0, 8))]),
-              clipBehavior: Clip.antiAlias,
-              child: Column(children: [
-                _header(context, auth, lang),
-                Expanded(child: IndexedStack(index: _index, children: tabs.map((t) => t.builder(context, _goToTab)).toList())),
-                _bottomNav(tabs, lang),
-              ]),
+        bottom: false,
+        child: LayoutBuilder(builder: (context, c) {
+          // Phones use the whole screen; only tablets/desktops get the centred, framed page.
+          if (c.maxWidth < 700) return column;
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1280),
+              child: Container(
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: AppTheme.backgroundWarm, borderRadius: BorderRadius.circular(18), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .06), blurRadius: 24, offset: const Offset(0, 8))]),
+                clipBehavior: Clip.antiAlias,
+                child: column,
+              ),
             ),
-          ),
-        ),
+          );
+        }),
       ),
     );
   }
 
   Widget _header(BuildContext context, AuthProvider auth, LanguageProvider lang) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 9, 12, 9),
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
       decoration: const BoxDecoration(color: Colors.white, border: Border(bottom: BorderSide(color: AppTheme.borderLight))),
       child: LayoutBuilder(builder: (context, c) {
         final compact = c.maxWidth < 600;
         return Row(children: [
-          const Icon(Icons.eco_rounded, color: AppTheme.primaryGreen, size: 22),
-          const SizedBox(width: 7),
-          AutoTranslatedText('FarmNex', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen)),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(gradient: AppTheme.brandGradient, borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.eco_rounded, color: AppTheme.harvestGold, size: 21),
+          ),
+          const SizedBox(width: 9),
+          AutoTranslatedText('FarmNex', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: AppTheme.deepGreen)),
           const Spacer(),
-          _cityDropdown(context, compact),
-          const SizedBox(width: 5),
-          InkWell(onTap: () => showDialog<void>(context: context, builder: (_) => const LanguageSelectorDialog()), borderRadius: BorderRadius.circular(9), child: Padding(padding: const EdgeInsets.all(7), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.language, size: 17, color: AppTheme.primaryGreen), if (!compact) ...[const SizedBox(width: 4), AutoTranslatedText('Language', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen))]]))),
-          InkWell(onTap: () => showDialog<void>(context: context, builder: (_) => const AIAssistantDialog()), borderRadius: BorderRadius.circular(9), child: const Padding(padding: EdgeInsets.all(7), child: Icon(Icons.mic_none_rounded, size: 19, color: AppTheme.primaryGreen))),
-          InkWell(onTap: () { if (auth.isLoggedIn) _goToTab('profile'); else showDialog<bool>(context: context, builder: (_) => const AuthDialog()); }, borderRadius: BorderRadius.circular(9), child: Padding(padding: const EdgeInsets.all(7), child: Icon(auth.isLoggedIn ? Icons.person_outline_rounded : Icons.login_rounded, size: 20))),
+          if (!compact) ...[_cityDropdown(context, compact), const SizedBox(width: 4)],
+          _HeaderIcon(
+            icon: Icons.translate_rounded,
+            tooltip: 'Language',
+            onTap: () => showDialog<void>(context: context, builder: (_) => const LanguageSelectorDialog()),
+          ),
+          const SizedBox(width: 4),
+          // The ONE way to reach the AI assistant (voice or typing).
+          Material(
+            color: AppTheme.primaryGreen,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              onTap: () => showDialog<void>(context: context, builder: (_) => const AIAssistantDialog()),
+              borderRadius: BorderRadius.circular(22),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
+                  const SizedBox(width: 6),
+                  AutoTranslatedText('Ask AI', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                ]),
+              ),
+            ),
+          ),
         ]);
       }),
     );
@@ -105,9 +137,76 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
 
   Widget _bottomNav(List<AppTab> tabs, LanguageProvider lang) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(5, 6, 5, 9),
       decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: AppTheme.borderLight))),
-      child: Row(children: [for (var i = 0; i < tabs.length; i++) Expanded(child: InkWell(onTap: () => setState(() => _index = i), borderRadius: BorderRadius.circular(10), child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(i == _index ? tabs[i].activeIcon : tabs[i].icon, size: 19, color: i == _index ? AppTheme.primaryGreen : const Color(0xFF9CA3AF)), const SizedBox(height: 2), AutoTranslatedText(AppTranslationsCompat.label(tabs[i], lang), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9.5, fontWeight: i == _index ? FontWeight.w800 : FontWeight.w600, color: i == _index ? AppTheme.primaryGreen : const Color(0xFF9CA3AF)))]))))]),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+          child: Row(children: [
+            for (var i = 0; i < tabs.length; i++)
+              Expanded(child: _NavItem(
+                icon: i == _index ? tabs[i].activeIcon : tabs[i].icon,
+                label: AppTranslationsCompat.label(tabs[i], lang),
+                selected: i == _index,
+                onTap: () => setState(() => _index = i),
+              )),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderIcon extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _HeaderIcon({required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        onPressed: onTap,
+        tooltip: tooltip,
+        icon: Icon(icon, size: 24, color: AppTheme.textDark),
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+      );
+}
+
+/// One bottom-bar item: a pill behind the icon when selected, label always visible.
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppTheme.primaryGreen : const Color(0xFF6B7280);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+            decoration: BoxDecoration(
+              color: selected ? AppTheme.primaryGreen.withValues(alpha: .12) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, size: 25, color: color),
+          ),
+          const SizedBox(height: 4),
+          // Long labels (e.g. "Crop Rescue") shrink to fit instead of being cut off.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: AutoTranslatedText(label, maxLines: 1, style: TextStyle(fontSize: 12, fontWeight: selected ? FontWeight.w800 : FontWeight.w600, color: color)),
+          ),
+        ]),
+      ),
     );
   }
 }

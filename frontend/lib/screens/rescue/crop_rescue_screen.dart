@@ -135,6 +135,8 @@ class _FarmerRescueViewState extends State<_FarmerRescueView> {
       );
     }
 
+    // When the list is empty its own "Register a lot" button is shown, so no second (floating) one.
+    if (lots.isEmpty) return body;
     return Stack(children: [
       body,
       Positioned(
@@ -166,7 +168,7 @@ class _ErrorStrip extends StatelessWidget {
         child: Row(children: [
           const Icon(Icons.error_outline, size: 18, color: AppTheme.alertRed),
           const SizedBox(width: 8),
-          Expanded(child: AutoTranslatedText(message, style: const TextStyle(fontSize: 12))),
+          Expanded(child: AutoTranslatedText(message, style: const TextStyle(fontSize: 13))),
           IconButton(
             icon: const Icon(Icons.close, size: 16),
             onPressed: context.read<RescueProvider>().clearError,
@@ -203,12 +205,12 @@ class _LotCard extends StatelessWidget {
                 rescue.cropName(lot.cropCode),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 4),
               AutoTranslatedText(
                 '📦 ${lot.quantityKg.round()} kg   ⏳ ${rescueTimeLeft(lot)}',
-                style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+                style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
               ),
             ]),
           ),

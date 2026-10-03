@@ -71,6 +71,13 @@ class FarmNexApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // Many screens use small fixed font sizes; farmers read outdoors on small phones. Text is at
+      // least 10% larger, and a bigger size chosen in the phone's settings still wins (up to 1.4x).
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        final scale = (mq.textScaler.scale(100) / 100).clamp(1.1, 1.4);
+        return MediaQuery(data: mq.copyWith(textScaler: TextScaler.linear(scale)), child: child!);
+      },
       home: const StartupScreen(),
     );
   }

@@ -45,7 +45,7 @@ class _MarketScreenState extends State<MarketScreen> {
           const SizedBox(height: 12),
           const ApmcTickerBar(),
           const SizedBox(height: 16),
-          Row(children: [const Expanded(child: AutoTranslatedText('Fresh farmer listings', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900))), AutoTranslatedText('${crops.length} items', style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted))]),
+          Row(children: [const Expanded(child: AutoTranslatedText('Fresh farmer listings', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900))), AutoTranslatedText('${crops.length} items', style: const TextStyle(fontSize: 13, color: AppTheme.textMuted))]),
           const SizedBox(height: 10),
           if (market.isLoading && crops.isEmpty)
             const Padding(padding: EdgeInsets.all(28), child: Center(child: CircularProgressIndicator()))
@@ -60,11 +60,13 @@ class _MarketScreenState extends State<MarketScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: crops.length,
+                // Height = picture + text block; the text block grows with the phone's text size.
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: columns,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: constraints.maxWidth >= 700 ? 0.69 : 0.57,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  mainAxisExtent: (constraints.maxWidth - 12 * (columns - 1)) / columns / 1.55 +
+                      MediaQuery.textScalerOf(context).scale(100) * 1.55 + 70,
                 ),
                 itemBuilder: (_, i) => _MarketProductCard(crop: crops[i]),
               );
@@ -78,14 +80,14 @@ class _MarketScreenState extends State<MarketScreen> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.borderLight)),
         child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          AutoTranslatedText('Mandi & farmer marketplace', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.textDark)),
+          AutoTranslatedText('Mandi & farmer marketplace', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: AppTheme.textDark)),
           SizedBox(height: 3),
-          AutoTranslatedText('Browse produce, compare farmer lots, watch prices and inspect crop photos or videos.', style: TextStyle(fontSize: 10.8, color: AppTheme.textMuted, height: 1.35)),
+          AutoTranslatedText('Buy fresh produce directly from farmers.', style: TextStyle(fontSize: 14, color: AppTheme.textMuted, height: 1.35)),
         ]),
       );
 
   Widget _categoryBar(MarketProvider market) => SizedBox(
-        height: 42,
+        height: 48,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: market.categories.length,
@@ -93,7 +95,7 @@ class _MarketScreenState extends State<MarketScreen> {
           itemBuilder: (_, i) {
             final cat = market.categories[i];
             final selected = market.selectedCategory == cat;
-            return ChoiceChip(label: AutoTranslatedText(cat), selected: selected, onSelected: (_) => market.setCategory(cat), selectedColor: AppTheme.primaryGreen, labelStyle: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: selected ? Colors.white : AppTheme.textDark), side: BorderSide(color: selected ? AppTheme.primaryGreen : AppTheme.borderLight));
+            return ChoiceChip(label: AutoTranslatedText(cat), selected: selected, onSelected: (_) => market.setCategory(cat), selectedColor: AppTheme.primaryGreen, labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: selected ? Colors.white : AppTheme.textDark), side: BorderSide(color: selected ? AppTheme.primaryGreen : AppTheme.borderLight));
           },
         ),
       );
@@ -110,7 +112,7 @@ class _MarketScreenState extends State<MarketScreen> {
         ]),
       );
 
-  Widget _empty() => Container(padding: const EdgeInsets.all(28), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.borderLight)), child: const Column(children: [Icon(Icons.search_off_rounded, color: AppTheme.textMuted, size: 32), SizedBox(height: 8), AutoTranslatedText('No produce found', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), AutoTranslatedText('Try another search or category.', style: TextStyle(fontSize: 11, color: AppTheme.textMuted))]));
+  Widget _empty() => Container(padding: const EdgeInsets.all(28), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.borderLight)), child: const Column(children: [Icon(Icons.search_off_rounded, color: AppTheme.textMuted, size: 32), SizedBox(height: 8), AutoTranslatedText('No produce found', style: TextStyle(fontWeight: FontWeight.w800)), SizedBox(height: 3), AutoTranslatedText('Try another search or category.', style: TextStyle(fontSize: 13, color: AppTheme.textMuted))]));
 }
 
 class _MarketProductCard extends StatelessWidget {
@@ -132,28 +134,74 @@ class _MarketProductCard extends StatelessWidget {
     );
   }
 
+  void _inspect(BuildContext context) => showDialog<void>(context: context, builder: (_) => CropPreBiddingDialog(crop: crop));
+
   @override
   Widget build(BuildContext context) {
+    // One main action per card: "Buy" for a fixed-price lot, "Place bid" for a pre-bid lot
+    // (the server refuses a direct buy on a pre-bid lot). Tapping the card shows its details.
+    final bool preBid = crop.biddingActive;
     return Card(
       clipBehavior: Clip.antiAlias,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: AppTheme.borderLight)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        AspectRatio(aspectRatio: 1.55, child: Stack(fit: StackFit.expand, children: [Container(color: const Color(0xFFF6F8F3), padding: const EdgeInsets.all(8), child: CropPicture(cropName: crop.name, fallbackEmoji: crop.emoji, size: 200, borderRadius: BorderRadius.circular(10))), Positioned(left: 8, top: 8, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), decoration: BoxDecoration(color: Colors.white.withValues(alpha: .94), borderRadius: BorderRadius.circular(7)), child: AutoTranslatedText(crop.category, style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: AppTheme.primaryGreen))))])),
-        Padding(padding: const EdgeInsets.fromLTRB(9, 9, 9, 9), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          AutoTranslatedText(crop.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 3),
-          AutoTranslatedText(crop.variety, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9.5, color: AppTheme.textMuted)),
-          const SizedBox(height: 6),
-          AutoTranslatedText('₹${crop.currentPrice.toInt()} / ${crop.unit}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen)),
-          const SizedBox(height: 3),
-          AutoTranslatedText('${crop.location.isEmpty ? '' : '${crop.location} • '}${crop.quantityAvailable} ${crop.unit} available', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 9, color: AppTheme.textMuted)),
-          const SizedBox(height: 8),
-          Row(children: [Expanded(child: OutlinedButton(onPressed: () => showDialog(context: context, builder: (_) => CropPreBiddingDialog(crop: crop)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), child: AutoTranslatedText(crop.biddingActive ? 'Pre-bid' : 'Inspect', style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)))), const SizedBox(width: 6), Expanded(child: ElevatedButton(onPressed: () => _buy(context), style: ElevatedButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), child: AutoTranslatedText('Buy', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900))))]),
-          const SizedBox(height: 6),
-          Row(children: [Expanded(child: TextButton(onPressed: () => showDialog(context: context, builder: (_) => AIForecastDialog(crop: crop)), child: AutoTranslatedText('Price insight', style: TextStyle(fontSize: 9.5, color: AppTheme.primaryGreen, fontWeight: FontWeight.w800)))), const Icon(Icons.location_on_outlined, size: 13, color: AppTheme.textMuted)]),
-        ])),
-      ]),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppTheme.borderLight)),
+      child: InkWell(
+        onTap: () => _inspect(context),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          AspectRatio(aspectRatio: 1.55, child: Stack(fit: StackFit.expand, children: [
+            Container(color: const Color(0xFFF6F8F3), padding: const EdgeInsets.all(8), child: CropPicture(cropName: crop.name, fallbackEmoji: crop.emoji, size: 200, borderRadius: BorderRadius.circular(10))),
+            Positioned(left: 8, top: 8, child: _Tag(text: preBid ? 'Pre-bid' : crop.category, color: preBid ? AppTheme.accentAmber : AppTheme.primaryGreen)),
+          ])),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                AutoTranslatedText(crop.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 3),
+                AutoTranslatedText('₹${crop.currentPrice.toInt()} / ${crop.unit}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppTheme.primaryGreen)),
+                const SizedBox(height: 3),
+                AutoTranslatedText('${crop.location.isEmpty ? '' : '${crop.location} • '}${crop.quantityAvailable} ${crop.unit}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => preBid ? _inspect(context) : _buy(context),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 42),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      backgroundColor: preBid ? AppTheme.accentAmber : AppTheme.primaryGreen,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: AutoTranslatedText(preBid ? 'Place bid' : 'Buy', maxLines: 1, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900)),
+                  ),
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: () => showDialog<void>(context: context, builder: (_) => AIForecastDialog(crop: crop)),
+                    style: TextButton.styleFrom(minimumSize: const Size(0, 36), padding: EdgeInsets.zero),
+                    icon: const Icon(Icons.insights_rounded, size: 16),
+                    label: const AutoTranslatedText('Price forecast', maxLines: 1, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
     );
   }
+}
+
+class _Tag extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _Tag({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: .95), borderRadius: BorderRadius.circular(20)),
+        child: AutoTranslatedText(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+      );
 }

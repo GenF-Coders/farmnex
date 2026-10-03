@@ -10,9 +10,17 @@ import '../ceda_credit.dart';
 /// Price forecast for one crop: the next 3 days at a chosen mandi, the demand signal for that
 /// mandi's district, the reasons, and the CEDA credit. Everything comes from `/api/v2/forecast`.
 class AIForecastDialog extends StatefulWidget {
-  final CropItem crop;
+  /// The listing the forecast was opened from, or null when opened for a crop name only (Home).
+  final CropItem? crop;
+  final String cropName;
+  final String emoji;
 
-  const AIForecastDialog({super.key, required this.crop});
+  AIForecastDialog({super.key, required CropItem this.crop})
+      : cropName = crop.name,
+        emoji = crop.emoji;
+
+  /// A forecast without a listing, e.g. Home -> Market insights before anything is listed.
+  const AIForecastDialog.forCrop({super.key, required this.cropName, this.emoji = '🍅'}) : crop = null;
 
   @override
   State<AIForecastDialog> createState() => _AIForecastDialogState();
@@ -66,7 +74,7 @@ class _AIForecastDialogState extends State<AIForecastDialog> {
       final meta = await _api.meta();
       if (!mounted) return;
       _meta = meta;
-      _crop = meta.cropFor(widget.crop.name);
+      _crop = meta.cropFor(widget.cropName);
       final markets = _crop == null ? <ForecastMarket>[] : meta.marketsFor(_crop!);
       if (markets.isNotEmpty) {
         _market = markets.first;
@@ -198,16 +206,18 @@ class _AIForecastDialogState extends State<AIForecastDialog> {
           Expanded(
             child: Row(
               children: [
-                AutoTranslatedText(widget.crop.emoji, style: const TextStyle(fontSize: 28)),
+                AutoTranslatedText(widget.emoji, style: const TextStyle(fontSize: 28)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      AutoTranslatedText(widget.crop.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      AutoTranslatedText(widget.cropName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       AutoTranslatedText(
-                        'Listed at ₹${widget.crop.currentPrice.toInt()} / ${widget.crop.unit}',
-                        style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                        widget.crop == null
+                            ? 'AI price forecast'
+                            : 'Listed at ₹${widget.crop!.currentPrice.toInt()} / ${widget.crop!.unit}',
+                        style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
                       ),
                     ],
                   ),

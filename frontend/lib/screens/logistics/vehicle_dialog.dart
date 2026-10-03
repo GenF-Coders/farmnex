@@ -151,6 +151,7 @@ class _VehicleDialogState extends State<_VehicleDialog> {
           child: const AutoTranslatedText('Cancel'),
         ),
         ElevatedButton(
+          style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
           onPressed: _saving ? null : _save,
           child: _saving
               ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
