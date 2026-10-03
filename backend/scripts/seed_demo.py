@@ -4,6 +4,8 @@ What it builds (docs/integration/route-optimizer.md -> "Demo seed"):
   driver vehicle near Pune -> two farmers each with a farm + Tomato listing -> the buyer's drop address
   -> one checkout with both farmers' listings -> Pay (demo) -> each farmer confirms their order
   -> the manager books transport -> pending loads, ready for the driver to plan a pooled trip.
+Also, so those screens are not empty: two open pre-bids per farmer (the buyer bids on each) and three
+Crop Rescue lots per farmer (one Tomato lot close to spoiling).
 
 It only calls /api/v2 endpoints, with login tokens read from environment variables. It never touches
 the database, never prints a token and never writes one to a file. Running it twice does not make
@@ -26,7 +28,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 DEFAULT_URL = "https://farmnex-a.fastapicloud.dev"
 PREFIX = "/api/v2"
@@ -62,6 +64,15 @@ CROP = "Tomato"
 LISTING_KG = 500
 LINE_KG = 100
 PRICE_PER_KG = 24
+PREBID_KG = 200
+# (crop code, kg, hours since harvest), stored at 25 C. Tomato then keeps about 96 h, and a lot is
+# "at risk" once 60 h or less are left, so the 44-50 h old Tomato lots are at risk and the others
+# fresh (run the seed on the demo morning: the lots keep ageing). Each farmer sees only their own lots.
+RESCUE_TEMP_C = 25
+RESCUE_LOTS = {
+    "FARMER_1": [("tomato", 480, 50), ("capsicum", 180, 10), ("cucumber", 260, 6)],
+    "FARMER_2": [("tomato", 320, 44), ("cauliflower", 300, 8), ("capsicum", 150, 20)],
+}
 
 
 class ApiError(Exception):
@@ -172,10 +183,9 @@ def tomato_type(api: Api) -> str:
     sys.exit(f"Crop type '{CROP}' not found. Ask Atharv: it is the demo crop (FIX_PLAN F18).")
 
 
-def ensure_listing(api: Api, who: str, farm: dict, crop_type_id: str, rnd: int) -> dict:
+def ensure_batch(api: Api, who: str, farm: dict, crop_type_id: str, rnd: int) -> dict:
     variety = f"Demo Tomato R{rnd}"
     code = f"DEMO-{who.replace('_', '')}-R{rnd}"
-    title = f"Demo Tomatoes - {who.replace('_', ' ').title()} (R{rnd})"
 
     crops = [c for c in api.get("/farm-crops", "?limit=100") if c.get("variety") == variety]
     if crops:
@@ -189,26 +199,71 @@ def ensure_listing(api: Api, who: str, farm: dict, crop_type_id: str, rnd: int) 
 
     batches = [b for b in api.get("/crop-batches", "?limit=100") if b["batch_code"] == code]
     if batches:
-        batch = batches[0]
-    else:
-        batch = api.post("/crop-batches", {
-            "farm_crop_id": farm_crop["public_id"], "batch_code": code,
-            "harvest_date": date.today().isoformat(), "quantity": LISTING_KG * 2, "unit": "kg",
-            "quality_grade": "A",
-        })
-        step(f"{who}: made batch {code}")
+        return batches[0]
+    batch = api.post("/crop-batches", {
+        "farm_crop_id": farm_crop["public_id"], "batch_code": code,
+        "harvest_date": date.today().isoformat(), "quantity": LISTING_KG * 2, "unit": "kg",
+        "quality_grade": "A",
+    })
+    step(f"{who}: made batch {code}")
+    return batch
 
+
+def ensure_listing(api: Api, who: str, farm: dict, batch: dict, title: str, *,
+                   listing_type: str = "FIXED_PRICE", quantity: float = LISTING_KG) -> dict:
     for listing in api.get("/product-listings", "?mine=true&limit=100"):
         if listing["title"] == title:
             step(f"{who}: listing '{title}' exists ({listing['available_quantity']} kg left, {listing['status']})")
             return listing
     listing = api.post("/product-listings", {
         "farm_id": farm["public_id"], "crop_batch_id": batch["public_id"], "title": title,
-        "description": "Demo data for the FarmNex finale", "listing_type": "FIXED_PRICE",
-        "price": PRICE_PER_KG, "quantity": LISTING_KG, "unit": "kg", "minimum_order_quantity": 10,
+        "description": "Demo data for the FarmNex finale", "listing_type": listing_type,
+        "price": PRICE_PER_KG, "quantity": quantity, "unit": "kg", "minimum_order_quantity": 10,
     })
     step(f"{who}: listed '{title}' at Rs {PRICE_PER_KG}/kg")
     return listing
+
+
+def ensure_bid_event(api: Api, who: str, listing: dict) -> dict:
+    """An open pre-bid on the listing, for the next 5 days."""
+    for event in api.get("/bid-events", "?mine=true&limit=100"):
+        if event["listing_id"] == listing["public_id"] and event["status"] == "ACTIVE":
+            return event
+    now = datetime.now(timezone.utc)
+    event = api.post("/bid-events", {
+        "listing_id": listing["public_id"],
+        "starts_at": (now - timedelta(minutes=1)).isoformat(),
+        "ends_at": (now + timedelta(days=5)).isoformat(),
+        "starting_price": PRICE_PER_KG - 4, "minimum_increment": 1,
+    })
+    step(f"{who}: opened pre-bidding on '{listing['title']}'")
+    return event
+
+
+def ensure_bid(buyer: Api, event: dict, amount: float) -> None:
+    if any(b["bid_event_id"] == event["public_id"] for b in buyer.get("/bids", "?limit=100")):
+        return
+    try:
+        buyer.post("/bids", {"bid_event_id": event["public_id"], "amount": amount, "quantity": 50})
+        step(f"buyer: bid Rs {amount}/kg on a pre-bid")
+    except ApiError as exc:
+        print(f"  ! bid not placed: {exc}")
+
+
+def ensure_rescue_lots(api: Api, who: str, farm: dict) -> None:
+    """A few Crop Rescue lots per farmer: one Tomato close to spoiling, the others still fresh."""
+    lots = api.get("/rescue/lots")
+    have = {(l["crop_code"], round(float(l["quantity_kg"]))) for l in lots}
+    now = datetime.now(timezone.utc)
+    for crop, kg, hours_ago in RESCUE_LOTS[who]:
+        if (crop, kg) in have:
+            continue
+        lot = api.post("/rescue/lots", {
+            "crop_code": crop, "quantity_kg": kg, "harvested_at": (now - timedelta(hours=hours_ago)).isoformat(),
+            "lat": float(farm["latitude"]), "lng": float(farm["longitude"]),
+            "storage_mode": "ambient", "floor_price_per_kg": 10, "temperature_c": RESCUE_TEMP_C,
+        })
+        step(f"{who}: Crop Rescue lot {crop} {kg} kg -> {lot.get('status')}")
 
 
 def ensure_drop_address(buyer: Api) -> dict:
@@ -293,10 +348,20 @@ def main() -> None:
         return
 
     crop_type_id = tomato_type(apis["BUYER"])
-    listings = []
+    listings, prebids = [], []
     for who, api in farmers.items():
         farm = ensure_farm(api, who)
-        listings.append(ensure_listing(api, who, farm, crop_type_id, args.round))
+        batch = ensure_batch(api, who, farm, crop_type_id, args.round)
+        name = who.replace("_", " ").title()
+        listings.append(ensure_listing(api, who, farm, batch, f"Demo Tomatoes - {name} (R{args.round})"))
+        for n in (1, 2):
+            prebid = ensure_listing(api, who, farm, batch, f"Pre-harvest Tomatoes {n} - {name} (R{args.round})",
+                                    listing_type="PRE_BID", quantity=PREBID_KG)
+            prebids.append(ensure_bid_event(api, who, prebid))
+        try:
+            ensure_rescue_lots(api, who, farm)
+        except ApiError as exc:
+            print(f"  ! Crop Rescue lots not made for {who}: {exc}")
     # Re-read, so available_quantity is current.
     listings = [
         next(l for l in api.get("/product-listings", "?mine=true&limit=100") if l["public_id"] == lst["public_id"])
@@ -304,6 +369,8 @@ def main() -> None:
     ]
 
     address = ensure_drop_address(apis["BUYER"])
+    for i, event in enumerate(prebids):
+        ensure_bid(apis["BUYER"], event, PRICE_PER_KG - 3 + i % 3)
     checkout(apis["BUYER"], listings, address, args.checkouts)
     booker = apis.get("MANAGER") or None
     if booker is None:

@@ -85,7 +85,9 @@ Do these 30–60 minutes before, in this order:
 - [ ] **Tokens** pasted (above), then check logins only: `python scripts/seed_demo.py --dry-run`
 - [ ] **Seed:** `python scripts/seed_demo.py` (re-runnable, makes no duplicates). It makes the truck near
       Pune, both farmers' farms and Tomato listings, the buyer's drop address, one checkout, Pay (demo),
-      both orders confirmed, and **pending loads**. Unpaid orders expire after 30 minutes, so the script
+      both orders confirmed, and **pending loads**. So the Pre-bid and Crop Rescue screens are not empty it
+      also opens **two pre-bids per farmer** (BUYER_1 bids on each) and **three Crop Rescue lots per farmer**
+      (one Tomato lot "At risk", two fresh). Run it on the **demo morning**: rescue lots keep ageing. Unpaid orders expire after 30 minutes, so the script
       pays at once — run it **less than a day** before, not weeks.
 - [ ] Each phone: pull to refresh; see the seeded data (FARMER_1 sees the listing, BUYER_1 sees two orders).
 - [ ] **One dry run** with `simulate_driver.py` (below) *only if you will do `Reset` afterwards.*
