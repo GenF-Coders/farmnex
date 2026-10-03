@@ -77,7 +77,7 @@ class SymbolStat extends StatelessWidget {
               caption,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.5, color: AppTheme.textMuted, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 12.5, color: AppTheme.textMuted, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -178,15 +178,15 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: AutoTranslatedText(
         '$symbol $label',
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color),
       ),
     );
   }
@@ -210,15 +210,15 @@ class SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          AutoTranslatedText(symbol, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 7),
+          AutoTranslatedText(symbol, style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
           Expanded(
             child: AutoTranslatedText(
-              title.toUpperCase(),
+              title,
               style: const TextStyle(
-                fontSize: 11.5,
+                fontSize: 17,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 0.5,
+                letterSpacing: -0.2,
                 color: AppTheme.textDark,
               ),
             ),
@@ -255,7 +255,7 @@ class SymbolEmptyState extends StatelessWidget {
           AutoTranslatedText(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: AppTheme.textMuted, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 15, color: AppTheme.textMuted, fontWeight: FontWeight.w600, height: 1.35),
           ),
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 16),

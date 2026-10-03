@@ -56,6 +56,7 @@ class _RescueDetailScreenState extends State<RescueDetailScreen> {
             child: const AutoTranslatedText('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const AutoTranslatedText('Mark sold'),
           ),

@@ -68,7 +68,7 @@ class BuyerRescueViewState extends State<BuyerRescueView> {
         ),
 
         SizedBox(
-          height: 40,
+          height: 48,
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -79,8 +79,9 @@ class BuyerRescueViewState extends State<BuyerRescueView> {
                 child: ChoiceChip(
                   label: AutoTranslatedText(
                     '${RescueProvider.categorySymbols[category]}  ${context.t(category == 'all' ? 'all' : category)}',
-                    style: const TextStyle(fontSize: 12),
+                    style: TextStyle(fontSize: 13, fontWeight: selected ? FontWeight.w800 : FontWeight.w600),
                   ),
+                  showCheckmark: false,
                   selected: selected,
                   onSelected: (_) => rescue.setCategory(category),
                   selectedColor: AppTheme.primaryGreen.withValues(alpha: 0.15),
@@ -154,20 +155,20 @@ class _RescueCard extends StatelessWidget {
                     listing.cropName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   AutoTranslatedText(
                     '📦 ${listing.remainingQuantity.round()} ${listing.unit}   📍 ${listing.location.split(',').first}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+                    style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
                   ),
                   AutoTranslatedText(
                     '👨‍🌾 ${listing.farmerName}   ${listing.urgencySymbol} ${context.tf('days_left', ['${listing.daysLeft}'])}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: AppTheme.textMuted),
+                    style: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
                   ),
                   CropMediaGallery(cropId: listing.id),
                   CropMediaUploader(cropId: listing.id, cropName: listing.cropName, farmerName: listing.farmerName),
@@ -188,21 +189,23 @@ class _RescueCard extends StatelessWidget {
                 ),
                 AutoTranslatedText(
                   '/${listing.unit}',
-                  style: const TextStyle(fontSize: 10, color: AppTheme.textMuted),
+                  style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
                 ),
                 const SizedBox(height: 6),
                 SizedBox(
-                  height: 32,
+                  height: 40,
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).push<void>(
                       MaterialPageRoute(
                         builder: (_) => RescueListingDetailScreen(listingId: listing.id),
                       ),
                     ),
+                    // The theme makes buttons full-width; in this row that breaks the whole card.
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
                     ),
-                    child: AutoTranslatedText(context.t('buy'), style: const TextStyle(fontSize: 12)),
+                    child: AutoTranslatedText(context.t('buy'), style: const TextStyle(fontSize: 14)),
                   ),
                 ),
               ],

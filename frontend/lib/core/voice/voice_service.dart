@@ -64,8 +64,7 @@ class PluginVoiceService implements VoiceService {
         localeId: voiceLocaleFor(languageCode),
         listenFor: const Duration(seconds: 12),
         pauseFor: const Duration(seconds: 3),
-        partialResults: true,
-        cancelOnError: true,
+        listenOptions: SpeechListenOptions(partialResults: true, cancelOnError: true),
         onResult: (SpeechRecognitionResult result) {
           if (result.finalResult && !completer.isCompleted) {
             completer.complete(result.recognizedWords.trim().isEmpty ? null : result.recognizedWords.trim());

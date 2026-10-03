@@ -26,6 +26,61 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: backgroundWarm,
       fontFamily: 'Roboto',
+      // Farmers use the app outdoors with one hand: comfortable spacing and full-size tap targets.
+      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      splashFactory: InkSparkle.splashFactory,
+      dividerTheme: const DividerThemeData(color: borderLight, thickness: 1, space: 24),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surfaceWhite,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: textDark),
+        contentTextStyle: const TextStyle(fontSize: 15, color: textDark, height: 1.4),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: surfaceWhite,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: textDark,
+        contentTextStyle: const TextStyle(fontSize: 15, color: Colors.white, fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        extendedTextStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primaryGreen,
+          minimumSize: const Size(48, 44),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: primaryGreen),
+      chipTheme: ChipThemeData(
+        showCheckmark: false,
+        backgroundColor: surfaceWhite,
+        selectedColor: primaryGreen.withValues(alpha: .14),
+        side: const BorderSide(color: borderLight),
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: textDark),
+      ),
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        titleTextStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: textDark),
+        subtitleTextStyle: TextStyle(fontSize: 13.5, color: textMuted),
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         foregroundColor: textDark,
@@ -52,8 +107,22 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 48),
+          minimumSize: const Size(double.infinity, 52),
           elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: textDark,
+          minimumSize: const Size(double.infinity, 52),
+          side: const BorderSide(color: borderLight, width: 1.2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -63,24 +132,10 @@ class AppTheme {
           ),
         ),
       ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: textDark,
-          minimumSize: const Size(double.infinity, 48),
-          side: const BorderSide(color: borderLight, width: 1.2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: borderLight),
@@ -93,7 +148,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: primaryGreen, width: 1.8),
         ),
-        labelStyle: const TextStyle(color: textMuted, fontSize: 13),
+        labelStyle: const TextStyle(color: textMuted, fontSize: 15),
+        hintStyle: const TextStyle(color: Color(0xFFA8A29E), fontSize: 15),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.white,

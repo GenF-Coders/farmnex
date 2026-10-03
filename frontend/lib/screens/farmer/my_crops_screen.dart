@@ -217,6 +217,7 @@ class _ListingTile extends StatelessWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const AutoTranslatedText('Cancel')),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(minimumSize: const Size(0, 48)),
             onPressed: () async {
               final price = double.tryParse(controller.text.trim());
               if (price == null || price <= 0) return;
