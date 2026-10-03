@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -34,6 +35,8 @@ from app.core.config import settings
 # └── ...
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_key_path(configured_path: str) -> Path:
@@ -118,11 +121,39 @@ def _load_private_key() -> str:
         ) from exc
 
 
+_warned_unusable_public_key = False
+
+
 def _load_public_key() -> str:
     """Load the RSA public key used to verify JWTs.
 
     JWT_PUBLIC_KEY_B64 (env) wins; otherwise the file at JWT_PUBLIC_KEY_PATH.
+    If that key is damaged or missing (e.g. a cut-off paste on FastAPI Cloud),
+    use the public half of the private key instead of failing every request.
     """
+    global _warned_unusable_public_key
+
+    try:
+        public_pem = _configured_public_key()
+        serialization.load_pem_public_key(public_pem.encode("utf-8"))
+        return public_pem
+    except Exception as exc:
+        try:
+            derived = _public_key_from_private_key()
+        except Exception:
+            raise exc
+        if not _warned_unusable_public_key:
+            _warned_unusable_public_key = True
+            logger.error(
+                "JWT public key is unusable (%s); using the public half of the private key. "
+                "Fix JWT_PUBLIC_KEY_B64 on FastAPI Cloud.",
+                type(exc).__name__,
+            )
+        return derived
+
+
+def _configured_public_key() -> str:
+    """The public key exactly as configured (env value or file)."""
     if settings.jwt_public_key_b64:
         return _decode_b64_key(settings.jwt_public_key_b64, "JWT_PUBLIC_KEY_B64")
 
@@ -303,7 +334,7 @@ def _same_public_key(public_pem_a: str, public_pem_b: str) -> bool:
 def public_key_matches_private_key() -> bool:
     """True when the configured public key is the partner of the private key."""
     try:
-        return _same_public_key(_load_public_key(), _public_key_from_private_key())
+        return _same_public_key(_configured_public_key(), _public_key_from_private_key())
     except Exception:
         return False
 

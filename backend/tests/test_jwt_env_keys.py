@@ -113,3 +113,20 @@ def test_production_needs_some_key():
     )
     with pytest.raises(ValueError, match="JWT private key"):
         Settings(**base)
+
+
+def test_damaged_public_key_env_falls_back_to_private_key(monkeypatch):
+    """Production case (S37): JWT_PUBLIC_KEY_B64 was cut off when pasted ("Incorrect padding").
+
+    Every logged-in request crashed with a 500. The server must use the public half of its
+    own private key instead, and still report the bad setting.
+    """
+    private_b64, public_b64 = _new_pair_b64()
+    monkeypatch.setattr(settings, "jwt_private_key_b64", private_b64)
+    monkeypatch.setattr(settings, "jwt_public_key_b64", public_b64[:-7])  # cut off
+
+    user_id = uuid4()
+    token = security.create_access_token(user_id=user_id, role="FARMER")
+
+    assert security.decode_token(token)["sub"] == str(user_id)
+    assert security.public_key_matches_private_key() is False
