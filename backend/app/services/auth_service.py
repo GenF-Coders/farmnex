@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
-from jwt import InvalidTokenError
+from jwt import ExpiredSignatureError, InvalidTokenError
 
 from app.core.config import settings
 from app.core.enums import AccountStatus, AuthEventType, OTPPurpose
 from app.core.security import (
     create_access_token,
     create_refresh_token,
+    decode_registration_token,
     decode_token,
     hash_value,
+    public_key_matches_private_key,
     verify_value,
 )
 from app.models.user import User
@@ -26,6 +29,7 @@ from app.services.otp.exceptions import (
 from app.services.otp.schemas import OTPRequestResult
 from app.services.otp.service import OTPService
 
+logger = logging.getLogger(__name__)
 
 class AuthService:
     """Application service for registration, OTP login and sessions."""
@@ -458,12 +462,20 @@ class AuthService:
             raise ValueError("Invalid registration token.")
 
         try:
-            payload = decode_token(token)
+            payload = decode_registration_token(token)
+        except ExpiredSignatureError as exc:
+            raise ValueError(
+                "Registration token has expired. Please verify your number again."
+            ) from exc
         except Exception as exc:
-            raise ValueError("Invalid or expired registration token.") from exc
-
-        if payload.get("type") != "registration":
-            raise ValueError("Invalid registration token.")
+            # Log the real reason; the client only learns the proof was refused.
+            logger.warning(
+                "Registration token rejected: %s: %s (public key matches private key: %s)",
+                type(exc).__name__,
+                exc,
+                public_key_matches_private_key(),
+            )
+            raise ValueError("Invalid registration token.") from exc
 
         phone_number = payload.get("phone_number")
         if not isinstance(phone_number, str) or not phone_number:
