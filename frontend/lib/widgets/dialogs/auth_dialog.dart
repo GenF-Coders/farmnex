@@ -138,7 +138,7 @@ class _AuthDialogState extends State<AuthDialog> {
       ok = await a.completeRegistration(role: _role);
       if (ok) {
         await a.updateMyProfile(
-          name: '${_name.text.trim()} ${_surname.text.trim()}'.trim(),
+          name: _name.text.trim(), // saved as first_name; the surname goes separately
           surname: _surname.text.trim(),
           dateOfBirth: _dob.text.trim(),
           gender: _gender,

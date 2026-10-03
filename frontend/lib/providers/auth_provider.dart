@@ -268,11 +268,7 @@ class AuthProvider extends ChangeNotifier {
       final merged = current.copyWith(
         id: (profile['public_id'] ?? profile['id'] ?? current.id).toString(),
         role: profileRole == UserRole.guest ? current.role : profileRole,
-        name: (profile['full_name'] ??
-                profile['name'] ??
-                profile['display_name'] ??
-                current.name)
-            .toString(),
+        name: _fullName(profile) ?? current.name,
         mobile: (profile['phone_number'] ??
                 profile['mobile'] ??
                 current.mobile)
@@ -304,7 +300,8 @@ class AuthProvider extends ChangeNotifier {
     if (!_isLoggedIn) return false;
     try {
       final body = <String, dynamic>{};
-      if (name != null && name.isNotEmpty) body['full_name'] = name;
+      // The backend stores first_name + surname (there is no full_name field).
+      if (name != null && name.isNotEmpty) body['first_name'] = name;
       if (address != null && address.isNotEmpty) body['address'] = address;
       if (companyName != null && companyName.isNotEmpty) body['company_name'] = companyName;
       if (gstin != null && gstin.isNotEmpty) body['gstin'] = gstin;
@@ -321,7 +318,7 @@ class AuthProvider extends ChangeNotifier {
         final current = _user;
         if (current != null) {
           _user = current.copyWith(
-            name: (profile['full_name'] ?? current.name).toString(),
+            name: _fullName(profile) ?? current.name,
             address: (profile['address'] ?? current.address).toString(),
             companyName: profile['company_name']?.toString() ?? current.companyName,
             gstin: profile['gstin']?.toString() ?? current.gstin,
@@ -396,6 +393,18 @@ class AuthProvider extends ChangeNotifier {
     await _storage?.saveUserData(jsonEncode(_user!.toJson()));
     _isLoggedIn = true;
     notifyListeners();
+  }
+
+  /// "First Surname" from the backend profile, or null when no name is saved yet.
+  static String? _fullName(Map<String, dynamic> profile) {
+    final parts = [profile['first_name'], profile['surname']]
+        .map((v) => v?.toString().trim() ?? '')
+        .where((v) => v.isNotEmpty)
+        .toList();
+    if (parts.isNotEmpty) return parts.join(' ');
+    final other = profile['full_name'] ?? profile['name'] ?? profile['display_name'];
+    final text = other?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
   }
 
   static String _normalizePhone(String phone) =>
