@@ -24,9 +24,9 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEEF1EA),
+      backgroundColor: AppTheme.backgroundWarm,
       body: SafeArea(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 720), child: Container(
-        color: const Color(0xFFF7F6F2),
+        color: AppTheme.backgroundWarm,
         padding: const EdgeInsets.fromLTRB(26, 34, 26, 22),
         child: Column(children: [
           const Icon(Icons.eco_rounded, color: AppTheme.primaryGreen, size: 42),

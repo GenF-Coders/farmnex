@@ -60,6 +60,17 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Forget a half-finished sign-up / login (new number, or switching Login <-> Register), so a
+  /// registration proof for one number can never be used for another.
+  void resetAuthFlow() {
+    _registrationToken = null;
+    _registrationPhone = null;
+    _loginPhone = null;
+    _lastOtpResponse = null;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   void clearPendingAction() {
     _pendingAction = null;
     notifyListeners();
@@ -73,6 +84,7 @@ class AuthProvider extends ChangeNotifier {
         data: {'phone_number': _normalizePhone(phone)},
       );
       final result = OtpRequestResponse.fromJson(_map(response.data));
+      _registrationToken = null; // a new code means a new proof
       _registrationPhone = _normalizePhone(phone);
       _lastOtpResponse = result;
       _errorMessage = null;

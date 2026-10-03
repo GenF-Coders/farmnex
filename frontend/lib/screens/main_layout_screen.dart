@@ -77,9 +77,14 @@ class _MainLayoutScreenState extends State<MainLayoutScreen> {
       child: LayoutBuilder(builder: (context, c) {
         final compact = c.maxWidth < 600;
         return Row(children: [
-          const Icon(Icons.eco_rounded, color: AppTheme.primaryGreen, size: 26),
-          const SizedBox(width: 6),
-          AutoTranslatedText('FarmNex', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.4, color: AppTheme.primaryGreen)),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(gradient: AppTheme.brandGradient, borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.eco_rounded, color: AppTheme.harvestGold, size: 21),
+          ),
+          const SizedBox(width: 9),
+          AutoTranslatedText('FarmNex', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: AppTheme.deepGreen)),
           const Spacer(),
           if (!compact) ...[_cityDropdown(context, compact), const SizedBox(width: 4)],
           _HeaderIcon(

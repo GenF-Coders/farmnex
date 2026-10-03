@@ -7,7 +7,6 @@ import '../../models/deal_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/dialogs/auth_dialog.dart';
-import '../../widgets/dialogs/language_selector_dialog.dart';
 import '../../core/navigation/role_tabs.dart';
 import '../../localization/l10n_extension.dart';
 import '../../providers/logistics_provider.dart';
@@ -132,6 +131,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ? (_activeTab.startsWith('buyer_') ? 'deals' : _activeTab)
             : 'kyc';
 
+    // Language is in the top bar, so it is not repeated here.
+    if (!auth.isLoggedIn) return const _GuestWelcome();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -212,20 +214,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 14),
-
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => showDialog(context: context, builder: (_) => const LanguageSelectorDialog()),
-                icon: const Icon(Icons.language, size: 16),
-                label: AutoTranslatedText('🌐 Language', style: TextStyle(fontSize: 12)),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 10)),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
 
         if (RoleTabs.hasWallet(role)) ...[
           Consumer<PaymentProvider>(
@@ -507,6 +495,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
         fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
         color: isSelected ? AppTheme.primaryGreen : AppTheme.textDark,
       ),
+    );
+  }
+}
+
+/// What a visitor sees on the Login tab: why to join, then one clear button.
+class _GuestWelcome extends StatelessWidget {
+  const _GuestWelcome();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget point(IconData icon, String title, String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(color: AppTheme.goldSoft, borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: const Color(0xFFB7791F), size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                AutoTranslatedText(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                AutoTranslatedText(text, style: const TextStyle(fontSize: 13.5, color: AppTheme.textMuted, height: 1.3)),
+              ]),
+            ),
+          ]),
+        );
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+          decoration: BoxDecoration(gradient: AppTheme.brandGradient, borderRadius: BorderRadius.circular(22), boxShadow: AppTheme.softShadow),
+          child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            AutoTranslatedText('🧑‍🌾', style: TextStyle(fontSize: 40)),
+            SizedBox(height: 10),
+            AutoTranslatedText('Your harvest. Your price.', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, height: 1.15)),
+            SizedBox(height: 6),
+            AutoTranslatedText('Join in one minute with your mobile number.', style: TextStyle(fontSize: 14.5, color: AppTheme.goldSoft, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        const SizedBox(height: 22),
+        point(Icons.currency_rupee_rounded, 'Sell directly, earn more', 'Buyers bid for your crop. You choose the best price.'),
+        point(Icons.shield_outlined, 'Money held safely', 'The buyer pays first; you get paid on delivery.'),
+        point(Icons.local_shipping_outlined, 'Trucks that share the trip', 'One truck picks up from nearby farms, so transport costs less.'),
+        point(Icons.insights_rounded, "Know tomorrow's price", 'AI price forecasts for your mandi.'),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 56,
+          child: ElevatedButton.icon(
+            onPressed: () => showDialog<bool>(context: context, builder: (_) => const AuthDialog()),
+            icon: const Icon(Icons.login_rounded),
+            label: const AutoTranslatedText('Log in or create account'),
+          ),
+        ),
+      ],
     );
   }
 }

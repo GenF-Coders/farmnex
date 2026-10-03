@@ -7,11 +7,30 @@ class AppTheme {
   static const Color accentTeal = Color(0xFF0F766E);
   static const Color accentAmber = Color(0xFFD97706);
   static const Color alertRed = Color(0xFFDC2626);
-  static const Color backgroundWarm = Color(0xFFF6F8F4);
+  static const Color backgroundWarm = Color(0xFFF7F4ED);
   static const Color surfaceWhite = Color(0xFFFFFFFF);
   static const Color textDark = Color(0xFF1C1917);
   static const Color textMuted = Color(0xFF78716C);
   static const Color borderLight = Color(0xFFE7E5E4);
+
+  // Brand accents. Deep leaf green = growth and trust; harvest gold = prosperity and a good
+  // season (the colour of ripe grain, marigold and turmeric); warm cream = soil and home.
+  static const Color deepGreen = Color(0xFF0E4D2B);
+  static const Color harvestGold = Color(0xFFE9A319);
+  static const Color goldSoft = Color(0xFFFFF4D6);
+  static const Color cream = Color(0xFFFBF8F1);
+
+  /// The signature gradient (morning sun over a field) for hero areas.
+  static const LinearGradient brandGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [deepGreen, primaryGreen],
+  );
+
+  /// Soft, warm shadow for raised cards (feels touchable without looking heavy).
+  static List<BoxShadow> get softShadow => [
+        BoxShadow(color: const Color(0xFF3F3A2E).withValues(alpha: .07), blurRadius: 18, offset: const Offset(0, 6)),
+      ];
 
   static ThemeData get lightTheme {
     return ThemeData(

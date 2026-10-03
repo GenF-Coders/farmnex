@@ -37,7 +37,7 @@ class HomeScreen extends StatelessWidget {
               _greeting(context, auth),
               const SizedBox(height: 16),
               const RescueAlertsBanner(),
-              _hero(context),
+              _hero(context, market.crops.length),
               const SizedBox(height: 24),
               _SectionTitle(context.t('quick_access')),
               const SizedBox(height: 12),
@@ -53,11 +53,20 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  /// "Good morning, Ramesh" feels personal; the sun/moon symbol matches the farmer's own day.
+  static (String, String) _partOfDay() {
+    final h = DateTime.now().hour;
+    if (h < 12) return ('Good morning', '🌅');
+    if (h < 17) return ('Good afternoon', '☀️');
+    return ('Good evening', '🌙');
+  }
+
   Widget _greeting(BuildContext context, AuthProvider auth) {
     final logged = auth.isLoggedIn;
-    final name = logged && auth.user?.name.trim().isNotEmpty == true ? auth.user!.name : context.t('guest_user');
+    final name = logged && auth.user?.name.trim().isNotEmpty == true ? auth.user!.name.split(' ').first : context.t('guest_user');
+    final (hello, symbol) = _partOfDay();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      AutoTranslatedText(context.t('hello'), style: const TextStyle(fontSize: 14, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
+      AutoTranslatedText('$symbol  $hello', style: const TextStyle(fontSize: 14, color: AppTheme.textMuted, fontWeight: FontWeight.w700)),
       const SizedBox(height: 2),
       AutoTranslatedText(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.4, color: AppTheme.textDark)),
       const SizedBox(height: 2),
@@ -65,15 +74,52 @@ class HomeScreen extends StatelessWidget {
     ]);
   }
 
-  Widget _hero(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+  /// The farmer photo (a friendly face draws the eye) with a warm sunrise wash and a promise of
+  /// more income. The only number shown is real: today's open listings from the market.
+  Widget _hero(BuildContext context, int listed) {
+    return Container(
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(22), boxShadow: AppTheme.softShadow),
+      clipBehavior: Clip.antiAlias,
       child: AspectRatio(
-        aspectRatio: 2.6,
+        aspectRatio: 1.9,
         child: Stack(fit: StackFit.expand, children: [
-          Image.asset('assets/html_reference/99716b82-eea0-4e13-8939-2b88b46a93cd.webp', fit: BoxFit.cover, filterQuality: FilterQuality.high),
-          DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black.withValues(alpha: .65)]))),
-          Positioned(left: 18, right: 18, bottom: 16, child: AutoTranslatedText(context.t('healthy_farmers'), style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900, height: 1.2))),
+          Image.asset('assets/html_reference/99716b82-eea0-4e13-8939-2b88b46a93cd.webp', fit: BoxFit.cover, alignment: Alignment.centerRight, filterQuality: FilterQuality.high),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [AppTheme.deepGreen.withValues(alpha: .96), AppTheme.deepGreen.withValues(alpha: .72), AppTheme.deepGreen.withValues(alpha: .05)],
+                stops: const [0, .5, 1],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: AppTheme.harvestGold, borderRadius: BorderRadius.circular(20)),
+                child: const AutoTranslatedText('No middlemen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppTheme.deepGreen)),
+              ),
+              const Spacer(),
+              FractionallySizedBox(
+                widthFactor: .56,
+                alignment: Alignment.centerLeft,
+                child: AutoTranslatedText(context.t('healthy_farmers'),
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, height: 1.15, letterSpacing: -0.3)),
+              ),
+              const SizedBox(height: 6),
+              FractionallySizedBox(
+                widthFactor: .56,
+                alignment: Alignment.centerLeft,
+                child: AutoTranslatedText(
+                  listed > 0 ? '🌾 $listed crops on sale right now' : 'Sell directly to buyers. Earn more.',
+                  style: const TextStyle(color: AppTheme.goldSoft, fontSize: 13.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ]),
+          ),
         ]),
       ),
     );
@@ -87,14 +133,14 @@ class HomeScreen extends StatelessWidget {
       icon: Icons.warning_amber_rounded,
       color: AppTheme.accentAmber,
       title: context.t('rescue'),
-      subtitle: 'Crop about to spoil? Find buyers fast',
+      subtitle: 'Save your crop before it spoils',
       onTap: () => needLogin(() => openPublishRescueSheet(context)),
     );
     final waste = _ActionTile(
       icon: Icons.recycling_rounded,
-      color: AppTheme.accentTeal,
+      color: const Color(0xFFB7791F),
       title: context.t('waste_to_wealth'),
-      subtitle: 'Sell crop waste for extra income',
+      subtitle: 'Turn crop waste into money',
       onTap: () => needLogin(() => showDialog<void>(context: context, builder: (_) => const WasteToWealthDialog())),
     );
     return IntrinsicHeight(
@@ -147,7 +193,9 @@ class _ActionTile extends StatelessWidget {
   const _ActionTile({required this.icon, required this.color, required this.title, required this.subtitle, required this.onTap});
 
   @override
-  Widget build(BuildContext context) => Material(
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), boxShadow: AppTheme.softShadow),
+        child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
@@ -155,7 +203,7 @@ class _ActionTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: AppTheme.borderLight)),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFEFEBE3))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 width: 48,
@@ -170,6 +218,7 @@ class _ActionTile extends StatelessWidget {
             ]),
           ),
         ),
+        ),
       );
 }
 
@@ -181,7 +230,9 @@ class _WideCard extends StatelessWidget {
   const _WideCard({required this.icon, required this.title, required this.subtitle, required this.onTap});
 
   @override
-  Widget build(BuildContext context) => Material(
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), boxShadow: AppTheme.softShadow),
+        child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
@@ -189,7 +240,7 @@ class _WideCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: AppTheme.borderLight)),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: const Color(0xFFEFEBE3))),
             child: Row(children: [
               Container(
                 width: 48,
@@ -209,6 +260,7 @@ class _WideCard extends StatelessWidget {
               const Icon(Icons.chevron_right_rounded, color: AppTheme.primaryGreen, size: 26),
             ]),
           ),
+        ),
         ),
       );
 }
