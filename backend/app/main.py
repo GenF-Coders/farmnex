@@ -20,6 +20,7 @@ from app.core.database import (
 from app.core.config import settings
 from app.core.exceptions import AppException
 from app.core.middleware import SecurityHeadersMiddleware
+from app.core.security import public_key_matches_private_key
 import app.domain_model_registry  # noqa: F401  (registers every model so create_all sees them)
 from app.models.crop_type import CropType
 from app.modules.wiring import mount_components, start_components, stop_components
@@ -274,6 +275,11 @@ async def seed_default_crop_types() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not public_key_matches_private_key():
+        logger.error(
+            "JWT_PUBLIC_KEY_B64 is not the partner of JWT_PRIVATE_KEY_B64: login tokens will be "
+            "rejected. Re-run `python generate_jwt_keys.py --print-env` and set BOTH values."
+        )
     await create_tables()
     await seed_default_roles()
     await seed_default_crop_types()

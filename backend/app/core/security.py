@@ -3,11 +3,13 @@ from __future__ import annotations
 import base64
 import binascii
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
 import jwt
+from cryptography.hazmat.primitives import serialization
 from argon2 import PasswordHasher
 from argon2.exceptions import (
     InvalidHashError,
@@ -273,6 +275,67 @@ def decode_token(token: str) -> dict[str, Any]:
 # ============================================================
 # TOKEN TYPE VALIDATION
 # ============================================================
+
+@lru_cache(maxsize=4)
+def _derive_public_pem(private_pem: str) -> str:
+    private_key = serialization.load_pem_private_key(
+        private_pem.encode("utf-8"),
+        password=None,
+    )
+    return private_key.public_key().public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode("utf-8")
+
+
+def _public_key_from_private_key() -> str:
+    """The public half of the signing key, worked out from the private key itself."""
+    return _derive_public_pem(_load_private_key())
+
+
+@lru_cache(maxsize=4)
+def _same_public_key(public_pem_a: str, public_pem_b: str) -> bool:
+    a = serialization.load_pem_public_key(public_pem_a.encode("utf-8"))
+    b = serialization.load_pem_public_key(public_pem_b.encode("utf-8"))
+    return a.public_numbers() == b.public_numbers()
+
+
+def public_key_matches_private_key() -> bool:
+    """True when the configured public key is the partner of the private key."""
+    try:
+        return _same_public_key(_load_public_key(), _public_key_from_private_key())
+    except Exception:
+        return False
+
+
+# A few seconds' clock difference between two server copies must not reject a proof
+# that was issued a moment ago ("token is not yet valid (iat)").
+REGISTRATION_TOKEN_LEEWAY_SECONDS = 60
+
+
+def decode_registration_token(token: str) -> dict[str, Any]:
+    """Verify a registration proof that this server signed itself.
+
+    It is checked against the public half of the signing key, so a missing or
+    mismatched JWT_PUBLIC_KEY_B64 can't reject the server's own proof.
+    """
+    if not token:
+        raise ValueError("JWT token cannot be empty.")
+
+    payload = jwt.decode(
+        token,
+        _public_key_from_private_key(),
+        algorithms=[settings.jwt_algorithm],
+        issuer=settings.jwt_issuer,
+        audience=settings.jwt_audience,
+        leeway=REGISTRATION_TOKEN_LEEWAY_SECONDS,
+    )
+
+    if not isinstance(payload, dict) or payload.get("type") != "registration":
+        raise ValueError("Not a registration token.")
+
+    return payload
+
 
 def is_access_token(payload: dict[str, Any]) -> bool:
     return payload.get("type") == "access"
