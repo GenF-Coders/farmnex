@@ -22,6 +22,33 @@ How each is created: sign up in the app with its phone and pick the role (farmer
 signs up as a driver, see PARALLEL_SESSIONS §10 item 11). The manager is made by Atharv with `backend/scripts/create_staff_user.py`
 (see `docs/integration/route-optimizer.md`).
 
+## Getting a token (for each account)
+
+A token is what the phone's login gives the app. Get one the same way the app does, on the `/docs` page,
+using the account's real phone (the one-time code arrives by SMS on that phone):
+
+1. Open `https://farmnex-a.fastapicloud.dev/docs` on the laptop.
+2. `POST /api/v2/auth/login/request-otp` → *Try it out* → `{"phone_number": "<the account's number>"}` → Execute.
+3. The code arrives on that phone. `POST /api/v2/auth/login/verify` → `{"phone_number": "...", "otp": "123456"}` → Execute.
+4. The response contains `access_token`. Copy it and paste it straight into your terminal (next section).
+   Don't send it in chat or save it in a file. The account must already be signed up in the app (step
+   "Accounts" above). The phone number is typed only into the `/docs` page, not saved anywhere.
+
+Repeat for FARMER_1, FARMER_2, BUYER_1, DRIVER (and MANAGER if you made one). If the login asks for more
+than these two fields, the `/docs` page shows what it needs.
+
+## Manager account (optional)
+
+The manager books trucks. The simplest way: skip it — the script lets each farmer book their own transport.
+To make one, on Atharv's laptop, from `backend/` with the production `DATABASE_URL` in `.env`:
+
+```bash
+python scripts/create_staff_user.py <the manager's phone number> --role LOGISTICS_MANAGER
+```
+
+It asks you to type `yes`, only ever adds a new user, and then the person logs in with the normal phone
++ code (sign-up isn't needed). Then get a token as above.
+
 ## Tokens (once, in your own terminal)
 
 The seed script needs each account's login token. Log each account in on a phone, then get its token
@@ -48,9 +75,12 @@ Do these 30–60 minutes before, in this order:
 - [ ] **Backend:** open `https://farmnex-a.fastapicloud.dev/health` → `ok`; `/docs` loads.
 - [ ] **Forecaster cold start:** open `https://farmnex-ai-forecaster.onrender.com/health` — the first call
       after idle takes about a minute. Open it again until it answers fast.
-- [ ] **Crop Rescue demo mode:** `CR_ENABLE_SIMULATE=true` on FastAPI Cloud (turn it back to `false` after).
-- [ ] **Route optimizer** is on in production (the `/docs` page lists `/api/v2/routes/...`), the manager
-      account exists, and the `wallet_ledger` RLS line was run (STATUS → Waiting list).
+- [x] **Crop Rescue demo mode:** `CR_ENABLE_SIMULATE=true` on FastAPI Cloud — **done by Atharv (2026-10-03)**.
+      Turn it back to `false` after the demo.
+- [x] **Route optimizer is on in production** — done (confirmed 2026-10-01: `/docs` lists `/api/v2/routes/...`).
+- [x] **`wallet_ledger` RLS line** — done by Atharv (2026-10-03).
+- [ ] **Manager account** (optional — without it the farmers book their own transport, and an ADMIN can
+      do the same): see "Manager account" below.
 - [ ] **Phones:** all six logged in, GPS on for the driver's phone, mobile data/WiFi good, app updated.
 - [ ] **Tokens** pasted (above), then check logins only: `python scripts/seed_demo.py --dry-run`
 - [ ] **Seed:** `python scripts/seed_demo.py` (re-runnable, makes no duplicates). It makes the truck near
