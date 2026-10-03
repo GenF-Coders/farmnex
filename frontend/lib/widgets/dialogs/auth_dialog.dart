@@ -164,6 +164,11 @@ class _AuthDialogState extends State<AuthDialog> {
     if (lower.contains('invalid registration role')) {
       return 'This account type cannot sign up yet. Please choose another, or ask the FarmNex team. ($m)';
     }
+    if (lower.contains('registration token')) {
+      // The code was fine; the server could not check its own sign-up pass (a server setting).
+      return 'Your number is verified, but the server could not finish creating the account. '
+          'Please tell the FarmNex team. ($m)';
+    }
     if (lower.contains('already been used')) {
       return 'This code was already used. Tap "Resend code" for a new one.';
     }
