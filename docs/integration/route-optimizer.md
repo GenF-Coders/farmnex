@@ -262,7 +262,8 @@ Set-up (flags, test database, running `030_rt_route_tables.sql`): `README.md` â†
 - Driver B can't read/modify driver A's vehicle, trip or stops (404); a buyer can't complete stops.
 - Buyer and farmer of an order see `/orders/{id}/delivery`; another buyer gets 404.
 - Blocked routes (`POST /loads`, `PUT /vehicles/{id}`) are absent (404/405).
-- Listener: completing the last stop sets our order to DELIVERED once, even if called twice.
+- Listener: completing the last stop records the driver's drop once, even if called twice. The order
+  becomes DELIVERED (and the money is released) only when the buyer also confirms receipt (S33, PR 61).
 
 ## Done when
 

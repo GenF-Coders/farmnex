@@ -93,7 +93,12 @@ class Api:
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(
             f"{self.base}{path}{query}", data=data, method=method,
-            headers={"Authorization": f"Bearer {self._token}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json",
+                # FastAPI Cloud's Cloudflare blocks Python's default User-Agent (403, error 1010).
+                "User-Agent": "FarmNex-Demo-Seed/1.0",
+            },
         )
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
@@ -138,6 +143,8 @@ def check_login(api: Api) -> None:
     try:
         api.get("/addresses", "?limit=1")
     except ApiError as exc:
+        if exc.status == 403 and "1010" in str(exc):
+            sys.exit(f"The {api.label} request was blocked by Cloudflare (error 1010), not by FarmNex.")
         if exc.status in (401, 403):
             sys.exit(f"The {api.label} token was refused ({exc.status}). It may have expired (24 h): log in again.")
         raise
