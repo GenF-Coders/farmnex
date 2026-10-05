@@ -39,6 +39,7 @@ Atharv's own Supabase project `farmnex` (Mumbai) was built empty-to-ready in thi
 | `020–029` | AI forecaster (`fc_`) |
 | `030–039` | Route optimizer (`rt_`) |
 | `040–049` | Voice assistant (`va_`) |
+| `050–059` | Lot photos/videos + verification (`lv_`, core feature) |
 
 Name: `<number>_<prefix>_<what>.sql`, e.g. `010_cr_crop_rescue.sql`.
 

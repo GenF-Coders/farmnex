@@ -41,6 +41,7 @@ from app.api.v2.endpoints import (
     # Products
     product_listing_controller,
     product_image_controller,
+    listing_media_controller,
 
     # Notifications / Reviews
     notification_controller,
@@ -88,6 +89,7 @@ modules = [
     # Products
     product_listing_controller,
     product_image_controller,
+    listing_media_controller,
     
     
     # Waste Management

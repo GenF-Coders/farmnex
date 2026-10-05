@@ -12,6 +12,7 @@ from app.models.delivery_proof import *  # noqa: F401,F403
 from app.models.delivery_tracking_event import *  # noqa: F401,F403
 from app.models.farm_crop import *  # noqa: F401,F403
 from app.models.farm_crop_activity import *  # noqa: F401,F403
+from app.models.listing_media import *  # noqa: F401,F403
 from app.models.notification import *  # noqa: F401,F403
 from app.models.order import *  # noqa: F401,F403
 from app.models.order_dispute import *  # noqa: F401,F403
