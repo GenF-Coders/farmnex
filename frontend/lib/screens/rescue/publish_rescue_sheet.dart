@@ -111,7 +111,7 @@ class _PublishRescueSheetState extends State<PublishRescueSheet> {
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Crop'),
               items: rescue.crops
-                  .map((c) => DropdownMenuItem(value: c.code, child: AutoTranslatedText(c.nameEn)))
+                  .map((c) => DropdownMenuItem(value: c.code, child: AutoTranslatedText(c.estimate ? '${c.nameEn} (estimate)' : c.nameEn)))
                   .toList(),
               onChanged: (v) => setState(() => _cropCode = v),
             ),

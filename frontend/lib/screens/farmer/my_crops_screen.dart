@@ -372,7 +372,7 @@ class _AddLotSheetState extends State<_AddLotSheet> {
       );
       // Remember the new farm so a retry doesn't create a second one.
       if (_farms.isEmpty) _farms = [farm];
-      final error = await listings.addListing(
+      final result = await listings.addListing(
         farmId: farm.publicId,
         cropType: cropType,
         price: price,
@@ -381,15 +381,20 @@ class _AddLotSheetState extends State<_AddLotSheet> {
         preBid: _preBid,
         isOrganic: _organic,
       );
+      final error = result.error;
       if (error != null) {
         if (mounted) setState(() => _saving = false);
         messenger.showSnackBar(SnackBar(content: AutoTranslatedText('⚠️ $error')));
         return;
       }
       navigator.pop();
+      // Normal lots also get a spoilage timer in Crop Rescue; say so, or why not.
+      final rescue = result.timerStarted
+          ? '\n⏳ Spoilage timer started — see Crop Rescue.'
+          : (result.rescueNote == null ? '' : '\nℹ️ ${result.rescueNote}');
       messenger.showSnackBar(
-        const SnackBar(
-          content: AutoTranslatedText('✅ Lot is live.'),
+        SnackBar(
+          content: AutoTranslatedText('✅ Lot is live.$rescue'),
           backgroundColor: AppTheme.primaryGreen,
         ),
       );

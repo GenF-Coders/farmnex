@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.models.crop_batch import CropBatch
+from app.models.crop_type import CropType
 from app.models.farm import Farm
 from app.models.farm_crop import FarmCrop
 from app.models.product_listing import ProductListing
@@ -74,6 +75,15 @@ class ProductListingRepository:
             )
         )
         return int(result.scalar_one())
+
+    async def get_crop_type_of_batch(self, batch_id: int) -> CropType | None:
+        result = await self.db.execute(
+            select(CropType)
+            .join(FarmCrop, FarmCrop.crop_type_id == CropType.id)
+            .join(CropBatch, CropBatch.farm_crop_id == FarmCrop.id)
+            .where(CropBatch.id == batch_id)
+        )
+        return result.scalar_one_or_none()
 
     async def create(self, **values: Any) -> ProductListing:
         entity = ProductListing(**values)

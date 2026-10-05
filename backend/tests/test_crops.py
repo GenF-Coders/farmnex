@@ -4,7 +4,8 @@ import pytest
 
 from app.main import DEFAULT_CROP_TYPES
 from app.modules import crops
-from app.modules.crops import CROP_RESCUE, FORECASTER, VOICE, component_crop, supported_crops
+from app.modules.crop_rescue.core import shelf_life
+from app.modules.crops import CROP_RESCUE, FORECASTER, VOICE, component_crop, rescue_code, supported_crops
 
 COMPONENTS = (CROP_RESCUE, FORECASTER, VOICE)
 
@@ -55,3 +56,26 @@ def test_every_mapped_crop_is_seeded_in_crop_types():
 def test_every_map_entry_names_all_components():
     for name, mapped in crops.CROP_MAP.items():
         assert set(mapped) == set(COMPONENTS), name
+
+
+def test_rescue_code_prefers_researched_then_named_estimate_then_category():
+    assert rescue_code("Tomato") == "tomato"
+    assert rescue_code(" wheat ", "Cereal") == "wheat"
+    assert rescue_code("Dragonfruit", "Fruit") == "est_fruit"
+    assert rescue_code("Lentil", "pulse") == "est_grain"
+    assert rescue_code("Mystery", None) == "est_other"
+
+
+def test_every_seeded_crop_gets_a_rescue_code_crop_rescue_knows():
+    known = shelf_life.load_crops()
+    for crop in DEFAULT_CROP_TYPES:
+        assert rescue_code(crop["name"], crop.get("category")) in known, crop["name"]
+
+
+def test_only_the_eight_researched_crops_are_not_estimates():
+    known = shelf_life.load_crops()
+    researched = sorted(code for code, crop in known.items() if not crop.estimate)
+    assert researched == sorted(
+        ["tomato", "spinach", "okra", "brinjal", "cauliflower", "grapes", "capsicum", "cucumber"]
+    )
+    assert known["wheat"].estimate and known["est_other"].estimate

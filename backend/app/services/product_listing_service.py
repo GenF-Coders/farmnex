@@ -59,6 +59,11 @@ class ProductListingService:
         }
         return await self.repository.create(**values)
 
+    async def crop_type_of(self, entity: ProductListing) -> tuple[str, str | None] | None:
+        """(crop name, category) of a listing's crop, or None if it can't be found."""
+        crop_type = await self.repository.get_crop_type_of_batch(entity.crop_batch_id)
+        return None if crop_type is None else (crop_type.name, crop_type.category)
+
     async def get(self, public_id: UUID, current_user: User) -> ProductListing:
         entity = await self.repository.get_visible_by_public_id(public_id, current_user.id)
         if entity is None:

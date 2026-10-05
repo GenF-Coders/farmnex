@@ -46,13 +46,14 @@ Color rescueStatusColor(String status) => switch (status) {
       _ => AppTheme.primaryGreen,
     };
 
-/// "2 days 4 h left", "5 h left", or "Spoiled".
+/// "2 days 4 h left", "5 h left", or "Spoiled" ("… (estimate)" for crops without researched data).
 String rescueTimeLeft(RescueLot lot) {
   if (lot.status == 'SOLD') return 'Sold';
   final hours = lot.remainingHours;
   if (lot.status == 'SPOILED' || hours == null || hours <= 0) return 'Spoiled';
-  if (hours >= 48) return '${(hours / 24).floor()} days ${(hours % 24).round()} h left';
-  return '${hours.round()} h left';
+  final note = lot.estimate ? ' (estimate)' : '';
+  if (hours >= 48) return '${(hours / 24).floor()} days ${(hours % 24).round()} h left$note';
+  return '${hours.round()} h left$note';
 }
 
 class _FarmerRescueView extends StatefulWidget {

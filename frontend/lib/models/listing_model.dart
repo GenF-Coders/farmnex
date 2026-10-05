@@ -62,6 +62,11 @@ class ListingModel {
   final String unit;
   final String status;
 
+  /// Only on the reply to "create": the Crop Rescue spoilage timer started for this lot,
+  /// or a short reason why none was started.
+  final String? rescueLotId;
+  final String? rescueNote;
+
   const ListingModel({
     required this.publicId,
     required this.sellerId,
@@ -76,6 +81,8 @@ class ListingModel {
     required this.availableQuantity,
     required this.unit,
     required this.status,
+    this.rescueLotId,
+    this.rescueNote,
   });
 
   factory ListingModel.fromJson(Map<String, dynamic> json) => ListingModel(
@@ -92,6 +99,8 @@ class ListingModel {
         availableQuantity: _toDouble(json['available_quantity']),
         unit: (json['unit'] ?? '').toString(),
         status: (json['status'] ?? '').toString(),
+        rescueLotId: json['rescue_lot_id'] as String?,
+        rescueNote: json['rescue_note'] as String?,
       );
 
   /// The shape the existing screens already use. Fields the backend doesn't have yet

@@ -17,12 +17,13 @@ from functools import lru_cache
 from pathlib import Path
 
 CROPS_JSON = Path(__file__).resolve().parent.parent / "data" / "crops.json"
-EXPECTED_CROP_COUNT = 8
+ESTIMATES_JSON = Path(__file__).resolve().parent.parent / "data" / "estimates.json"
+EXPECTED_CROP_COUNT = 8  # researched crops in crops.json; estimates.json comes on top
 
 
 @dataclass(frozen=True)
 class Crop:
-    """One row of crops.json. The numbers are never edited in code."""
+    """One row of crops.json or estimates.json. The numbers are never edited in code."""
 
     code: str
     name_en: str
@@ -33,14 +34,17 @@ class Crop:
     storage_life_in_table: str
     source: str
     note: str | None = None
+    estimate: bool = False  # True = rough FarmNex estimate, not a researched number
 
 
 @lru_cache(maxsize=1)
 def load_crops() -> dict[str, Crop]:
-    """Read the 8 sourced crops from crops.json, keyed by code.
+    """Read the 8 sourced crops from crops.json plus the rough estimates, keyed by code.
 
     >>> load_crops()["tomato"].ref_life_hours
     168.0
+    >>> load_crops()["tomato"].estimate, load_crops()["wheat"].estimate
+    (False, True)
     """
     raw = json.loads(CROPS_JSON.read_text(encoding="utf-8"))
     crops: dict[str, Crop] = {}
@@ -58,6 +62,22 @@ def load_crops() -> dict[str, Crop]:
         )
     if len(crops) != EXPECTED_CROP_COUNT:
         raise ValueError(f"crops.json must hold exactly {EXPECTED_CROP_COUNT} crops, got {len(crops)}")
+
+    estimates = json.loads(ESTIMATES_JSON.read_text(encoding="utf-8"))
+    for row in estimates["crops"]:
+        if row["code"] in crops:
+            raise ValueError(f"estimates.json must not repeat a researched crop: {row['code']!r}")
+        crops[row["code"]] = Crop(
+            code=row["code"],
+            name_en=row["name_en"],
+            name_mr=row["name_mr"],
+            ref_temp_c=float(row["ref_temp_c"]),
+            ref_life_hours=float(row["ref_life_hours"]),
+            table_row="-",
+            storage_life_in_table=row["storage_life_in_table"],
+            source="FarmNex rough estimate (not researched)",
+            estimate=True,
+        )
     return crops
 
 

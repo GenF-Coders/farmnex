@@ -59,3 +59,41 @@ def component_crop(component: str, crop_name: str) -> str | None:
 def supported_crops(component: str) -> list[str]:
     """Main-app crop names (`crop_types.name`) that this component supports."""
     return [name for name, crops in CROP_MAP.items() if crops.get(component) is not None]
+
+
+# Crops without a researched Crop Rescue row get a rough shelf-life estimate (Crop Rescue's
+# estimates.json). These codes are only for the automatic spoilage timer on new listings; they don't
+# make a crop "supported" in CROP_MAP above.
+RESCUE_ESTIMATE_CODES: Final[dict[str, str]] = {
+    name.lower(): name.lower()
+    for name in (
+        "Onion", "Potato", "Carrot", "Mango", "Banana", "Sugarcane",
+        "Groundnut", "Rice", "Wheat", "Maize", "Cotton",
+    )
+}
+
+# crop_types.category (lowercase) -> fallback estimate code, for crops in neither list.
+_RESCUE_CATEGORY_CODES: Final[dict[str, str]] = {
+    "vegetable": "est_vegetable",
+    "fruit": "est_fruit",
+    "cereal": "est_grain",
+    "grain": "est_grain",
+    "pulse": "est_grain",
+    "oilseed": "est_grain",
+    "fiber": "est_grain",
+}
+
+
+def rescue_code(crop_name: str, category: str | None = None) -> str:
+    """The Crop Rescue crop code for a main-app crop. Never None: every crop gets a timer.
+
+    Researched code first (Tomato -> "tomato"), then a named estimate (Wheat -> "wheat"),
+    then an estimate by `crop_types.category`, and "est_other" if nothing matches.
+    """
+    researched = component_crop(CROP_RESCUE, crop_name)
+    if researched is not None:
+        return researched
+    named = RESCUE_ESTIMATE_CODES.get(crop_name.strip().lower())
+    if named is not None:
+        return named
+    return _RESCUE_CATEGORY_CODES.get((category or "").strip().lower(), "est_other")

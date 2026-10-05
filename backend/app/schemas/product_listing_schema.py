@@ -56,3 +56,7 @@ class ProductListingResponse(BaseModel):
     ends_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    # Only set by POST /product-listings: the Crop Rescue spoilage timer started for this lot,
+    # or a short reason why none was started.
+    rescue_lot_id: str | None = None
+    rescue_note: str | None = None
