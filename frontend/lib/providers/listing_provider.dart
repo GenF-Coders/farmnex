@@ -68,8 +68,9 @@ class ListingProvider extends ChangeNotifier {
         postalCode: postalCode,
       );
 
-  /// farm crop → crop batch → listing. Returns null on success, or a short error message.
-  Future<String?> addListing({
+  /// farm crop → crop batch → listing. `error` is null on success; then `rescueNote` says whether
+  /// Crop Rescue started a spoilage timer (null + `timerStarted`) or why not.
+  Future<({String? error, bool timerStarted, String? rescueNote})> addListing({
     required String farmId,
     required CropTypeModel cropType,
     required double price,
@@ -87,7 +88,7 @@ class ListingProvider extends ChangeNotifier {
         qualityGrade: grade,
         organic: isOrganic,
       );
-      await _api.create(
+      final created = await _api.create(
         farmId: farmId,
         cropBatchId: batchId,
         title: cropType.name,
@@ -98,9 +99,9 @@ class ListingProvider extends ChangeNotifier {
         unit: cropType.defaultUnit,
       );
       await load();
-      return null;
+      return (error: null, timerStarted: created.rescueLotId != null, rescueNote: created.rescueNote);
     } catch (e) {
-      return listingErrorMessage(e);
+      return (error: listingErrorMessage(e), timerStarted: false, rescueNote: null);
     }
   }
 

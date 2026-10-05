@@ -19,8 +19,10 @@ FAKE_URL = "postgresql+psycopg://user:pw@localhost:5432/none"
 
 
 def _fresh_app(monkeypatch, *, flag: bool = True, url: str | None = FAKE_URL) -> FastAPI:
-    from app.modules import wiring
+    from app.modules import crop_rescue_host, wiring
 
+    # mount() flips this module flag; monkeypatch puts it back after the test.
+    monkeypatch.setattr(crop_rescue_host, "_mounted", False)
     monkeypatch.setenv("ENABLE_CROP_RESCUE", "true" if flag else "false")
     if url is None:
         monkeypatch.delenv("CR_DATABASE_URL", raising=False)
@@ -174,6 +176,83 @@ async def test_check_is_staff_only(rescue, make_user, make_token):
     admin = await make_user("ADMIN")
     assert (await rescue.post("/api/v2/rescue/check", headers=_auth(make_token, farmer))).status_code == 403
     assert (await rescue.post("/api/v2/rescue/check", headers=_auth(make_token, admin))).status_code == 200
+
+
+async def _farm_with_crop(user, *, latitude=None, longitude=None) -> dict:
+    """A farm (optionally with a map point), a crop type and a farm crop owned by `user`."""
+    import uuid
+    from decimal import Decimal
+
+    from app.core.database import AsyncSessionLocal
+    from app.models.crop_type import CropType
+    from app.models.farm import Farm
+    from app.models.farm_crop import FarmCrop
+
+    async with AsyncSessionLocal() as session:
+        farm = Farm(
+            user_id=user.id, farm_name="Hadapsar farm", address_line_1="Road 1", state="Maharashtra",
+            postal_code="411028",
+            latitude=None if latitude is None else Decimal(str(latitude)),
+            longitude=None if longitude is None else Decimal(str(longitude)),
+        )
+        crop_type = CropType(name=f"Veg-{uuid.uuid4().hex[:8]}", category="Vegetable", default_unit="kg")
+        session.add_all([farm, crop_type])
+        await session.flush()
+        farm_crop = FarmCrop(farmer_id=user.id, farm_id=farm.id, crop_type_id=crop_type.id)
+        session.add(farm_crop)
+        await session.commit()
+        return {"farm_id": str(farm.public_id), "farm_crop_id": str(farm_crop.public_id)}
+
+
+async def _list_lot(client, headers, ids, **extra):
+    batch = await client.post(
+        "/api/v2/crop-batches", json={"farm_crop_id": ids["farm_crop_id"], "quantity": "5", "unit": "quintal"},
+        headers=headers,
+    )
+    assert batch.status_code == 201, batch.text
+    body = {
+        "farm_id": ids["farm_id"], "crop_batch_id": batch.json()["public_id"], "title": "Fresh veg",
+        "listing_type": "FIXED_PRICE", "price": "2400", "quantity": "5", "unit": "quintal", **extra,
+    }
+    response = await client.post("/api/v2/product-listings", json=body, headers=headers)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.mark.anyio
+async def test_new_listing_starts_a_timer_the_farmer_sees_in_crop_rescue(rescue, client, make_user, make_token):
+    farmer = await make_user("FARMER")
+    headers = _auth(make_token, farmer)
+    ids = await _farm_with_crop(farmer, latitude=18.5089, longitude=73.9260)
+
+    listing = await _list_lot(client, headers, ids)
+
+    assert listing["rescue_note"] is None
+    lots = (await rescue.get("/api/v2/rescue/lots", headers=headers)).json()
+    assert [lot["id"] for lot in lots] == [listing["rescue_lot_id"]]
+    lot = lots[0]
+    assert (lot["crop_code"], lot["quantity_kg"], lot["floor_price_per_kg"]) == ("est_vegetable", 500.0, 24.0)
+    assert lot["estimate"] is True and lot["remaining_hours"] > 0
+
+    other = await make_user("FARMER")
+    assert (await rescue.get("/api/v2/rescue/lots", headers=_auth(make_token, other))).json() == []
+
+
+@pytest.mark.anyio
+async def test_listing_without_farm_location_or_pre_bid_still_works_without_a_timer(
+    rescue, client, make_user, make_token
+):
+    farmer = await make_user("FARMER")
+    headers = _auth(make_token, farmer)
+
+    no_point = await _list_lot(client, headers, await _farm_with_crop(farmer))
+    assert no_point["rescue_lot_id"] is None
+    assert "farm location" in no_point["rescue_note"]
+
+    located = await _farm_with_crop(farmer, latitude=18.5089, longitude=73.9260)
+    pre_bid = await _list_lot(client, headers, located, listing_type="PRE_BID")
+    assert (pre_bid["rescue_lot_id"], pre_bid["rescue_note"]) == (None, None)
+    assert (await rescue.get("/api/v2/rescue/lots", headers=headers)).json() == []
 
 
 def test_simulate_is_off_by_default_and_hours_are_capped():

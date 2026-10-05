@@ -10,6 +10,7 @@ from app.api.dependencies.roles import require_roles
 from app.core.database import get_db
 from app.core.exceptions import AppException
 from app.models.user import User
+from app.modules import crop_rescue_host
 from app.repositories.product_listing_repository import ProductListingRepository
 from app.schemas.product_listing_schema import ProductListingCreate, ProductListingResponse, ProductListingUpdate
 from app.services.product_listing_service import ProductListingService
@@ -33,7 +34,12 @@ async def create(
 ) -> ProductListingResponse:
     try:
         entity = await service.create(payload.model_dump(exclude_unset=True), current_user)
-        return ProductListingResponse.model_validate(entity)
+        # Every normal lot gets a Crop Rescue spoilage timer; this never fails the listing.
+        rescue_lot_id, rescue_note = await crop_rescue_host.start_timer_for_listing(
+            entity, current_user, await service.crop_type_of(entity)
+        )
+        response = ProductListingResponse.model_validate(entity)
+        return response.model_copy(update={"rescue_lot_id": rescue_lot_id, "rescue_note": rescue_note})
     except AppException as exc:
         _raise_http(exc)
 

@@ -10,7 +10,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer
+
+from .core import shelf_life
 
 
 def _round1(value: float | None) -> float | None:
@@ -31,10 +33,11 @@ class CropOut(BaseModel):
     life_hours_at_35c: float
     source: str
     note: str | None = None
+    estimate: bool = False  # True = rough FarmNex estimate, not a researched shelf life
 
 
 class CropsOut(BaseModel):
-    """All 8 crops, labelled with the Q10 assumption used to compute them."""
+    """All crops (8 researched + rough estimates), labelled with the Q10 assumption used to compute them."""
 
     q10: float
     q10_note: str = (
@@ -115,6 +118,13 @@ class LotOut(BaseModel):
     def _round_remaining(self, value: float | None) -> float | None:
         """Serialize remaining hours to one decimal place, preserving None."""
         return _round1(value)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def estimate(self) -> bool:
+        """True when this crop's shelf life is a rough estimate, not a researched number."""
+        crop = shelf_life.load_crops().get(self.crop_code)
+        return crop is not None and crop.estimate
 
 
 class LotDetailOut(LotOut):

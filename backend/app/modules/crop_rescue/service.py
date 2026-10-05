@@ -45,7 +45,7 @@ def _notify(alert: repo.AlertRecord | None) -> None:
 
 
 def list_crops() -> list[dict]:
-    """The 8 crops with their life at 25/30/35 °C, for GET /rescue/crops."""
+    """The 8 researched crops plus the estimates, with their life at 25/30/35 °C, for GET /rescue/crops."""
     out = []
     for crop in shelf_life.load_crops().values():
         out.append(
@@ -60,6 +60,7 @@ def list_crops() -> list[dict]:
                 "life_hours_at_35c": round(shelf_life.crop_life_hours(crop, 35.0, settings.q10), 1),
                 "source": crop.source,
                 "note": crop.note,
+                "estimate": crop.estimate,
             }
         )
     return out

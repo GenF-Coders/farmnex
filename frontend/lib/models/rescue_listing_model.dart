@@ -12,11 +12,15 @@ class RescueCrop {
   final String nameMr;
   final double lifeHoursAt25c;
 
+  /// True when the shelf life is a rough FarmNex estimate, not a researched number.
+  final bool estimate;
+
   const RescueCrop({
     required this.code,
     required this.nameEn,
     required this.nameMr,
     required this.lifeHoursAt25c,
+    this.estimate = false,
   });
 
   factory RescueCrop.fromJson(Map<String, dynamic> json) => RescueCrop(
@@ -24,6 +28,7 @@ class RescueCrop {
         nameEn: json['name_en']?.toString() ?? '',
         nameMr: json['name_mr']?.toString() ?? '',
         lifeHoursAt25c: _num(json['life_hours_at_25c']),
+        estimate: json['estimate'] == true,
       );
 }
 
@@ -62,6 +67,9 @@ class RescueLot {
   final String status;
   final List<RescueCheck> checks;
 
+  /// True when this crop's shelf life is a rough estimate (crops without researched data).
+  final bool estimate;
+
   const RescueLot({
     required this.id,
     required this.cropCode,
@@ -73,6 +81,7 @@ class RescueLot {
     required this.spoilEta,
     required this.status,
     this.checks = const [],
+    this.estimate = false,
   });
 
   bool get isOpen => status == 'FRESH' || status == 'AT_RISK';
@@ -91,6 +100,7 @@ class RescueLot {
         checks: ((json['checks'] as List<dynamic>?) ?? const [])
             .map((e) => RescueCheck.fromJson(e as Map<String, dynamic>))
             .toList(),
+        estimate: json['estimate'] == true,
       );
 }
 
