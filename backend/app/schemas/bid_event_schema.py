@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
+
+from pydantic import AliasPath, AwareDatetime, BaseModel, ConfigDict, Field
+
+
+class BidEventCreate(BaseModel):
+    """What the app may send. The creator comes from the login; status and winner are set by the server."""
+
+    listing_id: UUID
+    starts_at: AwareDatetime  # must include a timezone, e.g. ...Z or +05:30
+    ends_at: AwareDatetime
+    starting_price: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    minimum_increment: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+
+
+class BidEventUpdate(BaseModel):
+    """Only these can change, and only while the event has no bids."""
+
+    starts_at: AwareDatetime | None = None
+    ends_at: AwareDatetime | None = None
+    starting_price: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+    minimum_increment: Decimal | None = Field(default=None, gt=0, max_digits=14, decimal_places=2)
+
+
+class BidEventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    public_id: UUID
+    listing_id: UUID = Field(validation_alias=AliasPath("listing", "public_id"))
+    starts_at: datetime
+    ends_at: datetime
+    starting_price: Decimal
+    minimum_increment: Decimal
+    status: str
+    # The accepted bid (public id), set by the server when the farmer accepts a bid (S19).
+    winner_bid_id: UUID | None = Field(default=None, validation_alias="winner_bid_public_id")
+    created_at: datetime
+    updated_at: datetime
