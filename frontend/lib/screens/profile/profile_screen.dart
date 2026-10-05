@@ -2,13 +2,11 @@ import '../../widgets/auto_translated_text.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
-import '../../models/buyer_model.dart';
 import '../../models/deal_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/dialogs/auth_dialog.dart';
 import '../../core/navigation/role_tabs.dart';
-import '../../localization/l10n_extension.dart';
 import '../../providers/logistics_provider.dart';
 import '../../providers/payment_provider.dart';
 import '../../widgets/dialogs/verification_dialog.dart';
@@ -61,39 +59,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ),
   ];
 
-  final List<BuyerBidItem> _buyerBids = [
-    const BuyerBidItem(
-      id: 'bb-1',
-      cropId: 'crop-1',
-      cropName: 'Sharbati Wheat - 100q',
-      cropImage: '🌾',
-      farmerName: 'Ramesh Patil (Indore)',
-      mandiLocation: 'Indore APMC',
-      myBidPrice: 2520,
-      highestBidPrice: 2520,
-      quantity: 100,
-      unit: 'Quintal',
-      status: 'winning',
-      harvestDate: '2 Days Left',
-      timestamp: 'Just now',
-    ),
-    const BuyerBidItem(
-      id: 'bb-2',
-      cropId: 'crop-2',
-      cropName: 'Yellow Soybean - 50q',
-      cropImage: '🌱',
-      farmerName: 'Balasaheb Shinde (Latur)',
-      mandiLocation: 'Latur Mandi',
-      myBidPrice: 4880,
-      highestBidPrice: 4920,
-      quantity: 50,
-      unit: 'Quintal',
-      status: 'outbid',
-      harvestDate: '6 Days Left',
-      timestamp: '25 mins ago',
-    ),
-  ];
-
   void _acceptDeal(int index) {
     setState(() {
       _deals[index] = _deals[index].copyWith(status: 'accepted');
@@ -123,7 +88,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isBuyer = role == UserRole.buyer;
     final isFarmer = role == UserRole.farmer;
     final isLogistics = role == UserRole.logistics;
-    final isAdmin = role == UserRole.admin;
 
     final activeTab = isBuyer
         ? (_activeTab.startsWith('buyer_') || _activeTab == 'kyc' ? _activeTab : 'buyer_bids')
