@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/symbol_widgets.dart';
+import 'verify_lots_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   final void Function(String tabId)? onNavigate;
@@ -152,6 +153,15 @@ class AdminDashboardScreen extends StatelessWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 10),
+        SymbolAction(
+          symbol: '🔍',
+          label: 'Verify lots (farmer photos)',
+          color: AppTheme.primaryGreen,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const AdminVerifyLotsScreen()),
+          ),
         ),
         const SizedBox(height: 20),
 

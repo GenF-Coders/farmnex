@@ -49,6 +49,15 @@ class ApiConfig {
   static const String cropBatchesEndpoint = '/api/v2/crop-batches';
   // <<< listing <<<
 
+  // >>> listing-media >>>
+  // Lot photos/videos (farmer adds, buyers view) and the admin "Verified by FarmNex" queue.
+  static String listingMediaEndpoint(String listingId) => '$productListingsEndpoint/$listingId/media';
+  static String listingMediaItemEndpoint(String listingId, String mediaId) =>
+      '${listingMediaEndpoint(listingId)}/$mediaId';
+  static const String listingVerificationsEndpoint = '/api/v2/admin/listing-verifications';
+  static String listingVerificationEndpoint(String listingId) => '$listingVerificationsEndpoint/$listingId';
+  // <<< listing-media <<<
+
   // >>> market >>>
   // The market reads productListingsEndpoint (listing section above); it has no URL of its own.
   // <<< market <<<

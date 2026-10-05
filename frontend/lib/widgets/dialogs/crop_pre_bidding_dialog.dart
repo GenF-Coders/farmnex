@@ -8,6 +8,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/bidding_provider.dart';
 import '../../localization/l10n_extension.dart';
+import '../listing_media_section.dart';
 import '../symbol_widgets.dart';
 
 /// Pre-bidding room for one lot (`crop.id` is the listing's public id).
@@ -270,6 +271,9 @@ class _CropPreBiddingDialogState extends State<CropPreBiddingDialog> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   _banner(),
+                  // The farmer's camera photos/videos and the FarmNex ✅ badge (owner can add more here too).
+                  ListingMediaSection(listingId: widget.crop.id, canEdit: isOwner),
+                  const SizedBox(height: 12),
                   if (bidding.isLoading) const LinearProgressIndicator(),
                   if (bidding.error != null)
                     Padding(
