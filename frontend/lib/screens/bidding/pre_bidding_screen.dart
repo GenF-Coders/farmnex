@@ -6,7 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/bidding_provider.dart';
 import '../../providers/market_provider.dart';
 import '../../widgets/dialogs/crop_pre_bidding_dialog.dart';
-import '../../widgets/crop_media_uploader.dart';
+import '../../widgets/listing_media_section.dart';
 
 class PreBiddingScreen extends StatefulWidget {
   const PreBiddingScreen({super.key});
@@ -232,8 +232,8 @@ class _PreBiddingScreenState extends State<PreBiddingScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    CropMediaGallery(cropId: crop.id),
-                    CropMediaUploader(cropId: crop.id, cropName: crop.name, farmerName: crop.farmerName),
+                    // Real photos/videos from the farmer's camera (added in My crops) + the FarmNex badge.
+                    ListingMediaSection(listingId: crop.id),
                     const SizedBox(height: 8),
 
                     Container(

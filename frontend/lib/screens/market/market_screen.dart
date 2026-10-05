@@ -151,6 +151,8 @@ class _MarketProductCard extends StatelessWidget {
           AspectRatio(aspectRatio: 1.55, child: Stack(fit: StackFit.expand, children: [
             Container(color: const Color(0xFFF6F8F3), padding: const EdgeInsets.all(8), child: CropPicture(cropName: crop.name, fallbackEmoji: crop.emoji, size: 200, borderRadius: BorderRadius.circular(10))),
             Positioned(left: 8, top: 8, child: _Tag(text: preBid ? 'Pre-bid' : crop.category, color: preBid ? AppTheme.accentAmber : AppTheme.primaryGreen)),
+            if (crop.verificationStatus == 'VERIFIED')
+              const Positioned(right: 8, top: 8, child: _Tag(text: '✅ Verified', color: AppTheme.primaryGreen)),
           ])),
           Expanded(
             child: Padding(

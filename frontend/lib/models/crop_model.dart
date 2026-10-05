@@ -33,6 +33,9 @@ class CropItem {
   final double rating;
   final int ratingCount;
 
+  /// "Verified by FarmNex" status of the lot's photos: NONE, PENDING, VERIFIED or REJECTED.
+  final String verificationStatus;
+
   const CropItem({
     required this.id,
     required this.name,
@@ -66,6 +69,7 @@ class CropItem {
     this.bidsCount = 0,
     this.rating = 4.5,
     this.ratingCount = 0,
+    this.verificationStatus = 'NONE',
   });
 
   CropItem copyWith({
@@ -101,6 +105,7 @@ class CropItem {
     int? bidsCount,
     double? rating,
     int? ratingCount,
+    String? verificationStatus,
   }) {
     return CropItem(
       id: id ?? this.id,
@@ -135,6 +140,7 @@ class CropItem {
       bidsCount: bidsCount ?? this.bidsCount,
       rating: rating ?? this.rating,
       ratingCount: ratingCount ?? this.ratingCount,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
     );
   }
 

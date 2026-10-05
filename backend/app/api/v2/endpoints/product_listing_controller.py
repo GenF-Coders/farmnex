@@ -7,12 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.current_user import get_current_user
 from app.api.dependencies.roles import require_roles
+from app.api.v2.endpoints.listing_media_controller import get_listing_media_service
 from app.core.database import get_db
 from app.core.exceptions import AppException
+from app.models.product_listing import ProductListing
 from app.models.user import User
 from app.modules import crop_rescue_host
 from app.repositories.product_listing_repository import ProductListingRepository
 from app.schemas.product_listing_schema import ProductListingCreate, ProductListingResponse, ProductListingUpdate
+from app.services.listing_media_service import ListingMediaService
 from app.services.product_listing_service import ProductListingService
 
 router = APIRouter(prefix="/product-listings", tags=["ProductListing"])
@@ -24,6 +27,17 @@ def get_product_listing_service(db: AsyncSession = Depends(get_db)) -> ProductLi
 
 def _raise_http(exc: AppException) -> None:
     raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+async def _with_badges(entities: list[ProductListing], media: ListingMediaService) -> list[ProductListingResponse]:
+    """Listing responses plus the "Verified by FarmNex" status and photo count (one query each)."""
+    statuses, counts = await media.badges([entity.id for entity in entities])
+    return [
+        ProductListingResponse.model_validate(entity).model_copy(
+            update={"verification_status": statuses.get(entity.id, "NONE"), "media_count": counts.get(entity.id, 0)}
+        )
+        for entity in entities
+    ]
 
 
 @router.post("", response_model=ProductListingResponse, status_code=status.HTTP_201_CREATED)
@@ -51,10 +65,11 @@ async def list_all(
     limit: int = Query(100, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     service: ProductListingService = Depends(get_product_listing_service),
+    media: ListingMediaService = Depends(get_listing_media_service),
 ) -> list[ProductListingResponse]:
     try:
         entities, _ = await service.list(current_user=current_user, only_mine=mine, offset=offset, limit=limit)
-        return [ProductListingResponse.model_validate(entity) for entity in entities]
+        return await _with_badges(entities, media)
     except AppException as exc:
         _raise_http(exc)
 
@@ -64,9 +79,10 @@ async def get_one(
     public_id: UUID,
     current_user: User = Depends(get_current_user),
     service: ProductListingService = Depends(get_product_listing_service),
+    media: ListingMediaService = Depends(get_listing_media_service),
 ) -> ProductListingResponse:
     try:
-        return ProductListingResponse.model_validate(await service.get(public_id, current_user))
+        return (await _with_badges([await service.get(public_id, current_user)], media))[0]
     except AppException as exc:
         _raise_http(exc)
 

@@ -154,6 +154,7 @@ class StorageService:
             "farm-files",
             "crop-images",
             "product-images",
+            "listing-media",
             "kyc-documents",
             "delivery-proof",
             "invoices",

@@ -67,6 +67,10 @@ class ListingModel {
   final String? rescueLotId;
   final String? rescueNote;
 
+  /// From GET: "Verified by FarmNex" status (NONE / PENDING / VERIFIED / REJECTED) and photo/video count.
+  final String verificationStatus;
+  final int mediaCount;
+
   const ListingModel({
     required this.publicId,
     required this.sellerId,
@@ -83,6 +87,8 @@ class ListingModel {
     required this.status,
     this.rescueLotId,
     this.rescueNote,
+    this.verificationStatus = 'NONE',
+    this.mediaCount = 0,
   });
 
   factory ListingModel.fromJson(Map<String, dynamic> json) => ListingModel(
@@ -101,6 +107,8 @@ class ListingModel {
         status: (json['status'] ?? '').toString(),
         rescueLotId: json['rescue_lot_id'] as String?,
         rescueNote: json['rescue_note'] as String?,
+        verificationStatus: (json['verification_status'] ?? 'NONE').toString(),
+        mediaCount: (json['media_count'] as num?)?.toInt() ?? 0,
       );
 
   /// The shape the existing screens already use. Fields the backend doesn't have yet
@@ -126,6 +134,7 @@ class ListingModel {
         grade: '',
         description: description ?? '',
         rating: 0,
+        verificationStatus: verificationStatus,
       );
 }
 

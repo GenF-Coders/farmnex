@@ -78,6 +78,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos and short videos of your crop so buyers and FarmNex can see it</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Speak to the FarmNex AI assistant</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

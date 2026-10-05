@@ -60,3 +60,7 @@ class ProductListingResponse(BaseModel):
     # or a short reason why none was started.
     rescue_lot_id: str | None = None
     rescue_note: str | None = None
+    # Set by GET (list and one): "Verified by FarmNex" status (NONE / PENDING / VERIFIED / REJECTED)
+    # and how many photos/videos the lot has.
+    verification_status: str | None = None
+    media_count: int | None = None

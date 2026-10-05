@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/crop_model.dart';
 import '../../models/listing_model.dart';
 import '../../providers/listing_provider.dart';
+import '../../widgets/listing_media_section.dart';
 import '../../widgets/symbol_widgets.dart';
 
 class MyCropsScreen extends StatefulWidget {
@@ -163,6 +164,8 @@ class _ListingTile extends StatelessWidget {
               StatusPill(symbol: statusSymbol, label: statusLabel, color: statusColor),
             ],
           ),
+          const SizedBox(height: 6),
+          VerificationBadge(status: crop.verificationStatus),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -184,10 +187,42 @@ class _ListingTile extends StatelessWidget {
                   tooltip: 'Close lot',
                   onTap: () => _closeLot(context, crop),
                 ),
+                _iconAction(
+                  symbol: '📷',
+                  tooltip: 'Photos & video',
+                  onTap: () => _openMedia(context, crop),
+                ),
               ],
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _openMedia(BuildContext context, CropItem crop) {
+    final listings = context.read<ListingProvider>();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AutoTranslatedText('📷 Photos & video • ${crop.name}',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+              const AutoTranslatedText(
+                'Buyers see these on your lot. FarmNex checks them and gives the ✅ Verified badge.',
+                style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+              ),
+              ListingMediaSection(listingId: crop.id, canEdit: true, onChanged: listings.load),
+            ],
+          ),
+        ),
       ),
     );
   }
