@@ -122,6 +122,12 @@ async def _upload(client, headers, listing_id, data=JPEG, content_type="image/jp
     )
 
 
+async def _seen(client, headers, listing_id) -> list[str]:
+    """The media ids an admin sees on the lot right now."""
+    media = (await client.get(f"{LISTINGS}/{listing_id}/media", headers=headers)).json()
+    return [item["public_id"] for item in media["items"]]
+
+
 async def test_farmer_adds_photo_and_video_and_buyer_sees_them(client, make_user, make_token, stored):
     farmer, buyer = await make_user("FARMER"), await make_user("BUYER")
     listing_id = await _listing(client, make_token, farmer)
@@ -176,7 +182,10 @@ async def test_admin_verifies_and_a_change_removes_the_badge(client, make_user, 
     queue = (await client.get(QUEUE, headers=admin_headers)).json()
     assert [row["listing_id"] for row in queue] == [listing_id]
 
-    decided = await client.post(f"{QUEUE}/{listing_id}", json={"decision": "VERIFIED"}, headers=admin_headers)
+    seen = await _seen(client, admin_headers, listing_id)
+    decided = await client.post(
+        f"{QUEUE}/{listing_id}", json={"decision": "VERIFIED", "reviewed_media_ids": seen}, headers=admin_headers
+    )
     assert decided.status_code == 200 and decided.json()["verification"]["status"] == "VERIFIED"
     card = (await client.get(f"{LISTINGS}/{listing_id}", headers=_auth(buyer, make_token))).json()
     assert (card["verification_status"], card["media_count"]) == ("VERIFIED", 1)
@@ -197,12 +206,18 @@ async def test_only_admins_decide_and_rejection_needs_a_reason(client, make_user
     for user in (farmer, await make_user("BUYER")):
         headers = _auth(user, make_token)
         assert (await client.get(QUEUE, headers=headers)).status_code == 403
-        assert (await client.post(f"{QUEUE}/{listing_id}", json={"decision": "VERIFIED"}, headers=headers)).status_code == 403
+        body = {"decision": "VERIFIED", "reviewed_media_ids": [str(uuid.uuid4())]}
+        assert (await client.post(f"{QUEUE}/{listing_id}", json=body, headers=headers)).status_code == 403
 
-    no_reason = await client.post(f"{QUEUE}/{listing_id}", json={"decision": "REJECTED"}, headers=admin_headers)
+    seen = await _seen(client, admin_headers, listing_id)
+    no_reason = await client.post(
+        f"{QUEUE}/{listing_id}", json={"decision": "REJECTED", "reviewed_media_ids": seen}, headers=admin_headers
+    )
     assert no_reason.status_code == 422
     rejected = await client.post(
-        f"{QUEUE}/{listing_id}", json={"decision": "REJECTED", "reason": "Photo is blurry"}, headers=admin_headers
+        f"{QUEUE}/{listing_id}",
+        json={"decision": "REJECTED", "reason": "Photo is blurry", "reviewed_media_ids": seen},
+        headers=admin_headers,
     )
     assert rejected.json()["verification"] == {**rejected.json()["verification"], "status": "REJECTED", "reason": "Photo is blurry"}
     farmer_view = (await client.get(f"{LISTINGS}/{listing_id}/media", headers=_auth(farmer, make_token))).json()
@@ -232,3 +247,21 @@ async def test_closed_listing_hides_media_from_others(client, make_user, make_to
 
     assert (await client.get(f"{LISTINGS}/{listing_id}/media", headers=_auth(buyer, make_token))).status_code == 404
     assert (await _upload(client, _auth(farmer, make_token), listing_id)).status_code == 409
+
+
+async def test_verify_is_refused_if_the_farmer_swapped_photos_meanwhile(client, make_user, make_token, stored):
+    farmer, admin = await make_user("FARMER"), await make_user("ADMIN")
+    listing_id = await _listing(client, make_token, farmer)
+    farmer_headers, admin_headers = _auth(farmer, make_token), _auth(admin, make_token)
+    await _upload(client, farmer_headers, listing_id)
+
+    seen = await _seen(client, admin_headers, listing_id)  # the admin looks at the good photo...
+    await client.delete(f"{LISTINGS}/{listing_id}/media/{seen[0]}", headers=farmer_headers)  # ...farmer swaps it
+    await _upload(client, farmer_headers, listing_id)
+
+    swapped = await client.post(
+        f"{QUEUE}/{listing_id}", json={"decision": "VERIFIED", "reviewed_media_ids": seen}, headers=admin_headers
+    )
+    assert swapped.status_code == 409
+    status = (await client.get(f"{LISTINGS}/{listing_id}/media", headers=admin_headers)).json()["verification"]
+    assert status["status"] == "PENDING"

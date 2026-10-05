@@ -17,10 +17,11 @@ class ListingMediaRepository:
     # --- listings -------------------------------------------------------------------
 
     async def get_listing_owned_by_user(self, listing_public_id: UUID, user_id: int) -> ProductListing | None:
+        """The seller's own listing, locked until the request ends, so two uploads at once can't beat the limits."""
         result = await self.db.execute(
-            select(ProductListing).where(
-                ProductListing.public_id == listing_public_id, ProductListing.seller_id == user_id
-            )
+            select(ProductListing)
+            .where(ProductListing.public_id == listing_public_id, ProductListing.seller_id == user_id)
+            .with_for_update()
         )
         return result.scalar_one_or_none()
 
@@ -34,8 +35,9 @@ class ListingMediaRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_listing(self, listing_public_id: UUID) -> ProductListing | None:
-        result = await self.db.execute(select(ProductListing).where(ProductListing.public_id == listing_public_id))
+    async def get_listing(self, listing_public_id: UUID, *, lock: bool = False) -> ProductListing | None:
+        query = select(ProductListing).where(ProductListing.public_id == listing_public_id)
+        result = await self.db.execute(query.with_for_update() if lock else query)
         return result.scalar_one_or_none()
 
     # --- media ----------------------------------------------------------------------

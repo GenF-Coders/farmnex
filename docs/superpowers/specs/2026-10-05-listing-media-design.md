@@ -21,7 +21,7 @@ their own eyes, and a FarmNex admin can check it and give the lot a **✅ Verifi
   content type, size, created_at.
 - `lv_listing_verifications`: one row per listing that has media — status PENDING / VERIFIED / REJECTED,
   reason, reviewer, reviewed_at.
-Created by `create_all` at startup; `backend/migrations/040_lv_listing_media.sql` creates them too and
+Created by `create_all` at startup; `backend/migrations/050_lv_listing_media.sql` creates them too and
 turns on row-level security (run by hand in Supabase).
 
 ## API (all need login)
@@ -31,7 +31,7 @@ turns on row-level security (run by hand in Supabase).
 | `GET /api/v2/product-listings/{id}/media` | anyone who can see the listing | items with 15-minute signed links + verification status |
 | `DELETE /api/v2/product-listings/{id}/media/{media_id}` | the listing's seller | removes row + file; PENDING again (or no status if no media left) |
 | `GET /api/v2/admin/listing-verifications?status=PENDING` | ADMIN, SUPER_ADMIN | lots waiting for review |
-| `POST /api/v2/admin/listing-verifications/{id}` `{decision, reason}` | ADMIN, SUPER_ADMIN | VERIFIED or REJECTED (reason required) |
+| `POST /api/v2/admin/listing-verifications/{id}` `{decision, reason, reviewed_media_ids}` | ADMIN, SUPER_ADMIN | VERIFIED or REJECTED (reason required); 409 if the media changed since the admin looked |
 
 Listing responses gain optional `verification_status` and `media_count` (for the Market badge).
 Not your listing → 404. Files live in the private bucket under `listing-media/`.

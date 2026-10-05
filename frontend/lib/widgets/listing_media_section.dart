@@ -47,7 +47,16 @@ class ListingMediaSection extends StatefulWidget {
   /// Called after the farmer adds or deletes something (e.g. to refresh a list).
   final VoidCallback? onChanged;
 
-  const ListingMediaSection({super.key, required this.listingId, this.canEdit = false, this.onChanged});
+  /// Called with what is on screen each time it loads (the admin sends these ids with a decision).
+  final ValueChanged<ListingMedia>? onLoaded;
+
+  const ListingMediaSection({
+    super.key,
+    required this.listingId,
+    this.canEdit = false,
+    this.onChanged,
+    this.onLoaded,
+  });
 
   @override
   State<ListingMediaSection> createState() => _ListingMediaSectionState();
@@ -73,6 +82,7 @@ class _ListingMediaSectionState extends State<ListingMediaSection> {
           _media = media;
           _error = null;
         });
+        widget.onLoaded?.call(media);
       }
     } catch (e) {
       if (mounted) setState(() => _error = listingErrorMessage(e));

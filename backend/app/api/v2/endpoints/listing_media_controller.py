@@ -84,7 +84,7 @@ async def add_media(
     current_user: User = Depends(require_roles("FARMER", "VENDOR")),
     service: ListingMediaService = Depends(get_listing_media_service),
 ) -> ListingMediaResponse:
-    # Read at most one byte over the limit, so a huge upload is refused without holding it all.
+    # Read at most one byte over the limit: enough for the 10 MB check in the service.
     file_bytes = await file.read(settings.storage_max_upload_size_bytes + 1)
     try:
         overview = await service.add(
@@ -139,7 +139,10 @@ async def decide_verification(
     service: ListingMediaService = Depends(get_listing_media_service),
 ) -> ListingMediaResponse:
     try:
-        overview = await service.decide(listing_id, current_user, decision=payload.decision, reason=payload.reason)
+        overview = await service.decide(
+            listing_id, current_user, decision=payload.decision, reason=payload.reason,
+            reviewed_media_ids=payload.reviewed_media_ids,
+        )
         return _response(overview)
     except AppException as exc:
         _raise_http(exc)

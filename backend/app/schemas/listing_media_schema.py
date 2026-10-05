@@ -40,6 +40,8 @@ class VerificationDecision(BaseModel):
 
     decision: Literal["VERIFIED", "REJECTED"]
     reason: str | None = Field(default=None, max_length=500)
+    # The photos/videos the admin looked at; if the lot's media changed since, the decision is refused (409).
+    reviewed_media_ids: list[UUID] = Field(min_length=1, max_length=20)
 
 
 class VerificationQueueItem(BaseModel):

@@ -49,10 +49,20 @@ class ListingMediaApi {
   }
 
   /// Admin only: `VERIFIED`, or `REJECTED` with a reason the farmer will see.
-  Future<ListingMedia> decide(String listingId, {required String decision, String? reason}) async {
+  /// `reviewedMediaIds` = the photos/videos the admin looked at; the server refuses (409) if they changed.
+  Future<ListingMedia> decide(
+    String listingId, {
+    required String decision,
+    required List<String> reviewedMediaIds,
+    String? reason,
+  }) async {
     final response = await _dio.post<dynamic>(
       ApiConfig.listingVerificationEndpoint(listingId),
-      data: {'decision': decision, if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()},
+      data: {
+        'decision': decision,
+        'reviewed_media_ids': reviewedMediaIds,
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
     );
     return ListingMedia.fromJson(response.data as Map<String, dynamic>);
   }

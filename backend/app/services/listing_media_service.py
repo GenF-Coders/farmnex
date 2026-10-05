@@ -164,12 +164,19 @@ class ListingMediaService:
         counts = await self.repository.media_counts([listing.id for _, listing in rows])
         return [(verification, listing, counts.get(listing.id, 0)) for verification, listing in rows]
 
-    async def decide(self, listing_public_id: UUID, reviewer: User, *, decision: str, reason: str | None) -> MediaOverview:
-        listing = await self.repository.get_listing(listing_public_id)
+    async def decide(
+        self, listing_public_id: UUID, reviewer: User, *, decision: str, reason: str | None, reviewed_media_ids: list[UUID]
+    ) -> MediaOverview:
+        # Locked so the farmer can't add or delete media between this check and the decision.
+        listing = await self.repository.get_listing(listing_public_id, lock=True)
         if listing is None:
             raise NotFoundError("ProductListing not found.")
-        if not await self.repository.list_media(listing.id):
+        media = await self.repository.list_media(listing.id)
+        if not media:
             raise ConflictError("This lot has no photos or videos to verify.")
+        # The decision only counts for the exact photos/videos the admin looked at.
+        if {m.public_id for m in media} != set(reviewed_media_ids):
+            raise ConflictError("The farmer changed the photos while you were checking. Please look again.")
         reason = (reason or "").strip() or None
         if decision == "REJECTED" and reason is None:
             raise ValidationError("Please give the farmer a reason for the rejection.")

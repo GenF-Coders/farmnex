@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/network/listing_api.dart' show listingErrorMessage;
@@ -20,6 +21,12 @@ class _AdminVerifyLotsScreenState extends State<AdminVerifyLotsScreen> {
   List<VerificationQueueItem>? _queue;
   String? _error;
 
+  /// listing id -> the media ids shown on screen for it (sent with the decision).
+  final Map<String, List<String>> _seen = {};
+
+  /// Bumped to rebuild the photo sections after a refresh.
+  int _round = 0;
+
   @override
   void initState() {
     super.initState();
@@ -30,7 +37,13 @@ class _AdminVerifyLotsScreenState extends State<AdminVerifyLotsScreen> {
     setState(() => _error = null);
     try {
       final queue = await _api.queue();
-      if (mounted) setState(() => _queue = queue);
+      if (mounted) {
+        setState(() {
+          _queue = queue;
+          _seen.clear();
+          _round++;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = listingErrorMessage(e));
     }
@@ -38,20 +51,36 @@ class _AdminVerifyLotsScreenState extends State<AdminVerifyLotsScreen> {
 
   Future<void> _decide(VerificationQueueItem lot, {required bool verify}) async {
     final messenger = ScaffoldMessenger.of(context);
+    final seen = _seen[lot.listingId];
+    if (seen == null || seen.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: AutoTranslatedText('⏳ Wait for the photos to load first.')));
+      return;
+    }
     String? reason;
     if (!verify) {
       reason = await _askReason();
       if (reason == null) return; // cancelled
     }
     try {
-      await _api.decide(lot.listingId, decision: verify ? 'VERIFIED' : 'REJECTED', reason: reason);
+      await _api.decide(
+        lot.listingId,
+        decision: verify ? 'VERIFIED' : 'REJECTED',
+        reviewedMediaIds: seen,
+        reason: reason,
+      );
       messenger.showSnackBar(SnackBar(
         content: AutoTranslatedText(verify ? '✅ ${lot.title} verified.' : '❌ ${lot.title} rejected. The farmer sees why.'),
         backgroundColor: verify ? AppTheme.primaryGreen : null,
       ));
       await _load();
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: AutoTranslatedText('⚠️ ${listingErrorMessage(e)}')));
+      final changed = e is DioException && e.response?.statusCode == 409;
+      messenger.showSnackBar(SnackBar(
+        content: AutoTranslatedText(
+          changed ? '🔄 The farmer changed the photos. Look again, then decide.' : '⚠️ ${listingErrorMessage(e)}',
+        ),
+      ));
+      if (changed) await _load();
     }
   }
 
@@ -119,7 +148,11 @@ class _AdminVerifyLotsScreenState extends State<AdminVerifyLotsScreen> {
                   '${lot.listingType == 'PRE_BID' ? '⚖️ Pre-bid' : '🛒 Fixed price'} • ₹${lot.price.round()}/${lot.unit} • ${lot.mediaCount} file(s)',
                   style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
                 ),
-                ListingMediaSection(listingId: lot.listingId),
+                ListingMediaSection(
+                  key: ValueKey('${lot.listingId}-$_round'),
+                  listingId: lot.listingId,
+                  onLoaded: (media) => _seen[lot.listingId] = [for (final item in media.items) item.id],
+                ),
                 const SizedBox(height: 8),
                 Row(children: [
                   Expanded(
