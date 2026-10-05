@@ -295,11 +295,11 @@ class _AuthDialogState extends State<AuthDialog> {
         const AutoTranslatedText('I am a', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textDark)),
         const SizedBox(height: 8),
         Row(children: [
-          _roleTile(UserRole.farmer, 'Farmer', '🧑‍🌾'),
+          _roleTile(UserRole.farmer, 'Farmer', Icons.agriculture_rounded),
           const SizedBox(width: 8),
-          _roleTile(UserRole.buyer, 'Buyer', '🛒'),
+          _roleTile(UserRole.buyer, 'Buyer', Icons.shopping_cart_rounded),
           const SizedBox(width: 8),
-          _roleTile(UserRole.logistics, 'Driver', '🚚'),
+          _roleTile(UserRole.logistics, 'Driver', Icons.local_shipping_rounded),
         ]),
         const SizedBox(height: 14),
         _field(_name, 'Name', Icons.person_outline_rounded, action: TextInputAction.next),
@@ -406,7 +406,9 @@ class _AuthDialogState extends State<AuthDialog> {
     );
   }
 
-  Widget _roleTile(UserRole r, String label, String emoji) {
+  // Material icons, not emoji: they ship with the app, so they always show (some phones and
+  // browsers drew the 🚚 emoji as an empty box).
+  Widget _roleTile(UserRole r, String label, IconData icon) {
     final selected = _role == r;
     return Expanded(
       child: InkWell(
@@ -421,7 +423,7 @@ class _AuthDialogState extends State<AuthDialog> {
             border: Border.all(color: selected ? AppTheme.primaryGreen : AppTheme.borderLight, width: selected ? 2 : 1),
           ),
           child: Column(children: [
-            AutoTranslatedText(emoji, style: const TextStyle(fontSize: 26)),
+            Icon(icon, size: 30, color: selected ? AppTheme.primaryGreen : AppTheme.textDark),
             const SizedBox(height: 4),
             FittedBox(
               child: AutoTranslatedText(label,
